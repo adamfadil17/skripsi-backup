@@ -21,25 +21,19 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import Image from 'next/image';
-
-export interface Workspace {
-  id: string;
-  title: string;
-  documentCount: number;
-  imageUrl: string;
-  type: string;
-}
+import { Workspace } from '@/types/types';
 
 export interface WorkspaceOrganizerProps {
   workspaces: Workspace[];
-  isAdmin: boolean;
+  isSuperAdmin: boolean;
   viewMode: 'grid' | 'list';
 }
+
 const ITEMS_PER_PAGE = 6;
 
 const WorkspaceOrganizer = ({
   workspaces,
-  isAdmin,
+  isSuperAdmin,
   viewMode: initialViewMode = 'grid',
 }: WorkspaceOrganizerProps) => {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>(initialViewMode);
@@ -56,12 +50,16 @@ const WorkspaceOrganizer = ({
         <div className="flex items-center justify-between rounded-lg border p-4">
           <div className="flex items-center gap-4">
             <img
-              src={workspace.imageUrl || '/placeholder.svg?height=64&width=64'}
-              alt={workspace.title}
+              src={
+                workspace.coverImage || '/placeholder.svg?height=64&width=64'
+              }
+              alt={workspace.name}
               className="h-16 w-16 rounded-lg object-cover"
             />
             <div>
-              <h3 className="font-semibold">{workspace.title}</h3>
+              <h3 className="font-semibold">
+                {workspace.emoji} {workspace.name}
+              </h3>
               <div className="flex items-center gap-2">
                 <FileText className="w-4 h-4 text-gray-500" />
                 <p className="text-sm text-muted-foreground">
@@ -71,7 +69,7 @@ const WorkspaceOrganizer = ({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {isAdmin && (
+            {isSuperAdmin && (
               <>
                 <TooltipProvider>
                   <Tooltip>
@@ -124,9 +122,9 @@ const WorkspaceOrganizer = ({
           <div className="relative">
             <img
               src={
-                workspace.imageUrl || '/placeholder.svg?height=144&width=384'
+                workspace.coverImage || '/placeholder.svg?height=144&width=384'
               }
-              alt={workspace.title}
+              alt={workspace.name}
               className="h-36 w-full object-cover rounded-t"
             />
           </div>
@@ -135,7 +133,9 @@ const WorkspaceOrganizer = ({
           <div className="flex justify-between items-start">
             <div>
               <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                <span>{workspace.title}</span>
+                <span>
+                  {workspace.emoji} {workspace.name}
+                </span>
               </CardTitle>
               <p className="text-sm text-muted-foreground flex items-center gap-2 mt-1">
                 <FileText className="w-4 h-4" /> {workspace.documentCount}{' '}
@@ -143,7 +143,7 @@ const WorkspaceOrganizer = ({
               </p>
             </div>
             <div className="flex gap-2">
-              {isAdmin && (
+              {isSuperAdmin && (
                 <>
                   <TooltipProvider>
                     <Tooltip>
