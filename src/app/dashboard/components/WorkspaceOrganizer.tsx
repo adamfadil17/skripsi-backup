@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/tooltip';
 import Image from 'next/image';
 import { Workspace } from '@/types/types';
+import { useRouter } from 'next/navigation';
 
 export interface WorkspaceOrganizerProps {
   workspaces: Workspace[];
@@ -38,16 +39,24 @@ const WorkspaceOrganizer = ({
 }: WorkspaceOrganizerProps) => {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>(initialViewMode);
   const [currentPage, setCurrentPage] = useState(1);
+  const router = useRouter();
 
   const totalPages = Math.ceil(workspaces.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const endIndex = startIndex + ITEMS_PER_PAGE;
   const currentWorkspaces = workspaces.slice(startIndex, endIndex);
 
+  const handleOpenWorkspace = (workspaceId: string) => {
+    router.push(`/workspace/${workspaceId}`);
+  };
+
   const WorkspaceItem = ({ workspace }: { workspace: Workspace }) => {
     if (viewMode === 'list') {
       return (
-        <div className="flex items-center justify-between rounded-lg border p-4">
+        <div
+          className="flex items-center justify-between rounded-lg border p-4 cursor-pointer hover:bg-muted/50 transition-colors"
+          onClick={() => handleOpenWorkspace(workspace.id)}
+        >
           <div className="flex items-center gap-4">
             <img
               src={
@@ -117,7 +126,10 @@ const WorkspaceOrganizer = ({
     }
 
     return (
-      <Card className="border shadow">
+      <Card
+        className="border shadow cursor-pointer hover:shadow-lg transition-all"
+        onClick={() => handleOpenWorkspace(workspace.id)}
+      >
         <CardHeader className="p-0">
           <div className="relative">
             <img
