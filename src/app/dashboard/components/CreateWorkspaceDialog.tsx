@@ -12,9 +12,9 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { LuSmilePlus } from 'react-icons/lu';
-import { CoverPickerPopover } from './CoverPickerPopover';
+import CoverPickerPopover from '@/components/shared/CoverPickerPopover';
 import Image from 'next/image';
-import { EmojiPickerPopover } from './EmojiPickerPopover';
+import EmojiPickerPopover from '@/components/shared/EmojiPickerPopover';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
@@ -26,6 +26,8 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import axios from 'axios';
+import { useRouter } from 'next/navigation';
 
 const formSchema = z.object({
   workspaceName: z
@@ -40,10 +42,10 @@ interface CreateWorkspaceDialogProps {
   children: ReactNode;
 }
 
-export const CreateWorkspaceDialog = ({
-  children,
-}: CreateWorkspaceDialogProps) => {
+const CreateWorkspaceDialog = ({ children }: CreateWorkspaceDialogProps) => {
   const [open, setOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const router = useRouter();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -59,9 +61,35 @@ export const CreateWorkspaceDialog = ({
     form.reset();
   };
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    console.log(values);
-    // Handle form submission here
+  // function onSubmit(values: z.infer<typeof formSchema>) {
+  //   console.log(values);
+  //   // Handle form submission here
+  // }
+
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    try {
+      setIsSubmitting(true);
+
+      const response = await axios.post('/api/workspaces', {
+        name: values.workspaceName,
+        emoji: values.emoji,
+        coverImage: values.coverImage,
+      });
+
+      console.log('Workspace created:', response.data);
+
+      handleCancel();
+      router.refresh(); // Refresh to reflect new workspace
+    } catch (error: any) {
+      console.error('Error creating workspace:', error);
+      if (error?.response?.status === 400) {
+        form.setError('workspaceName', {
+          message: 'Workspace name already exists.',
+        });
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -177,3 +205,5 @@ export const CreateWorkspaceDialog = ({
     </Dialog>
   );
 };
+
+export default CreateWorkspaceDialog;

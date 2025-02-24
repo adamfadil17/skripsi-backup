@@ -1,8 +1,8 @@
 import React from 'react';
 import { getCurrentUser } from '../actions/getCurrentUser';
-import { WorkspaceOrganizer } from '@/components/shared/WorkspaceOrganizer';
+import WorkspaceOrganizer from './components/WorkspaceOrganizer';
 import { dummyWorkspaces } from '@/lib/workspacedata';
-import { Banner } from '@/components/shared/Banner';
+import Banner from './components/Banner';
 
 const IS_ADMIN = true;
 const Dashboard = async () => {

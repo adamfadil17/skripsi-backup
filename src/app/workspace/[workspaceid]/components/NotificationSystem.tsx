@@ -65,7 +65,7 @@ interface NotificationSystemProps {
   trigger?: React.ReactNode;
 }
 
-export const NotificationSystem = ({ trigger }: NotificationSystemProps) => {
+const NotificationSystem = ({ trigger }: NotificationSystemProps) => {
   const [notifications, setNotifications] =
     useState<Notification[]>(MOCK_NOTIFICATIONS);
   const [filter, setFilter] = useState<NotificationType | 'all'>('all');
@@ -178,3 +178,5 @@ export const NotificationSystem = ({ trigger }: NotificationSystemProps) => {
     </Popover>
   );
 };
+
+export default NotificationSystem;

@@ -5,7 +5,7 @@ import { HiOutlineLogout } from 'react-icons/hi';
 import { DropdownMenuItem } from '../ui/dropdown-menu';
 import { useRouter } from 'next/navigation';
 
-export const SignOutButton = () => {
+ const SignOutButton = () => {
   const route = useRouter();
   const handleSignOut = async () => {
     await signOut({ redirect: false });
@@ -22,3 +22,5 @@ export const SignOutButton = () => {
     </DropdownMenuItem>
   );
 };
+
+export default SignOutButton;

@@ -10,7 +10,7 @@ import CodeTool from '@editorjs/code';
 import ImageTool from '@editorjs/image';
 // import LinkTool from '@editorjs/link';
 
-export const DocumentNoteEditor = () => {
+const DocumentNoteEditor = () => {
   const editorRef = useRef<EditorJS | null>(null);
   const [editorData, setEditorData] = useState<any>(null);
 
@@ -76,3 +76,5 @@ export const DocumentNoteEditor = () => {
 
   return <div id="editorjs" className="flex w-full flex-1"></div>;
 };
+
+export default DocumentNoteEditor;

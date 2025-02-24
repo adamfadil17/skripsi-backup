@@ -30,12 +30,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { EmojiPickerPopover } from './EmojiPickerPopover';
+import EmojiPickerPopover from '@/components/shared/EmojiPickerPopover';
 import { LuSmilePlus } from 'react-icons/lu';
 import { GrGroup } from 'react-icons/gr';
-import { Badge } from '../ui/badge';
+import { Badge } from '@/components/ui/badge';
 import Image from 'next/image';
-import { CoverPickerPopover } from './CoverPickerPopover';
+import CoverPickerPopover from '@/components/shared/CoverPickerPopover';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -46,8 +46,8 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from '../ui/form';
-import { InviteForm } from './InviteForm';
+} from '@/components/ui/form';
+import InviteForm from './InviteForm';
 
 interface Member {
   email: string;
@@ -75,7 +75,7 @@ interface WorkspaceSettingsDialogProps {
   children: ReactNode;
 }
 
-export const WorkspaceSettingsDialog = ({
+const WorkspaceSettingsDialog = ({
   openType,
   children,
 }: WorkspaceSettingsDialogProps) => {
@@ -466,7 +466,10 @@ export const WorkspaceSettingsDialog = ({
                             </div>
                             <div className="text-sm">{item.date}</div>
                             <div>
-                              <Select defaultValue={item.role}>
+                              <Select
+                                defaultValue={item.role}
+                                disabled={activeTab === 'invitations'}
+                              >
                                 <SelectTrigger className="h-8">
                                   <SelectValue />
                                 </SelectTrigger>
@@ -539,3 +542,5 @@ export const WorkspaceSettingsDialog = ({
     </Dialog>
   );
 };
+
+export default WorkspaceSettingsDialog;

@@ -1,16 +1,19 @@
 // 'use client';
 import { User } from '@prisma/client';
 import React from 'react';
-import { Avatar } from './Avatar';
-import { DropdownMenu, DropdownMenuContent } from '../ui/dropdown-menu';
+import Avatar from '@/components/shared/Avatar';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+} from '@/components/ui/dropdown-menu';
 import { DropdownMenuTrigger } from '@radix-ui/react-dropdown-menu';
-import { SignOutButton } from './SignOutButton';
+import SignOutButton from '@/components/shared/SignOutButton';
 
 interface TopbarWorkspaceProps {
   currentUser: User;
 }
 
-export const TopbarWorkspace = ({ currentUser }: TopbarWorkspaceProps) => {
+const TopbarWorkspace = ({ currentUser }: TopbarWorkspaceProps) => {
   return (
     <div className="sticky top-0 z-30 flex w-full h-[70px] items-center justify-end bg-white px-6 shadow-md">
       <DropdownMenu>
@@ -27,3 +30,5 @@ export const TopbarWorkspace = ({ currentUser }: TopbarWorkspaceProps) => {
     </div>
   );
 };
+
+export default TopbarWorkspace;

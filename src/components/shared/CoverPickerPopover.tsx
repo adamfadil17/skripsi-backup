@@ -16,7 +16,7 @@ interface CoverPickerPopoverProps {
   setCover: (coverUrl: string) => void;
 }
 
-export const CoverPickerPopover = ({
+const CoverPickerPopover = ({
   currentCover,
   setCover,
   children,
@@ -82,3 +82,5 @@ export const CoverPickerPopover = ({
     </Popover>
   );
 };
+
+export default CoverPickerPopover;

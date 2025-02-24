@@ -1,18 +1,18 @@
 'use client';
 import React, { useCallback, useEffect, useState } from 'react';
 import { FieldValues, SubmitHandler, useForm } from 'react-hook-form';
-import { Button } from './Button';
-import { AuthSocialButton } from './AuthSocialButton';
+import Button from './Button';
+import AuthSocialButton from './AuthSocialButton';
 import { FcGoogle } from 'react-icons/fc';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { signIn, useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { Input } from './Input';
+import Input from './Input';
 
 type Variant = 'LOGIN' | 'REGISTER';
 
-export const AuthForm = () => {
+const AuthForm = () => {
   const session = useSession();
   const router = useRouter();
   const [variant, setVariant] = useState<Variant>('LOGIN');
@@ -161,3 +161,5 @@ export const AuthForm = () => {
     </div>
   );
 };
+
+export default AuthForm;

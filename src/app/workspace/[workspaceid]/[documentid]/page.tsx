@@ -1,5 +1,5 @@
-import { DocumentHeader } from '@/components/shared/DocumentHeader';
-import { DocumentNoteEditor } from '@/components/shared/DocumentNoteEditor';
+import DocumentHeader from './components/DocumentHeader';
+import DocumentNoteEditor from './components/DocumentNoteEditor';
 import React from 'react';
 
 const DocumentPage = () => {

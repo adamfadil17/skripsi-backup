@@ -3,21 +3,21 @@ import { User } from '@prisma/client';
 import Image from 'next/image';
 import Link from 'next/link';
 import React from 'react';
-import { Avatar } from './Avatar';
+import Avatar from '@/components/shared/Avatar';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-} from '../ui/dropdown-menu';
+} from '@/components/ui/dropdown-menu';
 import { DropdownMenuTrigger } from '@radix-ui/react-dropdown-menu';
-import { SignOutButton } from './SignOutButton';
+import SignOutButton from '@/components/shared/SignOutButton';
 import { signOut } from 'next-auth/react';
 
 interface TopbarProps {
   currentUser: User;
 }
 
-export const Topbar = ({ currentUser }: TopbarProps) => {
+const Topbar = ({ currentUser }: TopbarProps) => {
   return (
     <div className="sticky top-0 z-30 flex w-full h-[70px] items-center justify-between bg-white px-6 md:px-32 shadow-md">
       <Link href="/" className="flex items-center gap-4">
@@ -41,3 +41,5 @@ export const Topbar = ({ currentUser }: TopbarProps) => {
     </div>
   );
 };
+
+export default Topbar;

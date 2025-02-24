@@ -33,7 +33,7 @@ interface InviteFormProps {
   onCancel: () => void;
 }
 
-export function InviteForm({ onSubmit, onCancel }: InviteFormProps) {
+function InviteForm({ onSubmit, onCancel }: InviteFormProps) {
   const form = useForm<InviteFormValues>({
     resolver: zodResolver(inviteFormSchema),
     defaultValues: {
@@ -101,3 +101,5 @@ export function InviteForm({ onSubmit, onCancel }: InviteFormProps) {
     </Form>
   );
 }
+
+export default InviteForm;

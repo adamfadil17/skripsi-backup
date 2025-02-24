@@ -13,7 +13,7 @@ interface ButtonProps {
   disabled?: boolean;
 }
 
-export const Button = ({
+const Button = ({
   type,
   fullWidth,
   children,
@@ -43,3 +43,5 @@ export const Button = ({
     </button>
   );
 };
+
+export default Button;

@@ -22,7 +22,7 @@ interface CoverPickerDialogProps {
   setCover: (coverUrl: string) => void;
 }
 
-export const CoverPickerDialog = ({
+const CoverPickerDialog = ({
   currentCover,
   setCover,
   children,
@@ -87,3 +87,5 @@ export const CoverPickerDialog = ({
     </Dialog>
   );
 };
+
+export default CoverPickerDialog;

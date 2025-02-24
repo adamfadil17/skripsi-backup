@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FaPlus } from 'react-icons/fa6';
 import { Edit, FileText, LayoutGrid, List, Pencil, Trash2 } from 'lucide-react';
-import { CreateWorkspaceDialog } from './CreateWorkspaceDialog';
+import CreateWorkspaceDialog from './CreateWorkspaceDialog';
 import {
   Pagination,
   PaginationContent,
@@ -13,13 +13,13 @@ import {
   PaginationLink,
   PaginationNext,
   PaginationPrevious,
-} from '../ui/pagination';
+} from '@/components/ui/pagination';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '../ui/tooltip';
+} from '@/components/ui/tooltip';
 import Image from 'next/image';
 
 export interface Workspace {
@@ -37,7 +37,7 @@ export interface WorkspaceOrganizerProps {
 }
 const ITEMS_PER_PAGE = 6;
 
-export const WorkspaceOrganizer = ({
+const WorkspaceOrganizer = ({
   workspaces,
   isAdmin,
   viewMode: initialViewMode = 'grid',
@@ -335,3 +335,5 @@ export const WorkspaceOrganizer = ({
     </div>
   );
 };
+
+export default WorkspaceOrganizer;

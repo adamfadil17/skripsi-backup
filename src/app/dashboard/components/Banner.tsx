@@ -9,7 +9,7 @@ import Image from 'next/image';
 interface BannerProps {
   currentUser: User;
 }
-export const Banner = ({ currentUser }: BannerProps) => {
+const Banner = ({ currentUser }: BannerProps) => {
   return (
     <Card
       className="relative overflow-hidden border-0"
@@ -41,3 +41,5 @@ export const Banner = ({ currentUser }: BannerProps) => {
     </Card>
   );
 };
+
+export default Banner;

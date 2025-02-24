@@ -14,7 +14,7 @@ interface EmojiPickerPopoverProps {
   setEmoji: (emoji: string) => void;
 }
 
-export const EmojiPickerPopover = ({
+const EmojiPickerPopover = ({
   type,
   children,
   setEmoji,
@@ -37,3 +37,5 @@ export const EmojiPickerPopover = ({
     </Popover>
   );
 };
+
+export default EmojiPickerPopover;

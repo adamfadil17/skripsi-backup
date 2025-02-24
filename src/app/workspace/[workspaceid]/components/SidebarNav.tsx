@@ -16,23 +16,23 @@ import {
   SidebarGroupContent,
 } from '@/components/ui/sidebar';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Separator } from '../ui/separator';
+import { Separator } from '@/components/ui/separator';
 import Image from 'next/image';
 import { FaPlus } from 'react-icons/fa6';
 import { SiGooglemeet } from 'react-icons/si';
 import { GrGroup } from 'react-icons/gr';
 import { MdManageAccounts } from 'react-icons/md';
 import { LuNotebookPen, LuNotebookTabs } from 'react-icons/lu';
-import { MeetingDialog } from './MeetingDialog';
-import { WorkspaceSettingsDialog } from './WorkspaceSettingsDialog';
+import MeetingDialog from './MeetingDialog';
+import WorkspaceSettingsDialog from './WorkspaceSettingsDialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '../ui/dropdown-menu';
-import { NotificationSystem } from './NotificationSystem';
-import { ScrollArea } from '../ui/scroll-area';
+} from '@/components/ui/dropdown-menu';
+import NotificationSystem from './NotificationSystem';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const accounts = [
   {
@@ -71,7 +71,7 @@ const datasets = [
   'Document 6',
 ];
 
-export const SidebarNav = () => {
+const SidebarNav = () => {
   return (
     <Sidebar>
       <SidebarHeader className="px-4 mt-2">
@@ -247,3 +247,5 @@ export const SidebarNav = () => {
     </Sidebar>
   );
 };
+
+export default SidebarNav;

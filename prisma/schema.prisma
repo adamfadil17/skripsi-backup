@@ -13,24 +13,23 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Model User
 model User {
   id             String    @id @default(auto()) @map("_id") @db.ObjectId
-  name           String?
-  email          String?   @unique
+  name           String
+  email          String    @unique
   emailVerified  DateTime?
   image          String?
   hashedPassword String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  conversationIds String[]       @db.ObjectId
-  conversations   Conversation[] @relation(fields: [conversationIds], references: [id])
-
-  seenMessageIds String[]  @db.ObjectId
-  seenMessages   Message[] @relation("Seen", fields: [seenMessageIds], references: [id])
-
-  accounts Account[]
-  messages Message[]
+  accounts          Account[]
+  workspaces        WorkspaceMember[]
+  invitations       Invitation[]
+  messages          Message[]
+  documents         Document[]
+  documentHistories DocumentHistory[]
 }
 
 model Account {
@@ -44,7 +43,7 @@ model Account {
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String  @db.String
+  id_token          String? @db.String
   session_state     String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -52,32 +51,128 @@ model Account {
   @@unique([provider, providerAccountId])
 }
 
-model Conversation {
-  id            String   @id @default(auto()) @map("_id") @db.ObjectId
-  createdAt     DateTime @default(now())
-  lastMessageAt DateTime @default(now())
-  name          String?
-  isGroup       Boolean?
+// Model Workspace
+model Workspace {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  name       String
+  emoji      String?
+  coverImage String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  messagesIds String[]  @db.ObjectId
-  messages    Message[]
+  members       WorkspaceMember[]
+  documents     Document[]
+  chat          Conversation?
+  invitations   Invitation[]
+  notifications Notification[]
 
-  userIds String[] @db.ObjectId
-  users   User[]   @relation(fields: [userIds], references: [id])
+  @@unique([name])
 }
 
+// Model WorkspaceMember
+model WorkspaceMember {
+  id          String @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String @db.ObjectId
+  workspaceId String @db.ObjectId
+  role        Role
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  MEMBER
+}
+
+// Model Invitation
+model Invitation {
+  id          String           @id @default(auto()) @map("_id") @db.ObjectId
+  email       String
+  role        Role
+  workspaceId String           @db.ObjectId
+  invitedById String           @db.ObjectId
+  status      InvitationStatus @default(PENDING)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  invitedBy User      @relation(fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@unique([email, workspaceId])
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+// Model Document
+model Document {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  title       String
+  emoji       String?
+  coverImage  String?
+  content     Json
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  workspaceId String   @db.ObjectId
+  updatedById String?  @db.ObjectId
+
+  workspace Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  updatedBy User?             @relation(fields: [updatedById], references: [id])
+  history   DocumentHistory[]
+}
+
+// Model DocumentHistory
+model DocumentHistory {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  documentId String   @db.ObjectId
+  content    Json
+  editedAt   DateTime @default(now())
+  editedById String   @db.ObjectId
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  editedBy User     @relation(fields: [editedById], references: [id], onDelete: Cascade)
+}
+
+// Model Conversation (Group Chat per Workspace)
+model Conversation {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  workspaceId String    @unique @db.ObjectId
+  messages    Message[]
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+// Model Message
 model Message {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  body      String?
-  image     String?
-  createdAt DateTime @default(now())
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  body           String
+  senderId       String   @db.ObjectId
+  conversationId String   @db.ObjectId
+  createdAt      DateTime @default(now())
 
-  seenIds String[] @db.ObjectId
-  seen    User[]   @relation("Seen", fields: [seenIds], references: [id])
+  sender       User         @relation(fields: [senderId], references: [id])
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+}
 
-  conversationId String       @db.ObjectId
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+// Model Notification
+model Notification {
+  id          String           @id @default(auto()) @map("_id") @db.ObjectId
+  workspaceId String           @db.ObjectId
+  message     String
+  type        NotificationType
+  createdAt   DateTime         @default(now())
 
-  senderId String @db.ObjectId
-  sender   User   @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+enum NotificationType {
+  WORKSPACE_UPDATE
+  DOCUMENT_CREATE
+  DOCUMENT_UPDATE
+  DOCUMENT_DELETE
 }

@@ -1,4 +1,4 @@
-import { type Workspace } from '@/components/shared/WorkspaceOrganizer';
+import { type Workspace } from '@/app/dashboard/components/WorkspaceOrganizer';
 export const dummyWorkspaces: Workspace[] = [
   {
     id: '1',

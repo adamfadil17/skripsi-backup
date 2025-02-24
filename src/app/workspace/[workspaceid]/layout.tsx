@@ -1,6 +1,6 @@
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
-import { SidebarNav } from '@/components/shared/SidebarNav';
-import { TopbarWorkspace } from '@/components/shared/TopbarWorkspace';
+import SidebarNav from './components/SidebarNav';
+import TopbarWorkspace from './components/TopbarWorkspace';
 import { SidebarProvider } from '@/components/ui/sidebar';
 
 export default async function WorkspaceLayout({

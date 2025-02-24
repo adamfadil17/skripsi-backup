@@ -17,7 +17,7 @@ interface InputProps {
   disabled?: boolean;
 }
 
-export const Input = ({
+const Input = ({
   label,
   placeholder,
   id,
@@ -77,3 +77,5 @@ export const Input = ({
     </div>
   );
 };
+
+export default Input;

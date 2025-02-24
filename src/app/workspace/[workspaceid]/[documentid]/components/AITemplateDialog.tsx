@@ -10,9 +10,9 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '../ui/dialog';
-import { Input } from '../ui/input';
-import { Button } from '../ui/button';
+} from '../../../../../components/ui/dialog';
+import { Input } from '../../../../../components/ui/input';
+import { Button } from '../../../../../components/ui/button';
 import { Sparkles } from 'lucide-react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
@@ -23,7 +23,7 @@ import {
   FormField,
   FormItem,
   FormMessage,
-} from '../ui/form';
+} from '../../../../../components/ui/form';
 
 interface AITemplateDialogProps {
   children: ReactNode;
@@ -36,7 +36,7 @@ const formSchema = z.object({
     .max(100, 'Prompt must be 100 characters or less'),
 });
 
-export function AITemplateDialog({ children }: AITemplateDialogProps) {
+function AITemplateDialog({ children }: AITemplateDialogProps) {
   const [open, setOpen] = useState(false);
   // const [input, setInput] = useState('');
 
@@ -115,3 +115,5 @@ export function AITemplateDialog({ children }: AITemplateDialogProps) {
     </Dialog>
   );
 }
+
+export default AITemplateDialog;

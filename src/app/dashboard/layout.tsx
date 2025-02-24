@@ -1,4 +1,4 @@
-import { Topbar } from '../../components/shared/Topbar';
+import Topbar from './components/Topbar';
 import { getCurrentUser } from '../actions/getCurrentUser';
 
 export default async function DashboardLayout({

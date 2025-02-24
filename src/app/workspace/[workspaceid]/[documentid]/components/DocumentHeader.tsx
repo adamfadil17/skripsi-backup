@@ -1,13 +1,13 @@
 'use client';
 import React, { useState } from 'react';
 import Image from 'next/image';
-import { CoverPickerDialog } from './CoverPickerDialog';
-import { EmojiPickerPopover } from './EmojiPickerPopover';
+import CoverPickerDialog from '../../../../../components/shared/CoverPickerDialog';
+import EmojiPickerPopover from '../../../../../components/shared/EmojiPickerPopover';
 import { SmilePlus } from 'lucide-react';
-import { Button } from '../ui/button';
-import { AITemplateDialog } from './AITemplateDialog';
+import { Button } from '../../../../../components/ui/button';
+import AITemplateDialog from './AITemplateDialog';
 
-export const DocumentHeader = () => {
+const DocumentHeader = () => {
   const [emoji, setEmoji] = useState<string>();
   const [coverImage, setCoverImage] = useState('/images/cover.png');
   const [documentName, setDocumentName] = useState('Untitled Document');
@@ -70,3 +70,5 @@ export const DocumentHeader = () => {
     </>
   );
 };
+
+export default DocumentHeader;

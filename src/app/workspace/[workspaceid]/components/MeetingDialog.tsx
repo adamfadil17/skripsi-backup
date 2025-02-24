@@ -41,7 +41,7 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '../ui/tooltip';
+} from '@/components/ui/tooltip';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
@@ -52,7 +52,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from '../ui/form';
+} from '@/components/ui/form';
 
 interface Meeting {
   title: string;
@@ -143,7 +143,7 @@ const generateMeetingLink = () => {
   return `https://meet.google.com/${result}`;
 };
 
-export const MeetingDialog = ({ children }: MeetingDialogProps) => {
+const MeetingDialog = ({ children }: MeetingDialogProps) => {
   const [showForm, setShowForm] = useState(false);
   const [meetings, setMeetings] = useState<Meeting[]>(initialMeetings);
   const [currentPage, setCurrentPage] = useState(1);
@@ -559,3 +559,5 @@ export const MeetingDialog = ({ children }: MeetingDialogProps) => {
     </Dialog>
   );
 };
+
+export default MeetingDialog;
