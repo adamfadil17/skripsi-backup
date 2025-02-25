@@ -12,7 +12,7 @@ export async function POST(req: Request) {
     }
 
     // Ambil input dari request
-    const { name, emoji, coverImage = '/images/cover.png' } = await req.json();
+    const { name, emoji, coverImage } = await req.json();
 
     if (!name) {
       return new NextResponse('Workspace name is required', { status: 400 });
@@ -27,7 +27,7 @@ export async function POST(req: Request) {
       return new NextResponse('Workspace name already exists', { status: 400 });
     }
 
-    // Buat Workspace baru
+    // Buat Workspace baru beserta dokumen, chat, dan anggota
     const newWorkspace = await prisma.workspace.create({
       data: {
         name,
@@ -51,18 +51,30 @@ export async function POST(req: Request) {
         },
         documents: {
           create: {
-            title: 'Welcome Document',
-            content: {
-              time: Date.now(),
-              blocks: [
-                {
-                  type: 'paragraph',
-                  data: {
-                    text: 'Welcome to your new workspace! Start collaborating here.',
-                  },
+            // Dokumen default dengan judul 'Untitled Document'
+            title: 'Untitled Document',
+            emoji: '📝',
+            coverImage: '/images/cover.png',
+            // Menandai siapa yang membuat dokumen
+            createdById: currentUser.id,
+            // Karena dokumen baru, updatedBy belum ada (boleh null)
+            documentContents: {
+              create: {
+                content: {
+                  time: Date.now(),
+                  blocks: [
+                    {
+                      type: 'paragraph',
+                      data: {
+                        text: 'Welcome to your new workspace! Start collaborating here.',
+                      },
+                    },
+                  ],
+                  version: '2.29.1',
                 },
-              ],
-              version: '2.29.1',
+                // Menggunakan currentUser sebagai editor awal (atau bisa disesuaikan)
+                editedById: currentUser.id,
+              },
             },
           },
         },
@@ -77,6 +89,52 @@ export async function POST(req: Request) {
     return NextResponse.json(newWorkspace, { status: 201 });
   } catch (error) {
     console.error('Error creating workspace:', error);
+    return new NextResponse('Internal Server Error', { status: 500 });
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    // Ambil user saat ini
+    const currentUser = await getCurrentUser();
+    if (!currentUser?.id || !currentUser?.email) {
+      return new NextResponse('Unauthorized', { status: 401 });
+    }
+
+    // Ambil workspace id dari query parameter
+    const { searchParams } = new URL(req.url);
+    const workspaceid = searchParams.get('workspaceId');
+    if (!workspaceid) {
+      return new NextResponse('Workspace id is required', { status: 400 });
+    }
+
+    // Temukan workspace berdasarkan id, sertakan member untuk validasi peran
+    const workspace = await prisma.workspace.findUnique({
+      where: { id: workspaceid },
+      include: { members: true },
+    });
+
+    if (!workspace) {
+      return new NextResponse('Workspace not found', { status: 404 });
+    }
+
+    // Pastikan currentUser adalah SUPER_ADMIN di workspace tersebut
+    const isOwner = workspace.members.some(
+      (member) => member.userId === currentUser.id && member.role === 'SUPER_ADMIN'
+    );
+    if (!isOwner) {
+      return new NextResponse('Forbidden', { status: 403 });
+    }
+
+    // Hapus workspace. Karena pada model Document sudah disetting onDelete: Cascade,
+    // maka dokumen–dokumen di dalam workspace akan ikut terhapus.
+    const deletedWorkspace = await prisma.workspace.delete({
+      where: { id: workspaceid },
+    });
+
+    return NextResponse.json(deletedWorkspace, { status: 200 });
+  } catch (error) {
+    console.error('Error deleting workspace:', error);
     return new NextResponse('Internal Server Error', { status: 500 });
   }
 }

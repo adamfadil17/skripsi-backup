@@ -24,12 +24,14 @@ model User {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  accounts          Account[]
-  workspaces        WorkspaceMember[]
-  invitations       Invitation[]
-  messages          Message[]
-  documents         Document[]
-  documentHistories DocumentHistory[]
+  accounts         Account[]
+  workspaces       WorkspaceMember[]
+  invitations      Invitation[]
+  messages         Message[]
+  documentContents DocumentContent[]
+
+  createdDocuments Document[] @relation("DocumentCreator")  
+  updatedDocuments Document[] @relation("DocumentEditor")  
 }
 
 model Account {
@@ -111,23 +113,24 @@ enum InvitationStatus {
 
 // Model Document
 model Document {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  title       String
-  emoji       String?
-  coverImage  String?
-  content     Json
-  updatedAt   DateTime @updatedAt
-  createdAt   DateTime @default(now())
-  workspaceId String   @db.ObjectId
-  updatedById String?  @db.ObjectId
+  id               String            @id @default(auto()) @map("_id") @db.ObjectId
+  title            String
+  emoji            String?
+  coverImage       String?
+  documentContents DocumentContent[]
+  updatedAt        DateTime          @updatedAt
+  createdAt        DateTime          @default(now())
+  createdById      String            @db.ObjectId
+  workspaceId      String            @db.ObjectId
+  updatedById      String?           @db.ObjectId
 
-  workspace Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  updatedBy User?             @relation(fields: [updatedById], references: [id])
-  history   DocumentHistory[]
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy User     @relation("DocumentCreator", fields: [createdById], references: [id])
+  updatedBy User?     @relation("DocumentEditor", fields: [updatedById], references: [id])
 }
 
 // Model DocumentHistory
-model DocumentHistory {
+model DocumentContent {
   id         String   @id @default(auto()) @map("_id") @db.ObjectId
   documentId String   @db.ObjectId
   content    Json

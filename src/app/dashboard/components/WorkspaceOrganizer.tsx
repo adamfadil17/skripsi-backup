@@ -23,6 +23,7 @@ import {
 import Image from 'next/image';
 import { Workspace } from '@/types/types';
 import { useRouter } from 'next/navigation';
+import axios from 'axios';
 
 export interface WorkspaceOrganizerProps {
   workspaces: Workspace[];
@@ -49,6 +50,24 @@ const WorkspaceOrganizer = ({
   const handleOpenWorkspace = (workspaceId: string) => {
     router.push(`/workspace/${workspaceId}`);
   };
+
+  async function onDeleteWorkspace(workspaceId: string) {
+    try {
+      const response = await axios.delete('/api/workspaces', {
+        params: { workspaceId },
+      });
+      console.log('Workspace deleted:', response.data);
+      // Lakukan sesuatu setelah berhasil, misalnya refresh data atau navigasi ke halaman lain
+      return response.data;
+    } catch (error: any) {
+      console.error(
+        'Error deleting workspace:',
+        error.response?.data || error.message
+      );
+      // Tangani error, misalnya tampilkan notifikasi ke user
+      throw error;
+    }
+  }
 
   const WorkspaceItem = ({ workspace }: { workspace: Workspace }) => {
     if (viewMode === 'list') {
@@ -106,6 +125,7 @@ const WorkspaceOrganizer = ({
                         variant="outline"
                         size="icon"
                         className="hover:text-red-500"
+                        onClick={() => onDeleteWorkspace(workspace.id)}
                       >
                         <span>
                           <Trash2 className="h-4 w-4" />
@@ -180,6 +200,7 @@ const WorkspaceOrganizer = ({
                           variant="outline"
                           size="sm"
                           className="hover:text-red-500"
+                          onClick={() => onDeleteWorkspace(workspace.id)}
                         >
                           <Trash2 className="w-4 w-4" />
                         </Button>

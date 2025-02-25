@@ -61,11 +61,6 @@ const CreateWorkspaceDialog = ({ children }: CreateWorkspaceDialogProps) => {
     form.reset();
   };
 
-  // function onSubmit(values: z.infer<typeof formSchema>) {
-  //   console.log(values);
-  //   // Handle form submission here
-  // }
-
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
       setIsSubmitting(true);

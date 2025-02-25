@@ -19,7 +19,7 @@ const WorkspacePage = () => {
 
         {/* Error Message */}
         <h1 className="text-2xl font-bold mb-2 text-primary">
-          Pick One Document from the Workspace to View
+          Pick or Create One Document from the Workspace to View
         </h1>
         <p className="text-lg text-gray-500 mb-2">
           By selecting a document, you can collaboratively write notes in real
