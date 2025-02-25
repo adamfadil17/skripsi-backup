@@ -156,7 +156,6 @@ const CreateWorkspaceDialog = ({ children }: CreateWorkspaceDialogProps) => {
                             type="dashboard"
                           >
                             <Button
-                              // id="emoji"
                               type="button"
                               variant="outline"
                               size="icon"
