@@ -30,6 +30,7 @@ import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Workspace } from '@/types/types';
+import { Loader2 } from 'lucide-react';
 
 const formSchema = z.object({
   workspaceName: z
@@ -64,7 +65,7 @@ const EditWorkspaceDialog = ({
 
   const handleCancel = () => {
     setOpen(false);
-    form.reset();
+    // form.reset();
   };
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
@@ -198,10 +199,24 @@ const EditWorkspaceDialog = ({
                 </div>
               </div>
               <div className="flex justify-end gap-3 mt-6">
-                <Button type="button" variant="outline" onClick={handleCancel}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleCancel}
+                  disabled={isSubmitting}
+                >
                   Cancel
                 </Button>
-                <Button type="submit">Update</Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Updating...
+                    </>
+                  ) : (
+                    'Update'
+                  )}
+                </Button>
               </div>
             </div>
           </form>

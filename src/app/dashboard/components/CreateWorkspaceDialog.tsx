@@ -29,6 +29,7 @@ import {
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { Loader2 } from 'lucide-react';
 
 const formSchema = z.object({
   workspaceName: z
@@ -191,10 +192,24 @@ const CreateWorkspaceDialog = ({ children }: CreateWorkspaceDialogProps) => {
                 </div>
               </div>
               <div className="flex justify-end gap-3 mt-6">
-                <Button type="button" variant="outline" onClick={handleCancel}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleCancel}
+                  disabled={isSubmitting}
+                >
                   Cancel
                 </Button>
-                <Button type="submit">Create</Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    'Create'
+                  )}
+                </Button>
               </div>
             </div>
           </form>
