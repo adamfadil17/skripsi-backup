@@ -14,15 +14,15 @@ interface DocumentPageProps {
 const DocumentPage = async ({ params }: DocumentPageProps) => {
   const { workspaceId, documentId } = params;
 
-  if (!workspaceId || !documentId) {
-    return notFound(); // Validasi URL params
-  }
+  // if (!workspaceId || !documentId) {
+  //   return notFound(); // Validasi URL params
+  // }
 
-  const document = await getDocumentByWorkspaceId(workspaceId, documentId);
+  // const document = await getDocumentByWorkspaceId(workspaceId, documentId);
 
-  if (!document) {
-    return notFound(); // Redirect ke halaman 404 jika tidak valid
-  }
+  // if (!document) {
+  //   return notFound(); // Redirect ke halaman 404 jika tidak valid
+  // }
 
   return (
     <div className="h-full">

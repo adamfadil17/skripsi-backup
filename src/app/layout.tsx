@@ -4,7 +4,7 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import ToasterContext from './context/ToasterContext';
 import AuthContext from './context/AuthContext';
-import { Toaster } from "@/components/ui/sonner"
+import { Toaster } from '@/components/ui/sonner';
 
 const inter = Inter({
   variable: '--font-inter',

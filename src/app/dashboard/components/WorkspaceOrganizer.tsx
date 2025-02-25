@@ -12,8 +12,6 @@ import {
   PaginationPrevious,
 } from '@/components/ui/pagination';
 import type { Workspace } from '@/types/types';
-import axios from 'axios';
-import { toast } from 'sonner';
 import { WorkspaceItem } from './WorkspaceItem';
 import { EmptyWorkspace } from './EmptyWorkspace';
 import CreateWorkspaceDialog from './CreateWorkspaceDialog';
@@ -38,8 +36,6 @@ export default function WorkspaceOrganizer({
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const endIndex = startIndex + ITEMS_PER_PAGE;
   const currentWorkspaces = workspaces.slice(startIndex, endIndex);
-
-  
 
   return (
     <div className="space-y-6 px-6 md:px-24">
