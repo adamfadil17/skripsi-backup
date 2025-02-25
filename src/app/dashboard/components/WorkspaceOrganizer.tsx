@@ -39,18 +39,7 @@ export default function WorkspaceOrganizer({
   const endIndex = startIndex + ITEMS_PER_PAGE;
   const currentWorkspaces = workspaces.slice(startIndex, endIndex);
 
-  async function handleDeleteWorkspace(workspaceId: string) {
-    try {
-      await axios.delete('/api/workspaces', { params: { workspaceId } });
-      toast('Workspace has been deleted');
-    } catch (error: any) {
-      console.error(
-        'Error deleting workspace:',
-        error.response?.data || error.message
-      );
-      toast.error('Failed to delete workspace');
-    }
-  }
+  
 
   return (
     <div className="space-y-6 px-6 md:px-24">
@@ -103,7 +92,7 @@ export default function WorkspaceOrganizer({
                 workspace={workspace}
                 viewMode={viewMode}
                 isSuperAdmin={isSuperAdmin}
-                onDelete={handleDeleteWorkspace}
+                // onDelete={handleDeleteWorkspace}
               />
             ))}
           </div>

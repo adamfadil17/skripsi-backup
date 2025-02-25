@@ -3,15 +3,16 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Edit, FileText, Trash2 } from "lucide-react"
 import EditWorkspaceDialog from "./EditWorkspaceDialog"
+import { DeleteWorkspaceDialog } from "./DeleteWorkspaceDialog"
 
 interface WorkspaceItemProps {
   workspace: Workspace
   viewMode: "grid" | "list"
   isSuperAdmin: boolean
-  onDelete: (id: string) => Promise<void>
+  // onDelete: (id: string) => Promise<void>
 }
 
-export function WorkspaceItem({ workspace, viewMode, isSuperAdmin, onDelete }: WorkspaceItemProps) {
+export function WorkspaceItem({ workspace, viewMode, isSuperAdmin }: WorkspaceItemProps) {
   if (viewMode === "list") {
     return (
       <div className="flex items-center justify-between rounded-lg border p-4 hover:bg-muted/50 transition-colors">
@@ -39,10 +40,12 @@ export function WorkspaceItem({ workspace, viewMode, isSuperAdmin, onDelete }: W
                 <span className="sr-only">Edit workspace</span>
               </Button>
             </EditWorkspaceDialog>
-            <Button variant="outline" size="icon" className="hover:text-red-500" onClick={() => onDelete(workspace.id)}>
+            <DeleteWorkspaceDialog workspace={workspace}>
+            <Button variant="outline" size="icon" className="hover:text-red-500" >
               <Trash2 className="h-4 w-4" />
               <span className="sr-only">Delete workspace</span>
             </Button>
+            </DeleteWorkspaceDialog>
           </div>
         )}
       </div>
@@ -75,9 +78,11 @@ export function WorkspaceItem({ workspace, viewMode, isSuperAdmin, onDelete }: W
                   <Edit className="h-4 w-4" />
                 </Button>
               </EditWorkspaceDialog>
-              <Button variant="outline" size="sm" className="hover:text-red-500" onClick={() => onDelete(workspace.id)}>
+              <DeleteWorkspaceDialog workspace={workspace}>
+              <Button variant="outline" size="sm" className="hover:text-red-500">
                 <Trash2 className="h-4 w-4" />
               </Button>
+              </DeleteWorkspaceDialog>
             </div>
           )}
         </div>

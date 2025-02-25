@@ -84,6 +84,7 @@ const CreateWorkspaceDialog = ({ children }: CreateWorkspaceDialogProps) => {
           message: 'Workspace name already exists.',
         });
       }
+      toast.error('Failed to create workspace');
     } finally {
       setIsSubmitting(false);
     }
