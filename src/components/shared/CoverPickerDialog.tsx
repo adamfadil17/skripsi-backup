@@ -80,7 +80,7 @@ const CoverPickerDialog = ({
             <Button variant="outline" onClick={() => setIsOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleUpdate}>Update</Button>
+            <Button onClick={handleUpdate}>Apply</Button>
           </div>
         </div>
       </DialogContent>

@@ -29,6 +29,7 @@ import {
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { Workspace } from '@/types/types';
 
 const formSchema = z.object({
   workspaceName: z
@@ -39,11 +40,15 @@ const formSchema = z.object({
   coverImage: z.string().default('/images/cover.png'),
 });
 
-interface CreateWorkspaceDialogProps {
+interface EditWorkspaceDialogProps {
   children: ReactNode;
+  workspace: Workspace;
 }
 
-const CreateWorkspaceDialog = ({ children }: CreateWorkspaceDialogProps) => {
+const EditWorkspaceDialog = ({
+  children,
+  workspace,
+}: EditWorkspaceDialogProps) => {
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
@@ -51,9 +56,9 @@ const CreateWorkspaceDialog = ({ children }: CreateWorkspaceDialogProps) => {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      workspaceName: '',
-      emoji: undefined,
-      coverImage: '/images/cover.png',
+      workspaceName: workspace.name,
+      emoji: workspace.emoji,
+      coverImage: workspace.coverImage || '/images/cover.png',
     },
   });
 
@@ -66,24 +71,27 @@ const CreateWorkspaceDialog = ({ children }: CreateWorkspaceDialogProps) => {
     try {
       setIsSubmitting(true);
 
-      const response = await axios.post('/api/workspaces', {
-        name: values.workspaceName,
-        emoji: values.emoji,
-        coverImage: values.coverImage,
-      });
+      // Mengirim request PUT untuk update workspace
+      const response = await axios.put(
+        '/api/workspaces',
+        {
+          name: values.workspaceName,
+          emoji: values.emoji,
+          coverImage: values.coverImage,
+        },
+        {
+          params: { workspaceid: workspace.id },
+        }
+      );
 
-      console.log('Workspace created:', response.data);
-
+      console.log('Workspace updated:', response.data);
       handleCancel();
-      router.refresh(); // Refresh to reflect new workspace
-      toast('Workspace has been created');
+      router.refresh(); // Refresh untuk menampilkan data terbaru
+      toast('Workspace has been updated');
     } catch (error: any) {
-      console.error('Error creating workspace:', error);
-      if (error?.response?.status === 400) {
-        form.setError('workspaceName', {
-          message: 'Workspace name already exists.',
-        });
-      }
+      console.error('Error updating workspace:', error);
+      // Tangani error misalnya dengan menampilkan notifikasi
+      toast.error('Failed to update workspace');
     } finally {
       setIsSubmitting(false);
     }
@@ -133,7 +141,7 @@ const CreateWorkspaceDialog = ({ children }: CreateWorkspaceDialogProps) => {
             <div className="p-4 sm:p-0 sm:mt-6">
               <DialogHeader>
                 <DialogTitle className="text-xl sm:text-2xl">
-                  Create Workspace
+                  Edit Workspace
                 </DialogTitle>
                 <DialogDescription className="text-sm sm:text-base">
                   This is a shared space where you can collaborate with your
@@ -193,7 +201,7 @@ const CreateWorkspaceDialog = ({ children }: CreateWorkspaceDialogProps) => {
                 <Button type="button" variant="outline" onClick={handleCancel}>
                   Cancel
                 </Button>
-                <Button type="submit">Create</Button>
+                <Button type="submit">Update</Button>
               </div>
             </div>
           </form>
@@ -203,4 +211,4 @@ const CreateWorkspaceDialog = ({ children }: CreateWorkspaceDialogProps) => {
   );
 };
 
-export default CreateWorkspaceDialog;
+export default EditWorkspaceDialog;

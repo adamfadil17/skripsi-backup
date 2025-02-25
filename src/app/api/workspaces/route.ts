@@ -18,13 +18,21 @@ export async function POST(req: Request) {
       return new NextResponse('Workspace name is required', { status: 400 });
     }
 
-    // Cek apakah nama workspace sudah digunakan
-    const existingWorkspace = await prisma.workspace.findUnique({
-      where: { name },
+    const existingWorkspace = await prisma.workspace.findFirst({
+      where: {
+        name,
+        members: {
+          some: {
+            userId: currentUser.id,
+          },
+        },
+      },
     });
 
     if (existingWorkspace) {
-      return new NextResponse('Workspace name already exists', { status: 400 });
+      return new NextResponse('Workspace name already exists', {
+        status: 400,
+      });
     }
 
     // Buat Workspace baru beserta dokumen, chat, dan anggota
@@ -93,6 +101,39 @@ export async function POST(req: Request) {
   }
 }
 
+export async function PUT(req: Request) {
+  try {
+    const currentUser = await getCurrentUser();
+    if (!currentUser?.id || !currentUser?.email) {
+      return new NextResponse('Unauthorized', { status: 401 });
+    }
+
+    // Ambil query parameter workspaceid
+    const { searchParams } = new URL(req.url);
+    const workspaceid = searchParams.get('workspaceid');
+    if (!workspaceid) {
+      return new NextResponse('Workspace id is required', { status: 400 });
+    }
+
+    // Ambil data update dari request body
+    const { name, emoji, coverImage } = await req.json();
+
+    // Validasi jika perlu, misalnya cek apakah user memiliki akses
+    // Misalnya cek apakah user adalah SUPER_ADMIN di workspace tersebut
+
+    // Update workspace
+    const updatedWorkspace = await prisma.workspace.update({
+      where: { id: workspaceid },
+      data: { name, emoji, coverImage },
+    });
+
+    return NextResponse.json(updatedWorkspace, { status: 200 });
+  } catch (error) {
+    console.error('Error updating workspace:', error);
+    return new NextResponse('Internal Server Error', { status: 500 });
+  }
+}
+
 export async function DELETE(req: Request) {
   try {
     // Ambil user saat ini
@@ -120,7 +161,8 @@ export async function DELETE(req: Request) {
 
     // Pastikan currentUser adalah SUPER_ADMIN di workspace tersebut
     const isOwner = workspace.members.some(
-      (member) => member.userId === currentUser.id && member.role === 'SUPER_ADMIN'
+      (member) =>
+        member.userId === currentUser.id && member.role === 'SUPER_ADMIN'
     );
     if (!isOwner) {
       return new NextResponse('Forbidden', { status: 403 });
