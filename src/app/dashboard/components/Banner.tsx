@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { User } from '@prisma/client';
 import { Wand } from 'lucide-react';
-import Image from 'next/image';
 
 interface BannerProps {
   currentUser: User;

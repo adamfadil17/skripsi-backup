@@ -4,12 +4,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Edit, FileText, Trash2 } from "lucide-react"
 import EditWorkspaceDialog from "./EditWorkspaceDialog"
 import { DeleteWorkspaceDialog } from "./DeleteWorkspaceDialog"
+import Image from "next/image"
 
 interface WorkspaceItemProps {
   workspace: Workspace
   viewMode: "grid" | "list"
   isSuperAdmin: boolean
-  // onDelete: (id: string) => Promise<void>
 }
 
 export function WorkspaceItem({ workspace, viewMode, isSuperAdmin }: WorkspaceItemProps) {
@@ -17,7 +17,7 @@ export function WorkspaceItem({ workspace, viewMode, isSuperAdmin }: WorkspaceIt
     return (
       <div className="flex items-center justify-between rounded-lg border p-4 hover:bg-muted/50 transition-colors">
         <div className="flex items-center gap-4">
-          <img
+          <Image
             src={workspace.coverImage || "/placeholder.svg?height=64&width=64"}
             alt={workspace.name}
             className="h-16 w-16 rounded-lg object-cover"

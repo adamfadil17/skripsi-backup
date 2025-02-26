@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -53,7 +53,7 @@ const CreateWorkspaceDialog = ({ children }: CreateWorkspaceDialogProps) => {
     resolver: zodResolver(formSchema),
     defaultValues: {
       workspaceName: '',
-      emoji: undefined,
+      emoji: '📝',
       coverImage: '/images/cover.png',
     },
   });
