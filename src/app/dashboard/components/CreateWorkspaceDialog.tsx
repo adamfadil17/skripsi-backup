@@ -28,8 +28,9 @@ import {
 } from '@/components/ui/form';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
-import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
+import toast from 'react-hot-toast';
+
 
 const formSchema = z.object({
   workspaceName: z
@@ -77,7 +78,7 @@ const CreateWorkspaceDialog = ({ children }: CreateWorkspaceDialogProps) => {
 
       handleCancel();
       router.refresh(); // Refresh to reflect new workspace
-      toast('Workspace has been created');
+      toast.success('Workspace has been created');
     } catch (error: any) {
       console.error('Error creating workspace:', error);
       if (error?.response?.status === 400) {

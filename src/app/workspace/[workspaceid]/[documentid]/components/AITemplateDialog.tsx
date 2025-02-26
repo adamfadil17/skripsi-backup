@@ -61,7 +61,10 @@ function AITemplateDialog({ children }: AITemplateDialogProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent
+        onPointerDownOutside={(e) => e.preventDefault()}
+        className="sm:max-w-[600px]"
+      >
         <DialogHeader>
           <div className="flex items-center gap-2">
             <Image
@@ -103,7 +106,7 @@ function AITemplateDialog({ children }: AITemplateDialogProps) {
                   >
                     Cancel
                   </Button>
-                  <Button type="submit">
+                  <Button>
                     <Sparkles className="mr-1 h-4 w-4" /> Generate
                   </Button>
                 </div>

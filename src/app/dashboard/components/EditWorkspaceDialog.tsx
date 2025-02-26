@@ -28,9 +28,9 @@ import {
 } from '@/components/ui/form';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
-import { toast } from 'sonner';
 import { Workspace } from '@/types/types';
 import { Loader2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const formSchema = z.object({
   workspaceName: z
@@ -88,7 +88,7 @@ const EditWorkspaceDialog = ({
       console.log('Workspace updated:', response.data);
       handleCancel();
       router.refresh(); // Refresh untuk menampilkan data terbaru
-      toast('Workspace has been updated');
+      toast.success('Workspace has been updated');
     } catch (error: any) {
       console.error('Error updating workspace:', error);
       // Tangani error misalnya dengan menampilkan notifikasi

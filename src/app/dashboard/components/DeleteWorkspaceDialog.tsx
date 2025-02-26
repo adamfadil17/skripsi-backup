@@ -4,7 +4,6 @@ import type React from 'react';
 
 import { useState } from 'react';
 import axios from 'axios';
-import { toast } from 'sonner';
 import type { Workspace } from '@/types/types';
 import {
   AlertDialog,
@@ -18,6 +17,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Loader2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 interface DeleteWorkspaceDialogProps {
   workspace: Workspace;
@@ -37,7 +37,7 @@ export function DeleteWorkspaceDialog({
       await axios.delete('/api/workspaces', {
         params: { workspaceId: workspace.id },
       });
-      toast('Workspace has been deleted');
+      toast.success('Workspace has been deleted');
       setIsOpen(false);
     } catch (error: any) {
       console.error(
