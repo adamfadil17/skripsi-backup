@@ -15,6 +15,7 @@ import type { Workspace } from '@/types/types';
 import { WorkspaceItem } from './WorkspaceItem';
 import { EmptyWorkspace } from './EmptyWorkspace';
 import CreateWorkspaceDialog from './CreateWorkspaceDialog';
+import { CreateWorkspace } from './CreateWorkspace';
 
 interface WorkspaceOrganizerProps {
   workspaces: Workspace[];
@@ -42,11 +43,13 @@ export default function WorkspaceOrganizer({
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">Your Workspaces✨</h2>
         <div className="flex items-center gap-2">
-          <CreateWorkspaceDialog>
+          {/* <CreateWorkspaceDialog> */}
+          <CreateWorkspace>
             <Button>
               <Plus className="mr-2 h-4 w-4" /> Create Workspace
             </Button>
-          </CreateWorkspaceDialog>
+            </CreateWorkspace>
+          {/* </CreateWorkspaceDialog> */}
 
           {workspaces.length > 0 && (
             <div className="flex gap-2">
