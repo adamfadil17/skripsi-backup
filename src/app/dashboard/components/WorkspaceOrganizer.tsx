@@ -14,8 +14,7 @@ import {
 import type { Workspace } from '@/types/types';
 import { WorkspaceItem } from './WorkspaceItem';
 import { EmptyWorkspace } from './EmptyWorkspace';
-import CreateWorkspaceDialog from './CreateWorkspaceDialog';
-import { CreateWorkspace } from './CreateWorkspace';
+import CreateWorkspace from './CreateWorkspace';
 
 interface WorkspaceOrganizerProps {
   workspaces: Workspace[];
@@ -48,7 +47,7 @@ export default function WorkspaceOrganizer({
             <Button>
               <Plus className="mr-2 h-4 w-4" /> Create Workspace
             </Button>
-            </CreateWorkspace>
+          </CreateWorkspace>
           {/* </CreateWorkspaceDialog> */}
 
           {workspaces.length > 0 && (

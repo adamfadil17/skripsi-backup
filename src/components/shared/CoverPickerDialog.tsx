@@ -66,7 +66,7 @@ const CoverPickerDialog = ({
                   )}
                 >
                   <Image
-                    src={cover.imageUrl || '/placeholder.svg'}
+                    src={cover.imageUrl || '/images/placeholder.svg'}
                     alt={`Cover ${index}`}
                     width={150}
                     height={100}

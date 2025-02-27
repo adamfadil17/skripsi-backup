@@ -33,6 +33,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import { Workspace } from '@/types/types';
 import { LuSmilePlus } from 'react-icons/lu';
 
 const formSchema = z.object({
@@ -44,16 +45,17 @@ const formSchema = z.object({
   coverImage: z.string().default(coverOptions[0].imageUrl),
 });
 
-interface CreateWorkspaceProps {
+interface EditWorkspaceProps {
   children: ReactNode;
+  workspace: Workspace;
 }
 
-const CreateWorkspace = ({ children }: CreateWorkspaceProps) => {
+const EditWorkspace = ({ children, workspace }: EditWorkspaceProps) => {
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [selectedCover, setSelectedCover] = useState(coverOptions[0].imageUrl);
-  const [selectedEmoji, setSelectedEmoji] = useState('');
+  const [selectedCover, setSelectedCover] = useState(workspace.coverImage);
+  const [selectedEmoji, setSelectedEmoji] = useState(workspace.emoji);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const router = useRouter();
@@ -61,9 +63,9 @@ const CreateWorkspace = ({ children }: CreateWorkspaceProps) => {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      workspaceName: '',
-      emoji: '💼',
-      coverImage: coverOptions[0].imageUrl,
+      workspaceName: workspace.name,
+      emoji: workspace.emoji,
+      coverImage: workspace.coverImage || coverOptions[0].imageUrl,
     },
   });
 
@@ -98,25 +100,27 @@ const CreateWorkspace = ({ children }: CreateWorkspaceProps) => {
     try {
       setIsSubmitting(true);
 
-      const response = await axios.post('/api/workspaces', {
-        name: values.workspaceName,
-        emoji: values.emoji,
-        coverImage: values.coverImage,
-      });
+      // Mengirim request PUT untuk update workspace
+      const response = await axios.put(
+        '/api/workspaces',
+        {
+          name: values.workspaceName,
+          emoji: values.emoji,
+          coverImage: values.coverImage,
+        },
+        {
+          params: { workspaceid: workspace.id },
+        }
+      );
 
-      console.log('Workspace created:', response.data);
-
+      console.log('Workspace updated:', response.data);
       handleCancel();
-      router.refresh(); // Refresh to reflect new workspace
-      toast.success('Workspace has been created');
+      router.refresh(); // Refresh untuk menampilkan data terbaru
+      toast.success('Workspace has been updated');
     } catch (error: any) {
-      console.error('Error creating workspace:', error);
-      if (error?.response?.status === 400) {
-        form.setError('workspaceName', {
-          message: 'Workspace name already exists.',
-        });
-      }
-      toast.error('Failed to create workspace');
+      console.error('Error updating workspace:', error);
+      // Tangani error misalnya dengan menampilkan notifikasi
+      toast.error('Failed to update workspace');
     } finally {
       setIsSubmitting(false);
     }
@@ -201,7 +205,7 @@ const CreateWorkspace = ({ children }: CreateWorkspaceProps) => {
                 <div className="space-y-4 my-4">
                   <DialogHeader>
                     <DialogTitle className="text-xl font-semibold mb-1">
-                      Create Workspace
+                      Edit Workspace
                     </DialogTitle>
                     <DialogDescription className="text-sm text-muted-foreground">
                       This is a shared space where you can collaborate with your
@@ -252,10 +256,10 @@ const CreateWorkspace = ({ children }: CreateWorkspaceProps) => {
                     {isSubmitting ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Creating...
+                        Updating...
                       </>
                     ) : (
-                      'Create'
+                      'Update'
                     )}
                   </Button>
                 </DialogFooter>
@@ -285,4 +289,4 @@ const CreateWorkspace = ({ children }: CreateWorkspaceProps) => {
   );
 };
 
-export default CreateWorkspace;
+export default EditWorkspace;

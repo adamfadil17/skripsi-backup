@@ -40,8 +40,8 @@ export async function getUserWorkspaces(): Promise<Workspace[]> {
     return workspaces.map((workspace) => ({
       id: workspace.id,
       name: workspace.name,
-      emoji: workspace.emoji || '📁',
-      coverImage: workspace.coverImage || '/placeholder.svg',
+      emoji: workspace.emoji || '💼',
+      coverImage: workspace.coverImage || '/images/placeholder.svg',
       documentCount: workspace._count.documents,
       members: workspace.members,
     }));
