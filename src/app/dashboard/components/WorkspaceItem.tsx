@@ -2,8 +2,7 @@ import type { Workspace } from '@/types/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Edit, FileText, Trash2 } from 'lucide-react';
-import EditWorkspaceDialog from './EditWorkspaceDialog';
-import { DeleteWorkspaceDialog } from './DeleteWorkspaceDialog';
+import { DeleteWorkspace } from './DeleteWorkspace';
 import EditWorkspace from './EditWorkspace';
 
 interface WorkspaceItemProps {
@@ -53,7 +52,7 @@ export function WorkspaceItem({
                 <span className="sr-only">Edit workspace</span>
               </Button>
             </EditWorkspace>
-            <DeleteWorkspaceDialog workspace={workspace}>
+            <DeleteWorkspace workspace={workspace}>
               <Button
                 variant="outline"
                 size="icon"
@@ -62,7 +61,7 @@ export function WorkspaceItem({
                 <Trash2 className="h-4 w-4" />
                 <span className="sr-only">Delete workspace</span>
               </Button>
-            </DeleteWorkspaceDialog>
+            </DeleteWorkspace>
           </div>
         )}
       </div>
@@ -103,7 +102,7 @@ export function WorkspaceItem({
                   <Edit className="h-4 w-4" />
                 </Button>
               </EditWorkspace>
-              <DeleteWorkspaceDialog workspace={workspace}>
+              <DeleteWorkspace workspace={workspace}>
                 <Button
                   variant="outline"
                   size="sm"
@@ -111,7 +110,7 @@ export function WorkspaceItem({
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
-              </DeleteWorkspaceDialog>
+              </DeleteWorkspace>
             </div>
           )}
         </div>

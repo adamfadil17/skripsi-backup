@@ -2,7 +2,7 @@
 
 import type React from 'react';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import axios from 'axios';
 import type { Workspace } from '@/types/types';
 import {
@@ -18,18 +18,24 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useRouter } from 'next/navigation';
 
-interface DeleteWorkspaceDialogProps {
+interface DeleteWorkspaceProps {
   workspace: Workspace;
   children: React.ReactNode;
 }
 
-export function DeleteWorkspaceDialog({
-  workspace,
-  children,
-}: DeleteWorkspaceDialogProps) {
+export function DeleteWorkspace({ workspace, children }: DeleteWorkspaceProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isOpen) {
+      setIsDeleting(false);
+    }
+  }, [isOpen]);
 
   async function handleDelete() {
     try {
@@ -39,6 +45,7 @@ export function DeleteWorkspaceDialog({
       });
       toast.success('Workspace has been deleted');
       setIsOpen(false);
+      router.refresh();
     } catch (error: any) {
       console.error(
         'Error deleting workspace:',

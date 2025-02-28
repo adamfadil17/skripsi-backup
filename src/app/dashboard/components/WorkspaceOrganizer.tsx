@@ -42,13 +42,11 @@ export default function WorkspaceOrganizer({
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">Your Workspaces✨</h2>
         <div className="flex items-center gap-2">
-          {/* <CreateWorkspaceDialog> */}
           <CreateWorkspace>
             <Button>
               <Plus className="mr-2 h-4 w-4" /> Create Workspace
             </Button>
           </CreateWorkspace>
-          {/* </CreateWorkspaceDialog> */}
 
           {workspaces.length > 0 && (
             <div className="flex gap-2">

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, ReactNode } from 'react';
+import { useState, useRef, ReactNode, useEffect } from 'react';
 import Image from 'next/image';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
@@ -54,8 +54,6 @@ const EditWorkspace = ({ children, workspace }: EditWorkspaceProps) => {
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [selectedCover, setSelectedCover] = useState(workspace.coverImage);
-  const [selectedEmoji, setSelectedEmoji] = useState(workspace.emoji);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const router = useRouter();
@@ -69,6 +67,17 @@ const EditWorkspace = ({ children, workspace }: EditWorkspaceProps) => {
     },
   });
 
+  useEffect(() => {
+    if (open) {
+      // Reset form with current workspace data when dialog opens
+      form.reset({
+        workspaceName: workspace.name,
+        emoji: workspace.emoji,
+        coverImage: workspace.coverImage || coverOptions[0].imageUrl,
+      });
+    }
+  }, [open, workspace, form]);
+
   const scroll = (direction: 'left' | 'right') => {
     const container = scrollContainerRef.current;
     if (container) {
@@ -78,17 +87,6 @@ const EditWorkspace = ({ children, workspace }: EditWorkspaceProps) => {
         behavior: 'smooth',
       });
     }
-  };
-
-  const handleEmojiSelect = (emoji: any) => {
-    setSelectedEmoji(emoji.native);
-    setShowEmojiPicker(false);
-    form.setValue('emoji', emoji.native);
-  };
-
-  const handleCoverSelect = (cover: string) => {
-    setSelectedCover(cover);
-    form.setValue('coverImage', cover);
   };
 
   const handleCancel = () => {
@@ -142,65 +140,74 @@ const EditWorkspace = ({ children, workspace }: EditWorkspaceProps) => {
                   showEmojiPicker ? 'max-w-[525px]' : 'flex-1'
                 )}
               >
-                <div className="space-y-2 mt-5">
-                  <div className="relative h-[200px] rounded-lg bg-muted">
-                    <Image
-                      src={selectedCover || '/images/placeholder.svg'}
-                      alt="Cover"
-                      fill
-                      className="object-cover rounded-lg"
-                    />
-                  </div>
+                <FormField
+                  control={form.control}
+                  name="coverImage"
+                  render={({ field }) => (
+                    <div className="space-y-2 mt-5">
+                      <div className="relative h-[200px] rounded-lg bg-muted">
+                        <Image
+                          src={field.value || '/images/placeholder.svg'}
+                          alt="Cover"
+                          fill
+                          className="object-cover rounded-lg"
+                        />
+                      </div>
 
-                  <div className="relative h-[100px]">
-                    <div className="absolute inset-0">
-                      <div className="relative h-full">
-                        <div
-                          ref={scrollContainerRef}
-                          className="flex items-center gap-2 px-1 absolute inset-0 overflow-hidden"
-                        >
-                          {coverOptions.map((cover, index) => (
-                            <button
-                              key={index}
-                              type="button"
-                              onClick={() => handleCoverSelect(cover.imageUrl)}
-                              className={cn(
-                                'relative w-[140px] h-[84px] rounded-lg overflow-hidden flex-shrink-0 transition-all',
-                                selectedCover === cover.imageUrl &&
-                                  'ring-2 ring-primary ring-offset-2'
-                              )}
+                      <div className="relative h-[100px]">
+                        <div className="absolute inset-0">
+                          <div className="relative h-full">
+                            <div
+                              ref={scrollContainerRef}
+                              className="flex items-center gap-2 px-1 absolute inset-0 overflow-hidden"
                             >
-                              <Image
-                                src={
-                                  cover.imageUrl || '/images/placeholder.svg'
-                                }
-                                alt={`Cover option ${index + 1}`}
-                                fill
-                                className="object-cover"
-                              />
-                            </button>
-                          ))}
+                              {coverOptions.map((cover, index) => (
+                                <button
+                                  key={index}
+                                  type="button"
+                                  onClick={() => field.onChange(cover.imageUrl)}
+                                  className={cn(
+                                    'relative w-[140px] h-[84px] rounded-lg overflow-hidden flex-shrink-0 transition-all',
+                                    field.value === cover.imageUrl &&
+                                      'ring-2 ring-primary ring-offset-2'
+                                  )}
+                                >
+                                  <Image
+                                    src={
+                                      cover.imageUrl ||
+                                      '/images/placeholder.svg'
+                                    }
+                                    alt={`Cover option ${index + 1}`}
+                                    fill
+                                    className="object-cover"
+                                  />
+                                </button>
+                              ))}
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="absolute left-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-background/80 hover:bg-background/90 backdrop-blur-sm z-50"
+                              onClick={() => scroll('left')}
+                            >
+                              <ChevronLeft className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-background/80 hover:bg-background/90 backdrop-blur-sm z-50"
+                              onClick={() => scroll('right')}
+                            >
+                              <ChevronRight className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="absolute left-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-background/80 hover:bg-background/90 backdrop-blur-sm z-50"
-                          onClick={() => scroll('left')}
-                        >
-                          <ChevronLeft className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-background/80 hover:bg-background/90 backdrop-blur-sm z-50"
-                          onClick={() => scroll('right')}
-                        >
-                          <ChevronRight className="h-4 w-4" />
-                        </Button>
                       </div>
                     </div>
-                  </div>
-                </div>
+                  )}
+                />
 
                 <div className="space-y-4 my-4">
                   <DialogHeader>
@@ -214,19 +221,21 @@ const EditWorkspace = ({ children, workspace }: EditWorkspaceProps) => {
                   </DialogHeader>
 
                   <div className="flex items-start gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      className="w-10 h-10"
-                      onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                    >
-                      {selectedEmoji ? (
-                        selectedEmoji
-                      ) : (
-                        <LuSmilePlus className="h-4 w-4" />
+                    <FormField
+                      control={form.control}
+                      name="emoji"
+                      render={({ field }) => (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="w-10 h-10"
+                          onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                        >
+                          {field.value || <LuSmilePlus className="h-4 w-4" />}
+                        </Button>
                       )}
-                    </Button>
+                    />
 
                     <FormField
                       control={form.control}
@@ -270,7 +279,10 @@ const EditWorkspace = ({ children, workspace }: EditWorkspaceProps) => {
                   <div className="p-6">
                     <Picker
                       data={data}
-                      onEmojiSelect={handleEmojiSelect}
+                      onEmojiSelect={(emoji: any) => {
+                        form.setValue('emoji', emoji.native);
+                        setShowEmojiPicker(false);
+                      }}
                       theme="light"
                       navPosition="none"
                       previewPosition="none"

@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
 import Image from "next/image"
-import CreateWorkspaceDialog from "./CreateWorkspaceDialog"
+import CreateWorkspace from "./CreateWorkspace"
 
 export function EmptyWorkspace() {
   return (
@@ -18,11 +18,11 @@ export function EmptyWorkspace() {
       <p className="text-lg text-muted-foreground mb-4">
         Click the button below to create your first workspace and begin collaborating.
       </p>
-      <CreateWorkspaceDialog>
+      <CreateWorkspace>
         <Button>
           <Plus className="mr-2 h-4 w-4" /> Create Workspace
         </Button>
-      </CreateWorkspaceDialog>
+      </CreateWorkspace>
     </div>
   )
 }
