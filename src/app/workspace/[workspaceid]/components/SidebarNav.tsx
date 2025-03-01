@@ -71,7 +71,11 @@ const datasets = [
   'Document 6',
 ];
 
-const SidebarNav = () => {
+interface SidebarNavProps {
+  workspaceId: string;
+}
+
+const SidebarNav = ({ workspaceId }: SidebarNavProps) => {
   return (
     <Sidebar>
       <SidebarHeader className="px-4 mt-2">

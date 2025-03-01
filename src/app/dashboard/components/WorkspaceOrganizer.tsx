@@ -88,7 +88,6 @@ export default function WorkspaceOrganizer({
                 workspace={workspace}
                 viewMode={viewMode}
                 isSuperAdmin={isSuperAdmin}
-                // onDelete={handleDeleteWorkspace}
               />
             ))}
           </div>
