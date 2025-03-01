@@ -1,46 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prismadb';
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
-import { getWorkspaceDocuments } from '@/app/actions/getWorkspaceDocuments';
-import { getWorkspaceMembers } from '@/app/actions/getWorkspaceMembers';
+import { getUserWorkspaces } from '@/app/actions/getUserWorkspaces';
 
 export async function GET(req: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url);
-    const workspaceId = searchParams.get('workspaceId');
-    const type = searchParams.get('type'); // Bisa 'documents' atau 'members'
+    // Ambil semua workspaces yang diikuti oleh pengguna
+    const workspaces = await getUserWorkspaces();
 
-    if (!workspaceId) {
-      return NextResponse.json(
-        { error: 'workspaceId is required' },
-        { status: 400 }
-      );
-    }
-
-    const currentUser = await getCurrentUser();
-    if (!currentUser) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    if (type === 'documents') {
-      const documents = await getWorkspaceDocuments(
-        workspaceId,
-        currentUser.id
-      );
-      return NextResponse.json({ success: true, documents }, { status: 200 });
-    }
-
-    if (type === 'members') {
-      const members = await getWorkspaceMembers(workspaceId);
-      return NextResponse.json({ success: true, members }, { status: 200 });
-    }
-
-    return NextResponse.json(
-      { error: 'Invalid type parameter' },
-      { status: 400 }
-    );
+    return NextResponse.json({ success: true, workspaces }, { status: 200 });
   } catch (error) {
-    console.error('Error in workspace route:', error);
+    console.error('Error fetching workspaces:', error);
     return NextResponse.json(
       { error: 'Internal Server Error' },
       { status: 500 }

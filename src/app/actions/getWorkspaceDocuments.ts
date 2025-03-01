@@ -1,15 +1,17 @@
-// src/lib/getWorkspaceDocuments.ts
-
 import prisma from '@/lib/prismadb';
+import { getCurrentUser } from './getCurrentUser';
 
-export async function getWorkspaceDocuments(workspaceId: string, userId: string) {
-  if (!workspaceId || !userId) throw new Error('workspaceId and userId are required');
+export async function getWorkspaceDocuments(workspaceId: string) {
+  if (!workspaceId) throw new Error('workspaceId is required');
 
   try {
+    const user = await getCurrentUser();
+    if (!user) throw new Error('User not authenticated');
+
     const documents = await prisma.document.findMany({
       where: {
         workspaceId,
-        workspace: { members: { some: { userId } } },
+        workspace: { members: { some: { userId: user.id } } },
       },
       select: {
         id: true,
