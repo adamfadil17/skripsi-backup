@@ -1,8 +1,54 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prismadb';
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
+import { getWorkspaceDocuments } from '@/app/actions/getWorkspaceDocuments';
+import { getWorkspaceMembers } from '@/app/actions/getWorkspaceMembers';
 
-export async function POST(req: Request) {
+export async function GET(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const workspaceId = searchParams.get('workspaceId');
+    const type = searchParams.get('type'); // Bisa 'documents' atau 'members'
+
+    if (!workspaceId) {
+      return NextResponse.json(
+        { error: 'workspaceId is required' },
+        { status: 400 }
+      );
+    }
+
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (type === 'documents') {
+      const documents = await getWorkspaceDocuments(
+        workspaceId,
+        currentUser.id
+      );
+      return NextResponse.json({ success: true, documents }, { status: 200 });
+    }
+
+    if (type === 'members') {
+      const members = await getWorkspaceMembers(workspaceId);
+      return NextResponse.json({ success: true, members }, { status: 200 });
+    }
+
+    return NextResponse.json(
+      { error: 'Invalid type parameter' },
+      { status: 400 }
+    );
+  } catch (error) {
+    console.error('Error in workspace route:', error);
+    return NextResponse.json(
+      { error: 'Internal Server Error' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(req: NextRequest) {
   try {
     // Ambil data pengguna saat ini
     const currentUser = await getCurrentUser();
@@ -101,7 +147,7 @@ export async function POST(req: Request) {
   }
 }
 
-export async function PUT(req: Request) {
+export async function PUT(req: NextRequest) {
   try {
     const currentUser = await getCurrentUser();
     if (!currentUser?.id || !currentUser?.email) {
@@ -134,7 +180,7 @@ export async function PUT(req: Request) {
   }
 }
 
-export async function DELETE(req: Request) {
+export async function DELETE(req: NextRequest) {
   try {
     // Ambil user saat ini
     const currentUser = await getCurrentUser();
