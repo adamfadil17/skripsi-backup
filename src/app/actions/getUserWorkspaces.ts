@@ -5,8 +5,7 @@ import { Workspace } from '@/types/types';
 export async function getUserWorkspaces(): Promise<Workspace[]> {
   try {
     const user = await getCurrentUser();
-
-    if (!user) {
+    if (!user?.id || !user?.email) {
       throw new Error('User not authenticated');
     }
 

@@ -1,10 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getCurrentUser } from '@/app/actions/getCurrentUser';
 import { getWorkspaceMembers } from '@/app/actions/getWorkspaceMembers';
 
-export async function GET(req: NextRequest) {
+export async function GET(
+  req: NextRequest,
+  { params }: { params: { workspaceId: string } }
+) {
   try {
-    const { searchParams } = new URL(req.url);
-    const workspaceId = searchParams.get('workspaceId');
+    const currentUser = await getCurrentUser();
+
+    if (!currentUser?.id || !currentUser?.email) {
+      return new NextResponse('Unauthorized', { status: 401 });
+    }
+
+    const { workspaceId } = params;
 
     if (!workspaceId) {
       return NextResponse.json(

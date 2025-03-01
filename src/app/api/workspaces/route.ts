@@ -5,6 +5,10 @@ import { getUserWorkspaces } from '@/app/actions/getUserWorkspaces';
 
 export async function GET(req: NextRequest) {
   try {
+    const user = await getCurrentUser();
+    if (!user?.id || !user?.email) {
+      throw new Error('User not authenticated');
+    }
     // Ambil semua workspaces yang diikuti oleh pengguna
     const workspaces = await getUserWorkspaces();
 
