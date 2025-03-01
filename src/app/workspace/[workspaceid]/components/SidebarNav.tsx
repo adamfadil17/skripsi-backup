@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import NotificationSystem from './NotificationSystem';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import Link from 'next/link';
 
 const accounts = [
   {
@@ -79,12 +80,15 @@ const SidebarNav = ({ workspaceId }: SidebarNavProps) => {
   return (
     <Sidebar>
       <SidebarHeader className="px-4 mt-2">
-        <div className="flex items-center gap-2 px-2">
+        <Link
+          href={`/dashboard`}
+          className="flex items-center gap-2 px-2 cursor-pointer"
+        >
           <Image src={'/images/logo.png'} alt="logo" width={32} height={32} />
           <div>
             <h2 className="text-lg font-semibold">Catatan Cerdas</h2>
           </div>
-        </div>
+        </Link>
         <div className="mt-4 px-2">
           <h3 className="text-sm text-muted-foreground mb-1">Workspace</h3>
           <p className="font-medium">👨‍💼 IT Data Analyst</p>

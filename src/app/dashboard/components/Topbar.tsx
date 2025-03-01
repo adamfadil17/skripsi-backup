@@ -20,7 +20,7 @@ interface TopbarProps {
 const Topbar = ({ currentUser }: TopbarProps) => {
   return (
     <div className="sticky top-0 z-30 flex w-full h-[70px] items-center justify-between bg-white px-6 md:px-32 shadow-md">
-      <Link href="/" className="flex items-center gap-4">
+      <Link href="/dashboard" className="flex items-center gap-4">
         <Image src="/images/logo.png" alt="logo" width={32} height={32} />
         <h2 className="font-semibold text-lg text-primary hidden sm:block">
           Catatan Cerdas
