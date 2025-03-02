@@ -22,6 +22,7 @@ export async function getWorkspaceDocuments(workspaceId: string) {
         id: true,
         title: true,
         emoji: true,
+        coverImage: true,
       },
       orderBy: {
         updatedAt: 'desc',

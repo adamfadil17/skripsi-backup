@@ -1,29 +1,97 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUser } from '@/app/actions/getCurrentUser';
+import { type NextRequest, NextResponse } from 'next/server';
 import { getWorkspaceDocuments } from '@/app/actions/getWorkspaceDocuments';
+import prisma from '@/lib/prismadb';
+import { getCurrentUser } from '@/app/actions/getCurrentUser';
 
 export async function GET(
-  req: NextRequest,
+  request: NextRequest,
   { params }: { params: { workspaceId: string } }
 ) {
   try {
-    // Validasi autentikasi pengguna
-    const currentUser = await getCurrentUser();
-    if (!currentUser?.id || !currentUser?.email) {
-      return new NextResponse('Unauthorized', { status: 401 });
-    }
+    const workspaceId = params.workspaceId;
 
-    const { workspaceId } = params; // Ambil workspaceId dari dynamic route
     if (!workspaceId) {
-      return new NextResponse('workspaceId is required', { status: 400 });
+      return NextResponse.json(
+        { error: 'Workspace ID is required' },
+        { status: 400 }
+      );
     }
 
-    // Ambil dokumen dari workspace yang diakses
-    const documents = await getWorkspaceDocuments(workspaceId);
+    // Add authentication check
+    const user = await getCurrentUser();
+    if (!user?.id || !user?.email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-    return NextResponse.json({ success: true, documents }, { status: 200 });
+    const documents = await getWorkspaceDocuments(workspaceId);
+    return NextResponse.json(documents);
   } catch (error) {
-    console.error('Error in GET /api/workspaces/[id]/documents:', error);
-    return new NextResponse('Internal Server Error', { status: 500 });
+    console.error(
+      'Error in GET /api/workspaces/[workspaceId]/documents:',
+      error
+    );
+    return NextResponse.json(
+      { error: 'Failed to fetch documents' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: { workspaceId: string } }
+) {
+  try {
+    const workspaceId = params.workspaceId;
+
+    if (!workspaceId) {
+      return NextResponse.json(
+        { error: 'Workspace ID is required' },
+        { status: 400 }
+      );
+    }
+
+    const user = await getCurrentUser();
+    if (!user?.id || !user?.email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Check if user has access to the workspace
+    const workspace = await prisma.workspace.findFirst({
+      where: {
+        id: workspaceId,
+        members: { some: { userId: user.id } },
+      },
+    });
+
+    if (!workspace) {
+      return NextResponse.json(
+        { error: 'Workspace not found or access denied' },
+        { status: 404 }
+      );
+    }
+
+    const { title, emoji, coverImage } = await request.json();
+
+    const newDocument = await prisma.document.create({
+      data: {
+        title,
+        emoji,
+        coverImage,
+        workspaceId,
+        createdById: user.id,
+      },
+    });
+
+    return NextResponse.json(newDocument);
+  } catch (error) {
+    console.error(
+      'Error in POST /api/workspaces/[workspaceId]/documents:',
+      error
+    );
+    return NextResponse.json(
+      { error: 'Failed to create document' },
+      { status: 500 }
+    );
   }
 }

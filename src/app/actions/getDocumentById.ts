@@ -3,7 +3,8 @@ import prisma from '@/lib/prismadb';
 import { getCurrentUser } from './getCurrentUser';
 
 export async function getDocumentById(workspaceId: string, documentId: string) {
-  if (!workspaceId || !documentId) throw new Error('workspaceId and documentId are required');
+  if (!workspaceId || !documentId)
+    throw new Error('workspaceId and documentId are required');
 
   try {
     const currentUser = await getCurrentUser();
