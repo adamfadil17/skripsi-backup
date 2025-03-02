@@ -99,7 +99,7 @@ const EditWorkspace = ({ children, workspace }: EditWorkspaceProps) => {
       setIsSubmitting(true);
 
       // Mengirim request PUT untuk update workspace
-      const response = await axios.put(`/api/workspaces/${workspace.id}`, {
+      const response = await axios.put(`/api/workspace/${workspace.id}`, {
         name: values.workspaceName,
         emoji: values.emoji,
         coverImage: values.coverImage,

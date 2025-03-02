@@ -40,7 +40,7 @@ export function DeleteWorkspace({ workspace, children }: DeleteWorkspaceProps) {
   async function handleDelete() {
     try {
       setIsDeleting(true);
-      await axios.delete(`/api/workspaces/${workspace.id}`);
+      await axios.delete(`/api/workspace/${workspace.id}`);
       toast.success('Workspace has been deleted');
       setIsOpen(false);
       router.refresh();
