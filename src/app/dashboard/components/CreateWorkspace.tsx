@@ -96,7 +96,7 @@ const CreateWorkspace = ({ children }: CreateWorkspaceProps) => {
     try {
       setIsSubmitting(true);
 
-      const response = await axios.post('/api/workspaces', {
+      const response = await axios.post('/api/workspace', {
         name: values.workspaceName,
         emoji: values.emoji,
         coverImage: values.coverImage,

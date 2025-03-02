@@ -17,6 +17,9 @@ export async function getUserWorkspaces(): Promise<Workspace[]> {
           },
         },
       },
+      orderBy: {
+        createdAt: 'desc',
+      },
       select: {
         id: true,
         name: true,
