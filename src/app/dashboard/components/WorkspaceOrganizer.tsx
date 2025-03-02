@@ -11,13 +11,13 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from '@/components/ui/pagination';
-import type { Workspace } from '@/types/types';
+import type { UserWorkspace } from '@/types/types';
 import { WorkspaceItem } from './WorkspaceItem';
 import { EmptyWorkspace } from './EmptyWorkspace';
 import CreateWorkspace from './CreateWorkspace';
 
 interface WorkspaceOrganizerProps {
-  workspaces: Workspace[];
+  workspaces: UserWorkspace[];
   isSuperAdmin: boolean;
   viewMode?: 'grid' | 'list';
 }

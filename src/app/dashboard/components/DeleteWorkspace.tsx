@@ -4,7 +4,7 @@ import type React from 'react';
 
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import type { Workspace } from '@/types/types';
+import type { UserWorkspace } from '@/types/types';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,7 +21,7 @@ import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
 
 interface DeleteWorkspaceProps {
-  workspace: Workspace;
+  workspace: UserWorkspace;
   children: React.ReactNode;
 }
 

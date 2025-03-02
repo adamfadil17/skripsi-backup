@@ -1,8 +1,8 @@
 import prisma from '@/lib/prismadb';
 import { getCurrentUser } from './getCurrentUser';
-import { Workspace } from '@/types/types';
+import { UserWorkspace } from '@/types/types';
 
-export async function getUserWorkspaces(): Promise<Workspace[]> {
+export async function getUserWorkspaces(): Promise<UserWorkspace[]> {
   try {
     const user = await getCurrentUser();
     if (!user?.id || !user?.email) {

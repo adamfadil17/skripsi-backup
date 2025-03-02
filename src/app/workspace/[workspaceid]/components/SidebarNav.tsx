@@ -34,49 +34,51 @@ import {
 import NotificationSystem from './NotificationSystem';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import Link from 'next/link';
+import { WorkspaceInfo } from '@/types/types';
 
 const accounts = [
   {
     name: 'Adam Fadilah',
     role: 'Admin',
-    image: '/placeholder.svg?height=32&width=32',
+    image: '/images/placeholder.svg?height=32&width=32',
   },
   {
     name: 'Michael Jr.',
     role: 'Member',
-    image: '/placeholder.svg?height=32&width=32',
+    image: '/images/placeholder.svg?height=32&width=32',
   },
   {
     name: 'Jayne Foster',
     role: 'Member',
-    image: '/placeholder.svg?height=32&width=32',
+    image: '/images/placeholder.svg?height=32&width=32',
   },
   {
     name: 'Sonaya Cruch',
     role: 'Member',
-    image: '/placeholder.svg?height=32&width=32',
+    image: '/images/placeholder.svg?height=32&width=32',
   },
   {
     name: 'Malik Share',
     role: 'Member',
-    image: '/placeholder.svg?height=32&width=32',
+    image: '/images/placeholder.svg?height=32&width=32',
   },
 ];
 
-const datasets = [
-  'Document 1',
-  'Document 2',
-  'Document 3',
-  'Document 4',
-  'Document 5',
-  'Document 6',
-];
+// const datasets = [
+//   'Document 1',
+//   'Document 2',
+//   'Document 3',
+//   'Document 4',
+//   'Document 5',
+//   'Document 6',
+// ];
 
 interface SidebarNavProps {
   workspaceId: string;
+  workspaceInfo: WorkspaceInfo;
 }
 
-const SidebarNav = ({ workspaceId }: SidebarNavProps) => {
+const SidebarNav = ({ workspaceId, workspaceInfo }: SidebarNavProps) => {
   return (
     <Sidebar>
       <SidebarHeader className="px-4 mt-2">
@@ -91,7 +93,9 @@ const SidebarNav = ({ workspaceId }: SidebarNavProps) => {
         </Link>
         <div className="mt-4 px-2">
           <h3 className="text-sm text-muted-foreground mb-1">Workspace</h3>
-          <p className="font-medium">👨‍💼 IT Data Analyst</p>
+          <p className="font-medium">
+            {workspaceInfo.emoji} {workspaceInfo.name}
+          </p>
         </div>
       </SidebarHeader>
 
@@ -163,32 +167,41 @@ const SidebarNav = ({ workspaceId }: SidebarNavProps) => {
           <SidebarGroupContent className="py-2 px-0">
             <ScrollArea className="h-[160px]">
               <SidebarMenu>
-                {accounts.map((account) => (
+                {workspaceInfo.members.map((member) => (
                   <SidebarMenuItem
-                    key={account.name}
+                    key={member.id}
                     className="flex w-full justify-between py-1.5 px-2"
                   >
                     <div className="flex items-center gap-2">
                       <Avatar className="h-6 w-6">
-                        <AvatarImage src={account.image} alt={account.name} />
+                        <AvatarImage
+                          src={
+                            member.user.image || '/images/avatarplaceholder.png'
+                          }
+                          alt={member.user.name || 'avatar'}
+                        />
                         <AvatarFallback>
-                          {account.name.charAt(0)}
+                          {member.user.name?.charAt(0)}
                         </AvatarFallback>
                       </Avatar>
-                      <span>{account.name}</span>
+                      <span>{member.user.name}</span>
                     </div>
                     <Badge
-                      variant={
-                        account.role === 'Admin' ? 'default' : 'secondary'
-                      }
+                      variant="secondary"
                       className={`justify-center rounded-lg px-2 text-xs ${
-                        account.role === 'Admin'
+                        member.role === 'SUPER_ADMIN'
+                          ? 'bg-purple-50 text-purple-500 border-purple-500 hover:bg-purple-50'
+                          : member.role === 'ADMIN'
                           ? 'bg-blue-50 text-blue-500 border-blue-500 hover:bg-blue-50'
                           : 'bg-green-50 text-green-500 border-green-500 hover:bg-green-50'
                       }`}
                       style={{ width: '64px' }}
                     >
-                      {account.role}
+                      {member.role === 'SUPER_ADMIN'
+                        ? 'Owner'
+                        : member.role === 'ADMIN'
+                        ? 'Admin'
+                        : 'Member'}
                     </Badge>
                   </SidebarMenuItem>
                 ))}
@@ -211,12 +224,16 @@ const SidebarNav = ({ workspaceId }: SidebarNavProps) => {
           <SidebarGroupContent className="py-2 px-0">
             <ScrollArea className="h-[220px]">
               <SidebarMenu>
-                {datasets.map((dataset, index) => (
+                {workspaceInfo.documents.map((document, index) => (
                   <SidebarMenuItem key={index}>
                     <SidebarMenuButton className="w-full justify-between group hover:bg-accent hover:text-accent-foreground py-5 ">
                       <div className="flex items-center gap-2">
-                        <LuNotebookPen className="h-5 w-5" />
-                        <span>{dataset}</span>
+                        {document.emoji ? (
+                          document.emoji
+                        ) : (
+                          <LuNotebookPen className="h-5 w-5" />
+                        )}
+                        <span>{document.title}</span>
                       </div>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>

@@ -1,4 +1,4 @@
-import type { Workspace } from '@/types/types';
+import type { UserWorkspace } from '@/types/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Edit, FileText, Trash2 } from 'lucide-react';
@@ -7,7 +7,7 @@ import EditWorkspace from './EditWorkspace';
 import Link from 'next/link';
 
 interface WorkspaceItemProps {
-  workspace: Workspace;
+  workspace: UserWorkspace;
   viewMode: 'grid' | 'list';
   isSuperAdmin: boolean;
 }

@@ -1,6 +1,6 @@
 // src/app/api/workspaces/[id]/documents/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { getDocumentById } from '@/app/actions/getDocumentById';
+import { getDocumentById } from '@/app/actions/getDocumentInfo';
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
 import prisma from '@/lib/prismadb';
 

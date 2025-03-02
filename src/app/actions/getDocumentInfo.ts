@@ -2,7 +2,7 @@
 import prisma from '@/lib/prismadb';
 import { getCurrentUser } from './getCurrentUser';
 
-export async function getDocumentById(workspaceId: string, documentId: string) {
+export async function getDocumentInfo(workspaceId: string, documentId: string) {
   if (!workspaceId || !documentId)
     throw new Error('workspaceId and documentId are required');
 
@@ -13,29 +13,13 @@ export async function getDocumentById(workspaceId: string, documentId: string) {
     }
 
     const document = await prisma.document.findFirst({
-      where: {
-        id: documentId,
-        workspaceId,
-        workspace: {
-          members: {
-            some: { userId: currentUser.id },
-          },
-        },
-      },
+      where: { id: documentId },
       select: {
         id: true,
         title: true,
         emoji: true,
         coverImage: true,
         updatedAt: true,
-        createdAt: true,
-        createdBy: {
-          select: { id: true, name: true, email: true, image: true },
-        },
-        updatedBy: {
-          select: { id: true, name: true, email: true, image: true },
-        },
-        // documentContents: true,
       },
     });
 

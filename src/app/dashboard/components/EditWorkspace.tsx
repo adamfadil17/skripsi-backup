@@ -33,7 +33,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { Workspace } from '@/types/types';
+import { UserWorkspace } from '@/types/types';
 import { LuSmilePlus } from 'react-icons/lu';
 
 const formSchema = z.object({
@@ -47,7 +47,7 @@ const formSchema = z.object({
 
 interface EditWorkspaceProps {
   children: ReactNode;
-  workspace: Workspace;
+  workspace: UserWorkspace;
 }
 
 const EditWorkspace = ({ children, workspace }: EditWorkspaceProps) => {

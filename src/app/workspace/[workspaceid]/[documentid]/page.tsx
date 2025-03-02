@@ -2,7 +2,6 @@ import React from 'react';
 import { notFound } from 'next/navigation';
 import DocumentHeader from './components/DocumentHeader';
 import DocumentNoteEditor from './components/DocumentNoteEditor';
-import { getDocumentByWorkspaceId } from '@/app/actions/getDocumentByWorkspaceId';
 
 interface DocumentPageProps {
   params: {

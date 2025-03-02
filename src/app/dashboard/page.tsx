@@ -3,11 +3,11 @@ import { getCurrentUser } from '../actions/getCurrentUser';
 import WorkspaceOrganizer from './components/WorkspaceOrganizer';
 import { getUserWorkspaces } from '../actions/getUserWorkspaces';
 import Banner from './components/Banner';
-import { Workspace } from '@/types/types';
+import { UserWorkspace } from '@/types/types';
 
 const Dashboard = async () => {
   const currentUser = await getCurrentUser();
-  const workspaces: Workspace[] = await getUserWorkspaces();
+  const workspaces: UserWorkspace[] = await getUserWorkspaces();
 
   const isSuperAdmin = workspaces.some((workspace) =>
     workspace.members.some(
