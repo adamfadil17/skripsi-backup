@@ -3,36 +3,36 @@ import { getWorkspaceById } from '@/app/actions/getWorkspaceById';
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
 import prisma from '@/lib/prismadb';
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { workspaceId: string } }
-) {
+export async function GET(req: NextRequest, { params }: { params: { workspaceId: string } }) {
   try {
     const currentUser = await getCurrentUser();
-    if (!currentUser?.id || !currentUser?.email) {
+    if (!currentUser?.id) {
       return new NextResponse('Unauthorized', { status: 401 });
     }
 
     const { workspaceId } = params;
-
     if (!workspaceId) {
-      return NextResponse.json(
-        { error: 'workspaceId is required' },
-        { status: 400 }
-      );
+      return new NextResponse('Workspace id is required', { status: 400 });
     }
 
     const workspace = await getWorkspaceById(workspaceId);
+    if (!workspace) {
+      return new NextResponse('Workspace not found', { status: 404 });
+    }
 
-    return NextResponse.json({ success: true, workspace }, { status: 200 });
-  } catch (error: any) {
-    console.error('Error in GET /api/workspaces/[id]:', error);
-    return NextResponse.json(
-      { error: error.message || 'Internal Server Error' },
-      { status: 500 }
-    );
+    // Validasi apakah user adalah anggota workspace
+    const isMember = workspace.members.some((member) => member.userId === currentUser.id);
+    if (!isMember) {
+      return new NextResponse('Forbidden', { status: 403 });
+    }
+
+    return NextResponse.json(workspace, { status: 200 });
+  } catch (error) {
+    console.error('Error in GET /api/workspaces/[workspaceId]:', error);
+    return new NextResponse('Internal Server Error', { status: 500 });
   }
 }
+
 export async function PUT(
   req: NextRequest,
   { params }: { params: { workspaceId: string } }

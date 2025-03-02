@@ -35,7 +35,7 @@ export async function getDocumentById(workspaceId: string, documentId: string) {
         updatedBy: {
           select: { id: true, name: true, email: true, image: true },
         },
-        documentContents: true,
+        // documentContents: true,
       },
     });
 

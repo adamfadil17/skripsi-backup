@@ -10,7 +10,7 @@ import AITemplateDialog from './AITemplateDialog';
 const DocumentHeader = () => {
   const [emoji, setEmoji] = useState<string>();
   const [coverImage, setCoverImage] = useState('/images/cover.png');
-  const [documentName, setDocumentName] = useState('Untitled Document');
+  const [documentTitle, setDocumentTitle] = useState('Untitled Document');
 
   return (
     <>
@@ -48,9 +48,9 @@ const DocumentHeader = () => {
         <input
           type="text"
           placeholder="Untitled Document"
-          defaultValue={documentName}
+          defaultValue={documentTitle}
           className="font-bold text-4xl outline-none"
-          onBlur={(event) => setDocumentName(event.target.value)}
+          onBlur={(event) => setDocumentTitle(event.target.value)}
         />
         <AITemplateDialog>
           <Button
