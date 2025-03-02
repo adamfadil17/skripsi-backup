@@ -28,7 +28,7 @@ export async function GET(req: NextRequest, { params }: { params: { workspaceId:
 
     return NextResponse.json(workspace, { status: 200 });
   } catch (error) {
-    console.error('Error in GET /api/workspaces/[workspaceId]:', error);
+    console.error('Error in GET /api/workspace/[workspaceId]:', error);
     return new NextResponse('Internal Server Error', { status: 500 });
   }
 }

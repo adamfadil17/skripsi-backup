@@ -26,10 +26,7 @@ export async function GET(
     const documents = await getWorkspaceDocuments(workspaceId);
     return NextResponse.json(documents);
   } catch (error) {
-    console.error(
-      'Error in GET /api/workspaces/[workspaceId]/documents:',
-      error
-    );
+    console.error('Error in GET /api/workspace/[workspaceId]/document:', error);
     return NextResponse.json(
       { error: 'Failed to fetch documents' },
       { status: 500 }
@@ -86,7 +83,7 @@ export async function POST(
     return NextResponse.json(newDocument);
   } catch (error) {
     console.error(
-      'Error in POST /api/workspaces/[workspaceId]/documents:',
+      'Error in POST /api/workspace/[workspaceId]/document:',
       error
     );
     return NextResponse.json(
