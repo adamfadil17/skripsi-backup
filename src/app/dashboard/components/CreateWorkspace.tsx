@@ -125,7 +125,10 @@ const CreateWorkspace = ({ children }: CreateWorkspaceProps) => {
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent
         onPointerDownOutside={(e) => e.preventDefault()}
-        className={cn('p-0', showEmojiPicker ? 'max-w-fit' : 'max-w-[525px]')}
+        className={cn(
+          'p-0 overflow-hidden',
+          showEmojiPicker ? 'max-w-fit' : 'max-w-[525px]'
+        )}
       >
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)}>
@@ -271,8 +274,18 @@ const CreateWorkspace = ({ children }: CreateWorkspaceProps) => {
               </div>
 
               {showEmojiPicker && (
-                <div className="w-[350px] border-l">
-                  <div className="p-6">
+                <div className="w-[350px] border-l mt-5">
+                  <div
+                    className="p-6 h-full overflow-auto"
+                    style={{
+                      overscrollBehavior: 'contain',
+                      WebkitOverflowScrolling: 'touch',
+                    }}
+                    onWheel={(e) => {
+                      // Ensure wheel events propagate properly
+                      e.stopPropagation();
+                    }}
+                  >
                     <Picker
                       data={data}
                       onEmojiSelect={(emoji: any) => {
@@ -280,9 +293,7 @@ const CreateWorkspace = ({ children }: CreateWorkspaceProps) => {
                         setShowEmojiPicker(false);
                       }}
                       theme="light"
-                      navPosition="none"
                       previewPosition="none"
-                      skinTonePosition="none"
                       perLine={8}
                       maxFrequentRows={0}
                     />
