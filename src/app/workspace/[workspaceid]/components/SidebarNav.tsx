@@ -36,43 +36,6 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import Link from 'next/link';
 import { WorkspaceInfo } from '@/types/types';
 
-const accounts = [
-  {
-    name: 'Adam Fadilah',
-    role: 'Admin',
-    image: '/images/placeholder.svg?height=32&width=32',
-  },
-  {
-    name: 'Michael Jr.',
-    role: 'Member',
-    image: '/images/placeholder.svg?height=32&width=32',
-  },
-  {
-    name: 'Jayne Foster',
-    role: 'Member',
-    image: '/images/placeholder.svg?height=32&width=32',
-  },
-  {
-    name: 'Sonaya Cruch',
-    role: 'Member',
-    image: '/images/placeholder.svg?height=32&width=32',
-  },
-  {
-    name: 'Malik Share',
-    role: 'Member',
-    image: '/images/placeholder.svg?height=32&width=32',
-  },
-];
-
-// const datasets = [
-//   'Document 1',
-//   'Document 2',
-//   'Document 3',
-//   'Document 4',
-//   'Document 5',
-//   'Document 6',
-// ];
-
 interface SidebarNavProps {
   workspaceId: string;
   workspaceInfo: WorkspaceInfo;
