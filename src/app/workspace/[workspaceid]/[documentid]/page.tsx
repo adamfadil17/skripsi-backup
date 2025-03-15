@@ -2,30 +2,27 @@ import React from 'react';
 import { notFound } from 'next/navigation';
 import DocumentHeader from './components/DocumentHeader';
 import DocumentNoteEditor from './components/DocumentNoteEditor';
+import { getDocumentInfo } from '@/app/actions/getDocumentInfo';
 
 interface DocumentPageProps {
   params: {
-    workspaceId: string;
-    documentId: string;
+    workspaceid: string;
+    documentid: string;
   };
 }
 
 const DocumentPage = async ({ params }: DocumentPageProps) => {
-  const { workspaceId, documentId } = params;
+  const { workspaceid, documentid } = params;
 
-  // if (!workspaceId || !documentId) {
-  //   return notFound(); // Validasi URL params
-  // }
+  const documentInfo = await getDocumentInfo(params?.workspaceid, params?.documentid);
 
-  // const document = await getDocumentByWorkspaceId(workspaceId, documentId);
-
-  // if (!document) {
-  //   return notFound(); // Redirect ke halaman 404 jika tidak valid
-  // }
+  if (!documentInfo) {
+    throw new Error('Document not found');
+  }
 
   return (
     <div className="h-full">
-      <DocumentHeader />
+      <DocumentHeader workspaceId={workspaceid} documentId={documentid} documentInfo={documentInfo} />
       <div className="flex justify-start my-4 ml-14 mr-12">
         <DocumentNoteEditor />
       </div>

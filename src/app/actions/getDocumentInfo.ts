@@ -19,7 +19,7 @@ export async function getDocumentInfo(workspaceId: string, documentId: string) {
         title: true,
         emoji: true,
         coverImage: true,
-        updatedAt: true,
+        createdAt: true,
       },
     });
 

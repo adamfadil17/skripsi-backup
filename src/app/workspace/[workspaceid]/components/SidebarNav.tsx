@@ -1,7 +1,7 @@
 'use client';
 
-import * as React from 'react';
-import { Bell, Settings, MoreVertical } from 'lucide-react';
+import { useState } from 'react';
+import { Bell, Settings, MoreVertical, Loader2 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -35,6 +35,8 @@ import NotificationSystem from './NotificationSystem';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import Link from 'next/link';
 import { WorkspaceInfo } from '@/types/types';
+import { useParams, useRouter } from 'next/navigation';
+import axios from 'axios';
 
 interface SidebarNavProps {
   workspaceId: string;
@@ -42,6 +44,33 @@ interface SidebarNavProps {
 }
 
 const SidebarNav = ({ workspaceId, workspaceInfo }: SidebarNavProps) => {
+  const router = useRouter();
+  const params = useParams<{ documentid: string }>();
+  const [loading, setLoading] = useState(false);
+
+  const handleCreateDocument = async () => {
+    setLoading(true);
+    try {
+      const response = await axios.post(
+        `/api/workspace/${workspaceId}/document`,
+        {
+          title: 'Untitled Document',
+          emoji: '📝',
+          coverImage: '/images/cover.png',
+        }
+      );
+
+      if (response.status === 201) {
+        const newDocument = response.data;
+        router.push(`/workspace/${workspaceId}/${newDocument.id}`);
+      }
+    } catch (error) {
+      console.error('Failed to create document:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <Sidebar>
       <SidebarHeader className="px-4 mt-2">
@@ -179,8 +208,8 @@ const SidebarNav = ({ workspaceId, workspaceInfo }: SidebarNavProps) => {
               <LuNotebookTabs className="h-5 w-5" />
               <span>Documents</span>
             </div>
-            <Button size={'sm'} className="w-6 h-6 ">
-              <FaPlus className="h-3 w-3" />
+            <Button size={'sm'} className="w-6 h-6 " onClick={handleCreateDocument} disabled={loading}>
+              {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <FaPlus className="h-3 w-3" />}
             </Button>
           </SidebarMenuItem>
           <Separator />
@@ -188,8 +217,18 @@ const SidebarNav = ({ workspaceId, workspaceInfo }: SidebarNavProps) => {
             <ScrollArea className="h-[220px]">
               <SidebarMenu>
                 {workspaceInfo.documents.map((document, index) => (
-                  <SidebarMenuItem key={index}>
-                    <SidebarMenuButton className="w-full justify-between group hover:bg-accent hover:text-accent-foreground py-5 ">
+                  <SidebarMenuItem
+                    key={index}
+                    onClick={() =>
+                      router.push(`/workspace/${workspaceId}/${document.id}`)
+                    }
+                  >
+                    <SidebarMenuButton
+                      className={`w-full justify-between group hover:bg-accent hover:text-accent-foreground py-5 ${
+                        document.id === params?.documentid &&
+                        'bg-gray-200 border-gray-500'
+                      }`}
+                    >
                       <div className="flex items-center gap-2">
                         {document.emoji ? (
                           document.emoji

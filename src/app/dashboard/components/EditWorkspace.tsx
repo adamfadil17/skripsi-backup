@@ -258,7 +258,7 @@ const EditWorkspace = ({ children, workspace }: EditWorkspaceProps) => {
                   >
                     Cancel
                   </Button>
-                  <Button type="submit">
+                  <Button type="submit" disabled={isSubmitting}>
                     {isSubmitting ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />

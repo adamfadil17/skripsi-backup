@@ -30,8 +30,8 @@ model User {
   messages         Message[]
   documentContents DocumentContent[]
 
-  createdDocuments Document[] @relation("DocumentCreator")  
-  updatedDocuments Document[] @relation("DocumentEditor")  
+  createdDocuments Document[] @relation("DocumentCreator")
+  updatedDocuments Document[] @relation("DocumentEditor")
 }
 
 model Account {
@@ -125,7 +125,7 @@ model Document {
   updatedById      String?           @db.ObjectId
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  createdBy User     @relation("DocumentCreator", fields: [createdById], references: [id])
+  createdBy User      @relation("DocumentCreator", fields: [createdById], references: [id])
   updatedBy User?     @relation("DocumentEditor", fields: [updatedById], references: [id])
 }
 

@@ -14,7 +14,7 @@ interface WorkspaceItemProps {
 
 export function WorkspaceItem({
   workspace,
-  viewMode,
+  viewMode, 
   isSuperAdmin,
 }: WorkspaceItemProps) {
   if (viewMode === 'list') {

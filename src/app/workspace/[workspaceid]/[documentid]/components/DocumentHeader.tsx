@@ -1,20 +1,79 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
 import CoverPickerDialog from '../../../../../components/shared/CoverPickerDialog';
 import EmojiPickerPopover from '../../../../../components/shared/EmojiPickerPopover';
 import { SmilePlus } from 'lucide-react';
 import { Button } from '../../../../../components/ui/button';
 import AITemplateDialog from './AITemplateDialog';
+import { WorkspaceDocument } from '@/types/types';
+import axios from 'axios';
+import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
 
-const DocumentHeader = () => {
-  const [emoji, setEmoji] = useState<string>();
-  const [coverImage, setCoverImage] = useState('/images/cover.png');
-  const [documentTitle, setDocumentTitle] = useState('Untitled Document');
+interface DocumentHeaderProps {
+  workspaceId: string;
+  documentId: string;
+  documentInfo: WorkspaceDocument;
+}
+
+const DocumentHeader = ({
+  workspaceId,
+  documentId,
+  documentInfo,
+}: DocumentHeaderProps) => {
+  // const [emoji, setEmoji] = useState<string>(documentInfo?.emoji || '');
+  // const [coverImage, setCoverImage] = useState(
+  //   documentInfo?.coverImage || '/images/placeholder.svg'
+  // );
+  // const [documentTitle, setDocumentTitle] = useState(documentInfo?.title);
+
+  const [emoji, setEmoji] = useState<string>('');
+  const [coverImage, setCoverImage] = useState('/images/placeholder.svg');
+  const [documentTitle, setDocumentTitle] = useState('');
+
+  const router = useRouter();
+
+  useEffect(() => {
+    setEmoji(documentInfo?.emoji || '');
+    setCoverImage(documentInfo?.coverImage || '/images/placeholder.svg');
+    setDocumentTitle(documentInfo?.title || '');
+  }, [documentInfo]);
+
+  const updateDocument = async (data: Partial<WorkspaceDocument>) => {
+    try {
+      await axios.patch(
+        `/api/workspace/${workspaceId}/document/${documentId}`,
+        data
+      );
+      router.refresh();
+      toast.success('Document Header has been updated');
+    } catch (error) {
+      console.error('Error updating document:', error);
+    }
+  };
+
+  // Update cover image
+  const handleCoverChange = (newCover: string) => {
+    setCoverImage(newCover);
+    updateDocument({ coverImage: newCover });
+  };
+
+  // Update emoji
+  const handleEmojiChange = (newEmoji: string) => {
+    setEmoji(newEmoji);
+    updateDocument({ emoji: newEmoji });
+  };
+
+  // Update title saat kehilangan fokus (onBlur)
+  const handleTitleChange = (newTitle: string) => {
+    setDocumentTitle(newTitle);
+    updateDocument({ title: newTitle });
+  };
 
   return (
     <>
-      <CoverPickerDialog currentCover={coverImage} setCover={setCoverImage}>
+      <CoverPickerDialog currentCover={coverImage} setCover={handleCoverChange}>
         <div className="relative group cursor-pointer ">
           <h2 className="hidden absolute p-4 w-full h-full group-hover:flex items-center justify-center font-medium">
             Change Cover
@@ -33,7 +92,7 @@ const DocumentHeader = () => {
       </CoverPickerDialog>
 
       <div className="absolute ml-12 mt-[-40px] cursor-pointer">
-        <EmojiPickerPopover setEmoji={(v) => setEmoji(v)} type="document">
+        <EmojiPickerPopover setEmoji={handleEmojiChange} type="document">
           <div className="w-24 flex items-center justify-center bg-[#ffffffb0] p-4 rounded-md shadow-md">
             {emoji ? (
               <span className="text-5xl">{emoji}</span>
@@ -50,7 +109,8 @@ const DocumentHeader = () => {
           placeholder="Untitled Document"
           defaultValue={documentTitle}
           className="font-bold text-4xl outline-none"
-          onBlur={(event) => setDocumentTitle(event.target.value)}
+          onChange={(e) => setDocumentTitle(e.target.value)}
+          onBlur={(event) => handleTitleChange(event.target.value)}
         />
         <AITemplateDialog>
           <Button
