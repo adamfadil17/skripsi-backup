@@ -63,82 +63,37 @@ export async function PATCH(
   }
 }
 
-// export async function PATCH(
-//   req: NextRequest,
-//   { params }: { params: { workspaceId: string; documentId: string } }
-// ) {
-//   try {
-//     const currentUser = await getCurrentUser();
-//     if (!currentUser?.id || !currentUser?.email) {
-//       throw new Error('Unauthorized');
-//     }
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: { documentId: string } }
+) {
+  try {
+    const user = await getCurrentUser();
+    if (!user)
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-//     const { workspaceId, documentId } = params;
+    const document = await prisma.document.findUnique({
+      where: { id: params.documentId },
+      include: { workspace: true },
+    });
 
-//     if (!workspaceId || !documentId) {
-//       return NextResponse.json(
-//         { error: 'workspaceId and documentId are required' },
-//         { status: 400 }
-//       );
-//     }
+    if (!document) {
+      return NextResponse.json(
+        { error: 'Document not found' },
+        { status: 404 }
+      );
+    }
 
-//     // Validate that the document exists and belongs to the workspace
-//     const existingDocument = await prisma.document.findUnique({
-//       where: {
-//         id: documentId,
-//         workspaceId: workspaceId,
-//       },
-//     });
+    const deletedDocument = await prisma.document.delete({
+      where: { id: params.documentId },
+    });
 
-//     if (!existingDocument) {
-//       return NextResponse.json(
-//         { error: 'Document not found' },
-//         { status: 404 }
-//       );
-//     }
-
-//     // Parse the request body
-//     const body = await req.json();
-//     const { title, emoji, coverImage } = body;
-
-//     // Update only the fields that are provided
-//     const updateData: any = {};
-
-//     if (title !== undefined) {
-//       updateData.title = title;
-//     }
-
-//     if (emoji !== undefined) {
-//       updateData.emoji = emoji;
-//     }
-
-//     if (coverImage !== undefined) {
-//       updateData.coverImage = coverImage;
-//     }
-
-//     // Add the updatedById field
-//     updateData.updatedById = currentUser.id;
-
-//     // Update the document
-//     const updatedDocument = await prisma.document.update({
-//       where: {
-//         id: documentId,
-//       },
-//       data: updateData,
-//     });
-
-//     return NextResponse.json(updatedDocument);
-//   } catch (error) {
-//     console.error('[DOCUMENT_PATCH]', error);
-//     if (error instanceof Error) {
-//       return NextResponse.json(
-//         { error: error.message },
-//         { status: error.message === 'Unauthorized' ? 401 : 500 }
-//       );
-//     }
-//     return NextResponse.json(
-//       { error: 'Internal Server Error' },
-//       { status: 500 }
-//     );
-//   }
-// }
+    return NextResponse.json(deletedDocument, { status: 200 });
+  } catch (error) {
+    console.error('Delete document error:', error);
+    return NextResponse.json(
+      { error: 'Internal Server Error' },
+      { status: 500 }
+    );
+  }
+}

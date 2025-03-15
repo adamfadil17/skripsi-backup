@@ -37,6 +37,7 @@ import Link from 'next/link';
 import { WorkspaceInfo } from '@/types/types';
 import { useParams, useRouter } from 'next/navigation';
 import axios from 'axios';
+import { DeleteDocument } from '../[documentid]/components/DeleteDocument';
 
 interface SidebarNavProps {
   workspaceId: string;
@@ -208,8 +209,17 @@ const SidebarNav = ({ workspaceId, workspaceInfo }: SidebarNavProps) => {
               <LuNotebookTabs className="h-5 w-5" />
               <span>Documents</span>
             </div>
-            <Button size={'sm'} className="w-6 h-6 " onClick={handleCreateDocument} disabled={loading}>
-              {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <FaPlus className="h-3 w-3" />}
+            <Button
+              size={'sm'}
+              className="w-6 h-6 "
+              onClick={handleCreateDocument}
+              disabled={loading}
+            >
+              {loading ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <FaPlus className="h-3 w-3" />
+              )}
             </Button>
           </SidebarMenuItem>
           <Separator />
@@ -247,9 +257,19 @@ const SidebarNav = ({ workspaceId, workspaceInfo }: SidebarNavProps) => {
                           <DropdownMenuItem className="cursor-pointer">
                             Rename
                           </DropdownMenuItem>
-                          <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-red-50">
-                            Delete
-                          </DropdownMenuItem>
+                          <DeleteDocument
+                            workspaceId={workspaceId}
+                            document={document}
+                          >
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive focus:bg-red-50 cursor-pointer"
+                              onSelect={(e) => {
+                                e.preventDefault();
+                              }}
+                            >
+                              Delete
+                            </DropdownMenuItem>
+                          </DeleteDocument>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </SidebarMenuButton>
