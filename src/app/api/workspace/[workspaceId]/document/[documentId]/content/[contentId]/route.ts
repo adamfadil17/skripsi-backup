@@ -1,9 +1,9 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prismadb';
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
 
 export async function GET(
-  req: Request,
+  req: NextRequest,
   {
     params,
   }: { params: { workspaceId: string; documentId: string; contentId: string } }
@@ -44,7 +44,7 @@ export async function GET(
  * PUT: Menyimpan perubahan konten dokumen
  */
 export async function PUT(
-  req: Request,
+  req: NextRequest,
   {
     params,
   }: { params: { workspaceId: string; documentId: string; contentId: string } }
@@ -52,17 +52,21 @@ export async function PUT(
   try {
     const currentUser = await getCurrentUser();
     if (!currentUser?.id) {
-      return new NextResponse('Unauthorized', { status: 401 });
+      return NextResponse.json(
+        { success: false, message: 'Unauthorized' },
+        { status: 401 }
+      );
     }
 
     const { content } = await req.json();
 
+    // Jika ingin tetap menyimpan perubahan meskipun kosong
     const updatedContent = await prisma.documentContent.update({
       where: {
         id: params.contentId,
       },
       data: {
-        content,
+        content: content || '', // Simpan sebagai string kosong jika null/undefined
         editedAt: new Date(),
         editedById: currentUser.id,
       },
@@ -77,6 +81,9 @@ export async function PUT(
       { status: 200 }
     );
   } catch (error) {
-    return new NextResponse('Internal Server Error', { status: 500 });
+    return NextResponse.json(
+      { success: false, message: 'Internal Server Error' },
+      { status: 500 }
+    );
   }
 }
