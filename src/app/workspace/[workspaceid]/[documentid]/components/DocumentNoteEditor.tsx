@@ -1,80 +1,112 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import EditorJS from '@editorjs/editorjs';
+import EditorJS, { ToolConstructable } from '@editorjs/editorjs';
 import Header from '@editorjs/header';
+import Delimiter from '@editorjs/delimiter';
+import Table from '@editorjs/table';
 import List from '@editorjs/list';
-// import Checklist from '@editorjs/checklist';
-import Quote from '@editorjs/quote';
+import Checklist from '@editorjs/checklist';
 import CodeTool from '@editorjs/code';
-import ImageTool from '@editorjs/image';
-// import LinkTool from '@editorjs/link';
+import axios from 'axios';
+import { getCurrentUser } from '@/app/actions/getCurrentUser';
 
-const DocumentNoteEditor = () => {
+interface DocumentNoteEditorProps {
+  params: {
+    workspaceId: string;
+    documentId: string;
+    contentId: string;
+  };
+}
+
+const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({ params }) => {
   const editorRef = useRef<EditorJS | null>(null);
-  const [editorData, setEditorData] = useState<any>(null);
+  const [isFetched, setIsFetched] = useState(false);
 
   useEffect(() => {
-    if (!editorRef.current) {
+    const initializeEditor = async () => {
+      const currentUser = await getCurrentUser();
+      if (!currentUser?.id) return;
+
       const editor = new EditorJS({
         holder: 'editorjs',
         tools: {
           header: Header,
-          list: List,
-          //   checklist: Checklist,
-          quote: Quote,
-          code: CodeTool,
-          image: {
-            class: ImageTool,
+          delimiter: Delimiter,
+          table: Table,
+          list: {
+            class: List as unknown as ToolConstructable,
+            inlineToolbar: true,
+            shortcut: 'CMD+SHIFT+L',
             config: {
-              endpoints: {
-                byFile: 'http://localhost:3000/api/uploadImage', // You need to implement this API endpoint
-              },
+              defaultStyle: 'unordered',
             },
           },
-          //   linkTool: LinkTool,
+          checklist: { class: Checklist, inlineToolbar: true },
+          code: { class: CodeTool, shortcut: 'CMD+SHIFT+P' },
         },
-        data: {
-          blocks: [
-            {
-              type: 'header',
-              data: {
-                text: 'Welcome to Editor.js',
-                level: 1,
-              },
-            },
-            {
-              type: 'paragraph',
-              data: {
-                text: 'Start editing to see some magic happen!',
-              },
-            },
-          ],
-        },
-        onChange: async () => {
-          const content = await editor.save();
-          setEditorData(content);
-        },
+        onChange: () => saveDocument(),
       });
 
       editorRef.current = editor;
-    }
+
+      // Fetch awal untuk mendapatkan isi dokumen
+      fetchDocumentContent();
+    };
+
+    initializeEditor();
 
     return () => {
-      if (editorRef.current && editorRef.current.destroy) {
+      if (editorRef.current) {
         editorRef.current.destroy();
+        editorRef.current = null;
       }
     };
   }, []);
 
-  const handleSave = async () => {
-    if (editorRef.current) {
-      const content = await editorRef.current.save();
-      console.log('Saved content:', content);
+  // Fetch hanya sekali saat pertama kali load
+  const fetchDocumentContent = async () => {
+    try {
+      const response = await axios.get(
+        `/api/workspace/${params.workspaceId}/document/${params.documentId}/content/${params.contentId}`
+      );
+      const content = response.data;
+
+      if (editorRef.current && !isFetched) {
+        editorRef.current.render(content);
+        setIsFetched(true);
+      }
+    } catch (error) {
+      console.error('Error fetching document content:', error);
     }
   };
 
-  return <div id="editorjs" className="flex w-full flex-1"></div>;
+  const saveDocument = async () => {
+    if (!editorRef.current) return;
+
+    const currentUser = await getCurrentUser();
+    if (!currentUser?.id) return;
+
+    const content = await editorRef.current.save();
+
+    try {
+      await axios.put(
+        `/api/workspace/${params.workspaceId}/document/${params.documentId}/content/${params.contentId}`,
+        {
+          content,
+          editedById: currentUser.id,
+        }
+      );
+    } catch (error) {
+      console.error('Error saving document content:', error);
+    }
+  };
+
+  return (
+    <div className="lg:mr-40">
+      <div id="editorjs"></div>
+    </div>
+  );
 };
 
 export default DocumentNoteEditor;
