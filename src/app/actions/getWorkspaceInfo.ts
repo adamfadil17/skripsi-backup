@@ -1,13 +1,8 @@
 import prisma from '@/lib/prismadb';
-import { getCurrentUser } from './getCurrentUser';
 import { WorkspaceInfo } from '@/types/types';
 
 export async function getWorkspaceInfo(workspaceId: string): Promise<WorkspaceInfo | null> {
   try {
-    const user = await getCurrentUser();
-    if (!user?.id || !user?.email) {
-      throw new Error('User not authenticated');
-    }
 
     const workspace = await prisma.workspace.findUnique({
       where: { id: workspaceId },

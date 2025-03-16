@@ -10,9 +10,10 @@ export async function GET(
 ) {
   try {
     const currentUser = await getCurrentUser();
-    if (!currentUser?.id || !currentUser?.email) {
-      throw new Error('Unauthorized');
+    if (!currentUser?.id) {
+      return new NextResponse('Unauthorized', { status: 401 });
     }
+
     const { workspaceId, documentId } = params;
 
     if (!workspaceId || !documentId) {
@@ -26,10 +27,7 @@ export async function GET(
 
     return NextResponse.json({ success: true, document }, { status: 200 });
   } catch (error: any) {
-    console.error(
-      'Error in GET /api/workspace/[workspacId]/document/[documentId]:',
-      error
-    );
+    console.error('Error fetching document', error);
     return NextResponse.json(
       { error: error.message || 'Internal Server Error' },
       { status: 500 }
@@ -42,8 +40,24 @@ export async function PATCH(
   { params }: { params: { workspaceId: string; documentId: string } }
 ) {
   try {
-    const { documentId } = params;
+    const currentUser = await getCurrentUser();
+    if (!currentUser?.id) {
+      return new NextResponse('Unauthorized', { status: 401 });
+    }
+
+    const { workspaceId, documentId } = params;
     const { title, emoji, coverImage } = await req.json();
+
+    const document = await prisma.document.findUnique({
+      where: { id: documentId, workspaceId: workspaceId },
+    });
+
+    if (!document) {
+      return NextResponse.json(
+        { success: false, message: 'Document not found' },
+        { status: 404 }
+      );
+    }
 
     const updatedDocument = await prisma.document.update({
       where: { id: documentId },
@@ -54,7 +68,10 @@ export async function PATCH(
       },
     });
 
-    return NextResponse.json(updatedDocument);
+    return NextResponse.json(
+      { success: true, updatedDocument },
+      { status: 200 }
+    );
   } catch (error) {
     return NextResponse.json(
       { error: 'Failed to update document' },
@@ -65,15 +82,17 @@ export async function PATCH(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { documentId: string } }
+  { params }: { params: { workspaceId: string; documentId: string } }
 ) {
   try {
     const user = await getCurrentUser();
     if (!user)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+    const { workspaceId, documentId } = params;
+
     const document = await prisma.document.findUnique({
-      where: { id: params.documentId },
+      where: { id: documentId, workspaceId: workspaceId },
       include: { workspace: true },
     });
 
@@ -85,10 +104,13 @@ export async function DELETE(
     }
 
     const deletedDocument = await prisma.document.delete({
-      where: { id: params.documentId },
+      where: { id: documentId },
     });
 
-    return NextResponse.json(deletedDocument, { status: 200 });
+    return NextResponse.json(
+      { success: true, deletedDocument },
+      { status: 200 }
+    );
   } catch (error) {
     console.error('Delete document error:', error);
     return NextResponse.json(

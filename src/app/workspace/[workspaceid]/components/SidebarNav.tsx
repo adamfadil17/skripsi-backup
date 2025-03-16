@@ -165,8 +165,8 @@ const SidebarNav = ({ workspaceId, workspaceInfo }: SidebarNavProps) => {
                     key={member.id}
                     className="flex w-full justify-between py-1.5 px-2"
                   >
-                    <div className="flex items-center gap-2">
-                      <Avatar className="h-6 w-6">
+                    <div className="flex items-center gap-2 max-w-[120px]">
+                      <Avatar className="h-6 w-6 flex-shrink-0">
                         <AvatarImage
                           src={
                             member.user.image || '/images/avatarplaceholder.png'
@@ -177,7 +177,7 @@ const SidebarNav = ({ workspaceId, workspaceInfo }: SidebarNavProps) => {
                           {member.user.name?.charAt(0)}
                         </AvatarFallback>
                       </Avatar>
-                      <span>{member.user.name}</span>
+                      <span className="truncate">{member.user.name}</span>
                     </div>
                     <Badge
                       variant="secondary"
@@ -239,13 +239,13 @@ const SidebarNav = ({ workspaceId, workspaceInfo }: SidebarNavProps) => {
                         'bg-gray-200 border-gray-500'
                       }`}
                     >
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 max-w-[180px]">
                         {document.emoji ? (
                           document.emoji
                         ) : (
-                          <LuNotebookPen className="h-5 w-5" />
+                          <LuNotebookPen className="h-5 w-5 flex-shrink-0" />
                         )}
-                        <span>{document.title}</span>
+                        <span className="truncate">{document.title}</span>
                       </div>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>

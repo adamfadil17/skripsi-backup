@@ -3,16 +3,17 @@ import prisma from '@/lib/prismadb';
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
 
 export async function POST(
-  request: NextRequest,
+  req: NextRequest,
   { params }: { params: { workspaceId: string } }
 ) {
   try {
     const currentUser = await getCurrentUser();
-    if (!currentUser)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!currentUser?.id) {
+      return new NextResponse('Unauthorized', { status: 401 });
+    }
 
     const { workspaceId } = params;
-    const { title, emoji, coverImage } = await request.json();
+    const { title, emoji, coverImage } = await req.json();
 
     const newDocument = await prisma.document.create({
       data: {
@@ -45,7 +46,7 @@ export async function POST(
       },
     });
 
-    return NextResponse.json(newDocument, { status: 201 });
+    return NextResponse.json({ success: true, newDocument }, { status: 201 });
   } catch (error) {
     console.error('Error creating document:', error);
     return NextResponse.json(

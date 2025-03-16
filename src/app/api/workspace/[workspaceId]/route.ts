@@ -8,10 +8,12 @@ export async function GET(
   { params }: { params: { workspaceId: string } }
 ) {
   try {
-    const user = await getCurrentUser();
-    if (!user?.id || !user?.email) {
-      throw new Error('User not authenticated');
+    const currentUser = await getCurrentUser();
+
+    if (!currentUser?.id || !currentUser?.email) {
+      return new NextResponse('Unauthorized', { status: 401 });
     }
+
     const { workspaceId } = params;
     if (!workspaceId) {
       return new NextResponse('Workspace id is required', { status: 400 });
@@ -24,15 +26,15 @@ export async function GET(
 
     // Validate if the user is a member of the workspace
     const isMember = workspace.members.some(
-      (member) => member.user.id === user.id
+      (member) => member.user.id === currentUser.id
     );
     if (!isMember) {
       return new NextResponse('Forbidden', { status: 403 });
     }
 
-    return NextResponse.json(workspace, { status: 200 });
+    return NextResponse.json({ success: true, workspace }, { status: 200 });
   } catch (error) {
-    console.error('Error in GET /workspace/[workspaceId]:', error);
+    console.error('Error fetching workspace:', error);
     return new NextResponse('Internal Server Error', { status: 500 });
   }
 }
@@ -77,7 +79,10 @@ export async function PUT(
       data: { name, emoji, coverImage },
     });
 
-    return NextResponse.json(updatedWorkspace, { status: 200 });
+    return NextResponse.json(
+      { success: true, updatedWorkspace },
+      { status: 200 }
+    );
   } catch (error) {
     console.error('Error updating workspace:', error);
     return new NextResponse('Internal Server Error', { status: 500 });
@@ -124,7 +129,10 @@ export async function DELETE(
       where: { id: workspaceId },
     });
 
-    return NextResponse.json(deletedWorkspace, { status: 200 });
+    return NextResponse.json(
+      { success: true, deletedWorkspace },
+      { status: 200 }
+    );
   } catch (error) {
     console.error('Error deleting workspace:', error);
     return new NextResponse('Internal Server Error', { status: 500 });

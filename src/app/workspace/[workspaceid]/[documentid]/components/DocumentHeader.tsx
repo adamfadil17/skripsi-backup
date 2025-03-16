@@ -22,11 +22,6 @@ const DocumentHeader = ({
   documentId,
   documentInfo,
 }: DocumentHeaderProps) => {
-  // const [emoji, setEmoji] = useState<string>(documentInfo?.emoji || '');
-  // const [coverImage, setCoverImage] = useState(
-  //   documentInfo?.coverImage || '/images/placeholder.svg'
-  // );
-  // const [documentTitle, setDocumentTitle] = useState(documentInfo?.title);
 
   const [emoji, setEmoji] = useState<string>('');
   const [coverImage, setCoverImage] = useState('/images/placeholder.svg');

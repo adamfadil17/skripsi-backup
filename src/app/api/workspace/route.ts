@@ -5,9 +5,10 @@ import { getUserWorkspaces } from '@/app/actions/getUserWorkspaces';
 
 export async function GET(req: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user?.id || !user?.email) {
-      throw new Error('User not authenticated');
+    const currentUser = await getCurrentUser();
+
+    if (!currentUser?.id || !currentUser?.email) {
+      return new NextResponse('Unauthorized', { status: 401 });
     }
     // Ambil semua workspaces yang diikuti oleh pengguna
     const workspaces = await getUserWorkspaces();
@@ -114,7 +115,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return NextResponse.json(newWorkspace, { status: 201 });
+    return NextResponse.json({ success: true, newWorkspace }, { status: 201 });
   } catch (error) {
     console.error('Error creating workspace:', error);
     return new NextResponse('Internal Server Error', { status: 500 });
