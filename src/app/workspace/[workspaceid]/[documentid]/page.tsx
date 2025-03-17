@@ -24,7 +24,7 @@ const DocumentPage = async ({ params }: DocumentPageProps) => {
     <div className="h-full">
       <DocumentHeader workspaceId={workspaceid} documentId={documentid} documentInfo={documentInfo} />
       <div className="flex justify-start my-4 ml-14 mr-12">
-        <DocumentNoteEditor />
+        <DocumentNoteEditor workspaceId={workspaceid} documentId={documentid}/>
       </div>
     </div>
   );

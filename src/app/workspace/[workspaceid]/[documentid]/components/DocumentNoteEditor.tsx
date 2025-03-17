@@ -8,105 +8,102 @@ import Table from '@editorjs/table';
 import List from '@editorjs/list';
 import Checklist from '@editorjs/checklist';
 import CodeTool from '@editorjs/code';
+import Paragraph from '@editorjs/paragraph';
+import { useSession } from 'next-auth/react';
 import axios from 'axios';
-import { getCurrentUser } from '@/app/actions/getCurrentUser';
 
 interface DocumentNoteEditorProps {
-  params: {
-    workspaceId: string;
-    documentId: string;
-    contentId: string;
-  };
+  workspaceId: string;
+  documentId: string;
 }
 
-const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({ params }) => {
-  const editorRef = useRef<EditorJS | null>(null);
-  const [isFetched, setIsFetched] = useState(false);
+const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
+  workspaceId,
+  documentId,
+}) => {
+  const ref = useRef<EditorJS | null>(null);
+  let editor: EditorJS | null = null;
+  let isFetched = false;
+
+  const { data: session } = useSession();
+  const emailUser = session?.user?.email;
 
   useEffect(() => {
-    const initializeEditor = async () => {
-      const currentUser = await getCurrentUser();
-      if (!currentUser?.id) return;
+    if (session) {
+      initEditor();
+    }
+  }, [session]);
 
-      const editor = new EditorJS({
+  const saveDocument = async () => {
+    if (ref.current) {
+      const outputData = await ref.current.save();
+      try {
+        await axios.put(
+          `/api/workspace/${workspaceId}/document/${documentId}/content/`,
+          {
+            content: outputData, // Sesuaikan field dengan API
+          }
+        );
+      } catch (error) {
+        console.error('Error saving document:', error);
+      }
+    }
+  };
+
+  const getDocumentOutput = async () => {
+    try {
+      const response = await axios.get(
+        `/api/workspace/${workspaceId}/document/${documentId}/content/`
+      );
+      if (
+        response.data &&
+        (!isFetched || response.data.data.editedBy !== emailUser)
+      ) {
+        editor?.render(response.data.data.content);
+      }
+      isFetched = true;
+    } catch (error) {
+      console.error('Error fetching document:', error);
+    }
+  };
+
+  const initEditor = () => {
+    if (!editor) {
+      editor = new EditorJS({
+        onChange: () => {
+          saveDocument();
+        },
+        onReady: () => {
+          getDocumentOutput();
+        },
         holder: 'editorjs',
         tools: {
           header: Header,
           delimiter: Delimiter,
+          paragraph: {
+            class: Paragraph as unknown as ToolConstructable,
+            inlineToolbar: true,
+          },
           table: Table,
           list: {
             class: List as unknown as ToolConstructable,
             inlineToolbar: true,
             shortcut: 'CMD+SHIFT+L',
-            config: {
-              defaultStyle: 'unordered',
-            },
+            config: { defaultStyle: 'unordered' },
           },
-          checklist: { class: Checklist, inlineToolbar: true },
+          checklist: {
+            class: Checklist,
+            shortcut: 'CMD+SHIFT+C',
+            inlineToolbar: true,
+          },
           code: { class: CodeTool, shortcut: 'CMD+SHIFT+P' },
         },
-        onChange: () => saveDocument(),
       });
-
-      editorRef.current = editor;
-
-      // Fetch awal untuk mendapatkan isi dokumen
-      fetchDocumentContent();
-    };
-
-    initializeEditor();
-
-    return () => {
-      if (editorRef.current) {
-        editorRef.current.destroy();
-        editorRef.current = null;
-      }
-    };
-  }, []);
-
-  // Fetch hanya sekali saat pertama kali load
-  const fetchDocumentContent = async () => {
-    try {
-      const response = await axios.get(
-        `/api/workspace/${params.workspaceId}/document/${params.documentId}/content/${params.contentId}`
-      );
-      const content = response.data;
-
-      if (editorRef.current && !isFetched) {
-        editorRef.current.render(content);
-        setIsFetched(true);
-      }
-    } catch (error) {
-      console.error('Error fetching document content:', error);
+      ref.current = editor;
     }
   };
 
-  const saveDocument = async () => {
-    if (!editorRef.current) return;
-
-    const currentUser = await getCurrentUser();
-    if (!currentUser?.id) return;
-
-    const content = await editorRef.current.save();
-
-    try {
-      await axios.put(
-        `/api/workspace/${params.workspaceId}/document/${params.documentId}/content/${params.contentId}`,
-        {
-          content,
-          editedById: currentUser.id,
-        }
-      );
-    } catch (error) {
-      console.error('Error saving document content:', error);
-    }
-  };
-
-  return (
-    <div className="lg:mr-40">
-      <div id="editorjs"></div>
-    </div>
-  );
+  return <div id="editorjs" className="flex w-full flex-1"></div>;
 };
 
 export default DocumentNoteEditor;
