@@ -13,8 +13,8 @@ import {
 } from '@/components/ui/pagination';
 import type { UserWorkspace } from '@/types/types';
 import { WorkspaceItem } from './WorkspaceItem';
-import { EmptyWorkspace } from './EmptyWorkspace';
 import CreateWorkspace from './CreateWorkspace';
+import { EmptyWorkspace } from './EmptyWorkspace';
 
 interface WorkspaceOrganizerProps {
   workspaces: UserWorkspace[];

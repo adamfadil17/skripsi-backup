@@ -1,15 +1,15 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import { useSession } from 'next-auth/react';
+import { useRef, useEffect, useCallback } from 'react';
 import EditorJS, { ToolConstructable } from '@editorjs/editorjs';
 import Header from '@editorjs/header';
 import Delimiter from '@editorjs/delimiter';
+import Paragraph from '@editorjs/paragraph';
 import Table from '@editorjs/table';
 import List from '@editorjs/list';
 import Checklist from '@editorjs/checklist';
 import CodeTool from '@editorjs/code';
-import Paragraph from '@editorjs/paragraph';
-import { useSession } from 'next-auth/react';
 import axios from 'axios';
 
 interface DocumentNoteEditorProps {
@@ -21,61 +21,54 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
   workspaceId,
   documentId,
 }) => {
-  const ref = useRef<EditorJS | null>(null);
-  let editor: EditorJS | null = null;
-  let isFetched = false;
-
   const { data: session } = useSession();
   const emailUser = session?.user?.email;
 
-  useEffect(() => {
-    if (session) {
-      initEditor();
-    }
-  }, [session]);
+  const editorRef = useRef<EditorJS | null>(null);
+  const isFetchedRef = useRef(false); // Menggunakan useRef untuk tracking state tanpa menyebabkan re-render
+  const hasInitialized = useRef(false); // Mencegah re-inisialisasi editor
 
-  const saveDocument = async () => {
-    if (ref.current) {
-      const outputData = await ref.current.save();
+  // Fetch document content
+  const getDocumentOutput = useCallback(async () => {
+    if (!isFetchedRef.current) {
       try {
+        const response = await axios.get(
+          `/api/workspace/${workspaceId}/document/${documentId}/content/`
+        );
+        if (response.data?.data?.content) {
+          editorRef.current?.render(response.data.data.content);
+        }
+        isFetchedRef.current = true;
+      } catch (error) {
+        console.error('Error fetching document:', error);
+      }
+    }
+  }, [workspaceId, documentId]);
+
+  // Save document content
+  const saveDocument = useCallback(async () => {
+    if (editorRef.current) {
+      try {
+        const outputData = await editorRef.current.save();
         await axios.put(
           `/api/workspace/${workspaceId}/document/${documentId}/content/`,
           {
-            content: outputData, // Sesuaikan field dengan API
+            content: outputData,
           }
         );
       } catch (error) {
-        console.error('Error saving document:', error);
+        console.error('Saving failed', error);
       }
     }
-  };
+  }, [workspaceId, documentId]);
 
-  const getDocumentOutput = async () => {
-    try {
-      const response = await axios.get(
-        `/api/workspace/${workspaceId}/document/${documentId}/content/`
-      );
-      if (
-        response.data &&
-        (!isFetched || response.data.data.editedBy !== emailUser)
-      ) {
-        editor?.render(response.data.data.content);
-      }
-      isFetched = true;
-    } catch (error) {
-      console.error('Error fetching document:', error);
-    }
-  };
-
-  const initEditor = () => {
-    if (!editor) {
-      editor = new EditorJS({
-        onChange: () => {
-          saveDocument();
-        },
-        onReady: () => {
-          getDocumentOutput();
-        },
+  // Initialize EditorJS
+  const initEditor = useCallback(() => {
+    if (!hasInitialized.current) {
+      hasInitialized.current = true; // Mencegah re-inisialisasi
+      editorRef.current = new EditorJS({
+        onChange: saveDocument,
+        onReady: getDocumentOutput,
         holder: 'editorjs',
         tools: {
           header: Header,
@@ -99,11 +92,23 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
           code: { class: CodeTool, shortcut: 'CMD+SHIFT+P' },
         },
       });
-      ref.current = editor;
     }
-  };
+  }, [saveDocument, getDocumentOutput]);
 
-  return <div id="editorjs" className="flex w-full flex-1"></div>;
+  useEffect(() => {
+    if (session) {
+      initEditor();
+    }
+  }, [session, initEditor]);
+
+  return (
+    <div className="flex w-full flex-1">
+      <div
+        id="editorjs"
+        className="w-full h-full min-h-[400px] flex-grow border border-gray-300 rounded-md p-4"
+      ></div>
+    </div>
+  );
 };
 
 export default DocumentNoteEditor;
