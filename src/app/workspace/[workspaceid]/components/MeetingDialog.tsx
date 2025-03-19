@@ -247,7 +247,7 @@ const MeetingDialog = ({ children }: MeetingDialogProps) => {
         className="sm:max-w-[800px]"
       >
         <DialogHeader>
-          <DialogTitle>Meeting</DialogTitle>
+          <DialogTitle>Meet</DialogTitle>
           <DialogDescription>Manage your meeting schedule.</DialogDescription>
         </DialogHeader>
         <div className="mt-0">

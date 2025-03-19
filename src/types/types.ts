@@ -13,6 +13,7 @@ export interface UserWorkspace {
 export type WorkspaceMember = {
   id: string;
   role: string;
+  joinedAt: Date;
   user: {
     id: string;
     name: string | null;
@@ -27,6 +28,52 @@ export type WorkspaceDocument = {
   emoji: string | null;
   coverImage: string | null;
   createdAt: Date;
+  createdBy: {
+    id: string;
+    name: string | null;
+    email: string;
+  };
+  updatedBy?: {
+    id: string;
+    name: string | null;
+    email: string;
+  } | null;
+};
+
+export type ChatMessage = {
+  id: string;
+  body: string;
+  createdAt: Date;
+  sender: {
+    id: string;
+    name: string | null;
+    email: string;
+  };
+};
+
+export type WorkspaceChat = {
+  id: string;
+  messages: ChatMessage[];
+};
+
+export type WorkspaceNotification = {
+  id: string;
+  message: string;
+  type: string;
+  createdAt: Date;
+};
+
+export type WorkspaceInvitation = {
+  id: string;
+  email: string;
+  role: 'SUPER_ADMIN' | 'ADMIN' | 'MEMBER';
+  status: 'SENT' | 'ACCEPTED' | 'REJECTED';
+  invitedAt: Date;
+  invitedBy: {
+    id: string;
+    name: string | null;
+    email: string;
+  };
 };
 
 // Define the main type for workspace information
@@ -37,4 +84,7 @@ export type WorkspaceInfo = {
   coverImage: string | null;
   members: WorkspaceMember[];
   documents: WorkspaceDocument[];
+  chat: WorkspaceChat | null;
+  notifications: WorkspaceNotification[];
+  invitations: WorkspaceInvitation[];
 };

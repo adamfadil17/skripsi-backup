@@ -48,6 +48,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import InviteForm from './InviteForm';
+import { WorkspaceInfo } from '@/types/types';
 
 interface Member {
   email: string;
@@ -72,11 +73,13 @@ const workspaceFormSchema = z.object({
 
 interface WorkspaceSettingsDialogProps {
   openType: 'accounts' | 'general';
+  workspaceInfo: WorkspaceInfo;
   children: ReactNode;
 }
 
 const WorkspaceSettingsDialog = ({
   openType,
+  workspaceInfo,
   children,
 }: WorkspaceSettingsDialogProps) => {
   const [currentMenu, setCurrentMenu] = useState<'general' | 'accounts'>(
