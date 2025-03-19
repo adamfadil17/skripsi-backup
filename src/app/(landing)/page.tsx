@@ -19,6 +19,7 @@ export default function Home() {
               src="/images/heroimage.png"
               width={600}
               height={200}
+              priority
               className="object-cover rounded-lg"
             />
           </div>
