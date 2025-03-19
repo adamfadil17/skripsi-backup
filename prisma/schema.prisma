@@ -77,6 +77,7 @@ model WorkspaceMember {
   userId      String @db.ObjectId
   workspaceId String @db.ObjectId
   role        Role
+  joinedAt    DateTime @default(now())
 
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -97,7 +98,8 @@ model Invitation {
   role        Role
   workspaceId String           @db.ObjectId
   invitedById String           @db.ObjectId
-  status      InvitationStatus @default(PENDING)
+  status      InvitationStatus @default(SENT)
+  invitedAt   DateTime         @default(now())
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   invitedBy User      @relation(fields: [invitedById], references: [id], onDelete: Cascade)
@@ -106,7 +108,7 @@ model Invitation {
 }
 
 enum InvitationStatus {
-  PENDING
+  SENT
   ACCEPTED
   REJECTED
 }
