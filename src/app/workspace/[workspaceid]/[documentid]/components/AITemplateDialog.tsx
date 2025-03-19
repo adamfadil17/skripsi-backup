@@ -65,7 +65,6 @@ function AITemplateDialog({
       const prompt = `Generate template for editor.js in JSON for ${values.prompt}`;
       const result = await chatSession.sendMessage(prompt);
       const responseText = await result.response.text();
-      console.log(responseText);
       const output = JSON.parse(responseText);
 
       onGenerateTemplate(output);
