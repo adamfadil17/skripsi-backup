@@ -35,7 +35,7 @@ export async function POST(
                   },
                 },
               ],
-              version: '2.29.1',
+              version: '2.30.8',
             },
             editedById: currentUser.id,
           },

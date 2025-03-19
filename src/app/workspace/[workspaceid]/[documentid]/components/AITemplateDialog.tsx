@@ -13,7 +13,7 @@ import {
 } from '../../../../../components/ui/dialog';
 import { Input } from '../../../../../components/ui/input';
 import { Button } from '../../../../../components/ui/button';
-import { Sparkles } from 'lucide-react';
+import { Loader2, Sparkles } from 'lucide-react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -24,9 +24,12 @@ import {
   FormItem,
   FormMessage,
 } from '../../../../../components/ui/form';
+import { chatSession } from '@/lib/GoogleAIModel';
+import toast from 'react-hot-toast';
 
 interface AITemplateDialogProps {
   children: ReactNode;
+  onGenerateTemplate: (template: any) => void;
 }
 
 const formSchema = z.object({
@@ -36,9 +39,12 @@ const formSchema = z.object({
     .max(100, 'Prompt must be 100 characters or less'),
 });
 
-function AITemplateDialog({ children }: AITemplateDialogProps) {
+function AITemplateDialog({
+  children,
+  onGenerateTemplate,
+}: AITemplateDialogProps) {
   const [open, setOpen] = useState(false);
-  // const [input, setInput] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -47,16 +53,35 @@ function AITemplateDialog({ children }: AITemplateDialogProps) {
     },
   });
 
-  const onSubmit = (values: z.infer<typeof formSchema>) => {
-    console.log('Generating template for:', values.prompt);
+  const handleCancel = () => {
     setOpen(false);
+    form.reset();
   };
 
-  // const handleGenerate = () => {
-  //   // Handle generate action here
-  //   console.log('Generating template for:', input);
-  //   setOpen(false);
-  // };
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    try {
+      setIsSubmitting(true);
+
+      const prompt = `Generate template for editor.js in JSON for ${values.prompt}`;
+      const result = await chatSession.sendMessage(prompt);
+      const responseText = await result.response.text();
+      console.log(responseText);
+      const output = JSON.parse(responseText);
+
+      onGenerateTemplate(output);
+      setOpen(false);
+      form.reset();
+    } catch (error: any) {
+      if (error?.response?.status === 400) {
+        form.setError('prompt', {
+          message: 'Failed to generate a prompt.',
+        });
+      }
+      toast.error('Failed to create workspace');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -102,12 +127,20 @@ function AITemplateDialog({ children }: AITemplateDialogProps) {
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => setOpen(false)}
+                    onClick={handleCancel}
+                    disabled={isSubmitting}
                   >
                     Cancel
                   </Button>
-                  <Button>
-                    <Sparkles className="mr-1 h-4 w-4" /> Generate
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      'Generate'
+                    )}
                   </Button>
                 </div>
               </DialogFooter>

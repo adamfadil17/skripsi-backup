@@ -14,18 +14,25 @@ interface DocumentPageProps {
 const DocumentPage = async ({ params }: DocumentPageProps) => {
   const { workspaceid, documentid } = params;
 
-  const documentInfo = await getDocumentInfo(params?.workspaceid, params?.documentid);
+  const documentInfo = await getDocumentInfo(
+    params?.workspaceid,
+    params?.documentid
+  );
 
   if (!documentInfo) {
-    throw new Error('Document not found');
+    notFound();
   }
 
   return (
     <div className="h-full">
-      <DocumentHeader workspaceId={workspaceid} documentId={documentid} documentInfo={documentInfo} />
-      <div className="flex justify-start my-4 ml-14 mr-12">
-        <DocumentNoteEditor workspaceId={workspaceid} documentId={documentid}/>
-      </div>
+      <DocumentHeader
+        workspaceId={workspaceid}
+        documentId={documentid}
+        documentInfo={documentInfo}
+      />
+      {/* <div className="flex justify-start my-4 ml-14 mr-12">
+        <DocumentNoteEditor workspaceId={workspaceid} documentId={documentid} />
+      </div> */}
     </div>
   );
 };

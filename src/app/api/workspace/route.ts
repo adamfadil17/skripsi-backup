@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
                       },
                     },
                   ],
-                  version: '2.29.1',
+                  version: '2.30.8',
                 },
                 // Menggunakan currentUser sebagai editor awal (atau bisa disesuaikan)
                 editedById: currentUser.id,

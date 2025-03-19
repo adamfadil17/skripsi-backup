@@ -5,11 +5,12 @@ import CoverPickerDialog from '../../../../../components/shared/CoverPickerDialo
 import EmojiPickerPopover from '../../../../../components/shared/EmojiPickerPopover';
 import { SmilePlus } from 'lucide-react';
 import { Button } from '../../../../../components/ui/button';
-import AITemplateDialog from './AITemplateDialog';
 import { WorkspaceDocument } from '@/types/types';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
+import AITemplateDialog from './AITemplateDialog';
+import DocumentNoteEditor from './DocumentNoteEditor';
 
 interface DocumentHeaderProps {
   workspaceId: string;
@@ -22,10 +23,10 @@ const DocumentHeader = ({
   documentId,
   documentInfo,
 }: DocumentHeaderProps) => {
-
   const [emoji, setEmoji] = useState<string>('');
   const [coverImage, setCoverImage] = useState('/images/placeholder.svg');
   const [documentTitle, setDocumentTitle] = useState('');
+  const [modelResponse, setModelResponse] = useState<any>(null);
 
   const router = useRouter();
 
@@ -107,7 +108,7 @@ const DocumentHeader = ({
           onChange={(e) => setDocumentTitle(e.target.value)}
           onBlur={(event) => handleTitleChange(event.target.value)}
         />
-        <AITemplateDialog>
+        <AITemplateDialog onGenerateTemplate={setModelResponse}>
           <Button
             variant={'outline'}
             className="text-gray-700 hover:bg-gray-50 border-gray-300 rounded-lg"
@@ -121,6 +122,9 @@ const DocumentHeader = ({
             AI Template Generate
           </Button>
         </AITemplateDialog>
+      </div>
+      <div className='flex justify-center items-center ml-12'>
+      <DocumentNoteEditor workspaceId={workspaceId} documentId={documentId} modelResponse={modelResponse}/>
       </div>
     </>
   );
