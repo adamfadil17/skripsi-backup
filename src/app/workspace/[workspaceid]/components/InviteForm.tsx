@@ -23,7 +23,7 @@ import {
 
 const inviteFormSchema = z.object({
   email: z.string().email({ message: 'Invalid email address' }),
-  role: z.enum(['Admin', 'Member']),
+  role: z.enum(["SUPER_ADMIN", "ADMIN", "MEMBER"]),
 });
 
 type InviteFormValues = z.infer<typeof inviteFormSchema>;
@@ -38,7 +38,7 @@ function InviteForm({ onSubmit, onCancel }: InviteFormProps) {
     resolver: zodResolver(inviteFormSchema),
     defaultValues: {
       email: '',
-      role: 'Member',
+      role: 'MEMBER',
     },
   });
 
@@ -81,8 +81,9 @@ function InviteForm({ onSubmit, onCancel }: InviteFormProps) {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="Admin">Admin</SelectItem>
-                      <SelectItem value="Member">Member</SelectItem>
+                      <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
+                      <SelectItem value="ADMIN">Admin</SelectItem>
+                      <SelectItem value="MEMBER">Member</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

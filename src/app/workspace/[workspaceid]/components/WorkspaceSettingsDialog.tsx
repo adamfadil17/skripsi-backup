@@ -50,17 +50,17 @@ import {
 import InviteForm from './InviteForm';
 import { WorkspaceInfo } from '@/types/types';
 
-interface Member {
-  email: string;
-  date: string;
-  role: 'Admin' | 'Member';
-}
+// interface Member {
+//   email: string;
+//   date: string;
+//   role: 'Admin' | 'Member';
+// }
 
-interface Invitation {
-  email: string;
-  date: string;
-  role: 'Admin' | 'Member';
-}
+// interface Invitation {
+//   email: string;
+//   date: string;
+//   role: 'Admin' | 'Member';
+// }
 
 const workspaceFormSchema = z.object({
   workspaceName: z
@@ -89,21 +89,21 @@ const WorkspaceSettingsDialog = ({
     'members'
   );
   const [isEditing, setIsEditing] = useState(false);
-  const [emoji, setEmoji] = useState<string>();
-  const [workspaceName, setWorkspaceName] = useState('IT Data Analyst');
+  const [emoji, setEmoji] = useState<string>(workspaceInfo?.emoji || '');
+  const [workspaceName, setWorkspaceName] = useState(workspaceInfo?.name || '');
   const [showInviteForm, setShowInviteForm] = useState(false);
   const isInviteFormVisible = activeTab === 'invitations' && showInviteForm;
-  // const [inviteEmail, setInviteEmail] = useState('');
-  // const [inviteRole, setInviteRole] = useState<'Admin' | 'Member'>('Admin');
   const [currentPage, setCurrentPage] = useState(1);
-  const [coverImage, setCoverImage] = useState('/images/cover.png');
+  const [coverImage, setCoverImage] = useState(
+    workspaceInfo?.coverImage || '/images/placeholder.svg'
+  );
 
   const editWorkspaceForm = useForm<z.infer<typeof workspaceFormSchema>>({
     resolver: zodResolver(workspaceFormSchema),
     defaultValues: {
-      workspaceName: workspaceName, // Update 4
-      emoji: emoji, // Update 4
-      coverImage: coverImage, // Update 4
+      workspaceName: workspaceInfo?.name || '',
+      emoji: workspaceInfo?.emoji || '',
+      coverImage: workspaceInfo?.coverImage || '/images/placeholder.svg',
     },
   });
 
@@ -128,30 +128,29 @@ const WorkspaceSettingsDialog = ({
   function onEditWorkspaceSubmit(values: z.infer<typeof workspaceFormSchema>) {
     console.log(values);
     setIsEditing(false);
-    setWorkspaceName(values.workspaceName); // Update 2
-    setCoverImage(values.coverImage); // Update 2
-    // Handle other form submission logic here
+    setWorkspaceName(values.workspaceName);
+    setCoverImage(values.coverImage);
   }
 
-  const [members] = useState<Member[]>([
-    { email: 'adam.fadilah17@gmail.com', date: '3/8/2024', role: 'Admin' },
-    { email: 'michaeljr@gmail.com', date: '3/8/2024', role: 'Member' },
-    { email: 'jaynefoster@gmail.com', date: '3/8/2024', role: 'Member' },
-    { email: 'sonayacruch@gmail.com', date: '3/8/2024', role: 'Member' },
-    { email: 'johndoe@gmail.com', date: '3/9/2024', role: 'Member' },
-    { email: 'janedoe@gmail.com', date: '3/9/2024', role: 'Member' },
-    { email: 'bobsmith@gmail.com', date: '3/10/2024', role: 'Member' },
-    { email: 'alicejohnson@gmail.com', date: '3/10/2024', role: 'Member' },
-  ]);
+  const members =
+    workspaceInfo?.members.map((member) => ({
+      email: member.user.email,
+      date: new Date(member.joinedAt).toLocaleDateString(),
+      role: member.role,
+      userId: member.user.id,
+      name: member.user.name,
+      image: member.user.image,
+    })) || [];
 
-  const [invitations] = useState<Invitation[]>([
-    { email: 'jacobjenner12@gmail.com', date: '3/8/2024', role: 'Admin' },
-    { email: 'chris.thompson@gmail.com', date: '3/8/2024', role: 'Member' },
-    { email: 'sarahparker@gmail.com', date: '3/9/2024', role: 'Member' },
-    { email: 'mikebrown@gmail.com', date: '3/9/2024', role: 'Member' },
-    { email: 'emilydavis@gmail.com', date: '3/10/2024', role: 'Member' },
-    { email: 'davidwilson@gmail.com', date: '3/10/2024', role: 'Member' },
-  ]);
+  const invitations =
+    workspaceInfo?.invitations.map((invitation) => ({
+      email: invitation.email,
+      date: new Date(invitation.invitedAt).toLocaleDateString(),
+      role: invitation.role,
+      id: invitation.id,
+      status: invitation.status,
+      invitedBy: invitation.invitedBy?.name || '',
+    })) || [];
 
   const itemsPerPage = activeTab === 'members' ? 4 : 2;
   const totalPages = Math.ceil(
@@ -288,6 +287,7 @@ const WorkspaceSettingsDialog = ({
                                         type="document"
                                       >
                                         <Button
+                                          type="button"
                                           variant="outline"
                                           size="icon"
                                           className="h-8 w-8 sm:h-10 sm:w-10"
@@ -306,6 +306,7 @@ const WorkspaceSettingsDialog = ({
                             </div>
                             <div className="flex justify-end gap-3 mt-6">
                               <Button
+                                type="button"
                                 variant="outline"
                                 onClick={() => setIsEditing(false)}
                               >
@@ -329,6 +330,7 @@ const WorkspaceSettingsDialog = ({
                           <span>{workspaceName}</span>
                         </div>
                         <Button
+                          type="button"
                           variant="outline"
                           onClick={() => setIsEditing(true)}
                         >
@@ -342,6 +344,7 @@ const WorkspaceSettingsDialog = ({
                       Leave workspace
                     </h3>
                     <Button
+                      type="button"
                       variant="ghost"
                       className="text-red-500 hover:text-red-500 hover:bg-red-100 justify-start px-3 h-auto"
                     >
@@ -353,6 +356,7 @@ const WorkspaceSettingsDialog = ({
                       Delete workspace
                     </h3>
                     <Button
+                      type="button"
                       variant="ghost"
                       className="text-red-500 hover:text-red-500 hover:bg-red-100 justify-start px-3 h-auto"
                     >
@@ -453,14 +457,34 @@ const WorkspaceSettingsDialog = ({
                         </div>
                         {paginatedData.map((item) => (
                           <div
-                            key={item.email}
+                            key={
+                              activeTab === 'members'
+                                ? (item as any).userId
+                                : (item as any).id
+                            }
                             className="grid grid-cols-[1fr_120px_120px_40px] gap-4 items-center py-3 border-t"
                           >
                             <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-gray-100" />
+                              <div className="w-8 h-8 rounded-full bg-gray-100">
+                                {activeTab === 'members' &&
+                                  (item as any).image && (
+                                    <Image
+                                      src={
+                                        (item as any).image ||
+                                        '/images/placeholder.svg'
+                                      }
+                                      alt={(item as any).name || ''}
+                                      width={32}
+                                      height={32}
+                                      className="rounded-full"
+                                    />
+                                  )}
+                              </div>
                               <div>
                                 <div className="font-medium">
-                                  {item.email.split('@')[0]}
+                                  {activeTab === 'members'
+                                    ? (item as any).name
+                                    : item.email.split('@')[0]}
                                 </div>
                                 <div className="text-sm text-muted-foreground">
                                   {item.email}
@@ -477,8 +501,11 @@ const WorkspaceSettingsDialog = ({
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="Admin">Admin</SelectItem>
-                                  <SelectItem value="Member">Member</SelectItem>
+                                  <SelectItem value="SUPER_ADMIN">
+                                    Super Admin
+                                  </SelectItem>
+                                  <SelectItem value="ADMIN">Admin</SelectItem>
+                                  <SelectItem value="MEMBER">Member</SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>

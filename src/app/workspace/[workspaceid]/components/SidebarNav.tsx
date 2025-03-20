@@ -19,7 +19,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import Image from 'next/image';
 import { FaPlus } from 'react-icons/fa6';
-import { PiVideoConference } from "react-icons/pi";
+import { PiVideoConference } from 'react-icons/pi';
 import { GrGroup } from 'react-icons/gr';
 import { MdManageAccounts } from 'react-icons/md';
 import { LuNotebookPen, LuNotebookTabs } from 'react-icons/lu';
@@ -124,7 +124,7 @@ const SidebarNav = ({ workspaceId, workspaceInfo }: SidebarNavProps) => {
             <MeetingDialog>
               <SidebarMenuButton className="w-full justify-between text-md hover:bg-accent hover:text-accent-foreground py-5">
                 <div className="flex items-center gap-2">
-                  <PiVideoConference  className="h-5 w-5" />
+                  <PiVideoConference className="h-5 w-5" />
                   <span>Meet</span>
                 </div>
                 <Badge
@@ -152,7 +152,10 @@ const SidebarNav = ({ workspaceId, workspaceInfo }: SidebarNavProps) => {
               </span>
               <span>Accounts</span>
             </div>
-            <WorkspaceSettingsDialog openType="accounts" workspaceInfo={workspaceInfo}>
+            <WorkspaceSettingsDialog
+              openType="accounts"
+              workspaceInfo={workspaceInfo}
+            >
               <Button size={'sm'} className="w-6 h-6 ">
                 <MdManageAccounts className="h-3 w-3" />
               </Button>
@@ -238,10 +241,10 @@ const SidebarNav = ({ workspaceId, workspaceInfo }: SidebarNavProps) => {
                     <SidebarMenuButton
                       className={`w-full justify-between group hover:bg-accent hover:text-accent-foreground py-5 ${
                         document.id === params?.documentid &&
-                        'bg-gray-200 border-gray-500'
+                        'w-full bg-gray-200 hover:bg-gray-200'
                       }`}
                     >
-                      <div className="flex items-center gap-2 max-w-[180px]">
+                      <div className="flex items-center gap-2 max-w-[160px]">
                         {document.emoji ? (
                           document.emoji
                         ) : (
@@ -284,7 +287,10 @@ const SidebarNav = ({ workspaceId, workspaceInfo }: SidebarNavProps) => {
       </SidebarContent>
 
       <div className="border-t mt-auto p-4">
-        <WorkspaceSettingsDialog openType="general" workspaceInfo={workspaceInfo}>
+        <WorkspaceSettingsDialog
+          openType="general"
+          workspaceInfo={workspaceInfo}
+        >
           <span>
             <Button className="w-full" size="lg">
               <Settings className="mr-2 h-5 w-5" />
