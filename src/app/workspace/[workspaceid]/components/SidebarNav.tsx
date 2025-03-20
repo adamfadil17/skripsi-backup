@@ -24,7 +24,6 @@ import { GrGroup } from 'react-icons/gr';
 import { MdManageAccounts } from 'react-icons/md';
 import { LuNotebookPen, LuNotebookTabs } from 'react-icons/lu';
 import MeetingDialog from './MeetingDialog';
-import WorkspaceSettingsDialog from './WorkspaceSettingsDialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,6 +37,7 @@ import { WorkspaceInfo } from '@/types/types';
 import { useParams, useRouter } from 'next/navigation';
 import axios from 'axios';
 import { DeleteDocument } from '../[documentid]/components/DeleteDocument';
+import WorkspaceSettingsDialog from './wokrspacesettings/WorkspaceSettingsDialog';
 
 interface SidebarNavProps {
   workspaceId: string;

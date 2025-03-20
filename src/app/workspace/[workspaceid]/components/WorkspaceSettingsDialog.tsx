@@ -1,5 +1,7 @@
 'use client';
 
+import { DialogTrigger } from '@/components/ui/dialog';
+
 import { type ReactNode, useEffect, useState, useRef } from 'react';
 import {
   MoreHorizontal,
@@ -16,7 +18,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   DropdownMenu,
@@ -47,7 +48,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import InviteForm from './InviteForm';
+import InviteForm from './wokrspacesettings/InviteForm';
 import type { WorkspaceInfo } from '@/types/types';
 import coverOptions from '@/lib/coveroptions';
 import { cn } from '@/lib/utils';
@@ -88,6 +89,24 @@ const WorkspaceSettingsDialog = ({
     workspaceInfo?.coverImage || '/images/placeholder.svg'
   );
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showLeaveConfirmation, setShowLeaveConfirmation] = useState(false);
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+
+  const toggleModalState = (
+    stateName: 'isEditing' | 'showLeaveConfirmation' | 'showDeleteConfirmation',
+    value: boolean
+  ) => {
+    // Close all modal states first
+    setIsEditing(false);
+    setShowLeaveConfirmation(false);
+    setShowDeleteConfirmation(false);
+
+    // Then set the requested state
+    if (stateName === 'isEditing') setIsEditing(value);
+    if (stateName === 'showLeaveConfirmation') setShowLeaveConfirmation(value);
+    if (stateName === 'showDeleteConfirmation')
+      setShowDeleteConfirmation(value);
+  };
 
   const editWorkspaceForm = useForm<z.infer<typeof workspaceFormSchema>>({
     resolver: zodResolver(workspaceFormSchema),
@@ -136,7 +155,7 @@ const WorkspaceSettingsDialog = ({
 
   function onEditWorkspaceSubmit(values: z.infer<typeof workspaceFormSchema>) {
     console.log(values);
-    setIsEditing(false);
+    toggleModalState('isEditing', false);
     setWorkspaceName(values.workspaceName);
     setCoverImage(values.coverImage);
     setEmoji(values.emoji || '');
@@ -299,6 +318,8 @@ const WorkspaceSettingsDialog = ({
                                                             '/images/placeholder.svg' ||
                                                             '/placeholder.svg' ||
                                                             '/placeholder.svg' ||
+                                                            '/placeholder.svg' ||
+                                                            '/placeholder.svg' ||
                                                             '/placeholder.svg'
                                                           }
                                                           alt={`Cover option ${
@@ -395,7 +416,7 @@ const WorkspaceSettingsDialog = ({
                                   type="button"
                                   variant="outline"
                                   onClick={() => {
-                                    setIsEditing(false);
+                                    toggleModalState('isEditing', false);
                                     setShowEmojiPicker(false);
                                   }}
                                 >
@@ -426,7 +447,7 @@ const WorkspaceSettingsDialog = ({
                           <Button
                             type="button"
                             variant="outline"
-                            onClick={() => setIsEditing(true)}
+                            onClick={() => toggleModalState('isEditing', true)}
                           >
                             Update Profile
                           </Button>
@@ -437,25 +458,104 @@ const WorkspaceSettingsDialog = ({
                       <h3 className="text-sm font-medium mb-2">
                         Leave workspace
                       </h3>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className="text-red-500 hover:text-red-500 hover:bg-red-100 justify-start px-3 h-auto"
-                      >
-                        Leave workspace
-                      </Button>
+                      {showLeaveConfirmation ? (
+                        <div className="border rounded-lg p-4 space-y-4">
+                          <p className="text-sm text-gray-600">
+                            Are you sure you want to leave "{workspaceName}"?
+                            You will lose access to all documents and
+                            collaborations within this workspace. This action
+                            cannot be undone.
+                          </p>
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() =>
+                                toggleModalState('showLeaveConfirmation', false)
+                              }
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              className="bg-gray-600 hover:bg-gray-700 text-white"
+                              onClick={() => {
+                                console.log('Leaving workspace');
+                                toggleModalState(
+                                  'showLeaveConfirmation',
+                                  false
+                                );
+                              }}
+                            >
+                              Leave
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="text-red-500 hover:text-red-500 hover:bg-red-100 justify-start px-3 h-auto"
+                          onClick={() =>
+                            toggleModalState('showLeaveConfirmation', true)
+                          }
+                        >
+                          Leave workspace
+                        </Button>
+                      )}
                     </div>
                     <div>
                       <h3 className="text-sm font-medium mb-2">
                         Delete workspace
                       </h3>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className="text-red-500 hover:text-red-500 hover:bg-red-100 justify-start px-3 h-auto"
-                      >
-                        Delete workspace
-                      </Button>
+                      {showDeleteConfirmation ? (
+                        <div className="border rounded-lg p-4 space-y-4">
+                          <p className="text-sm text-gray-600">
+                            Are you sure you want to delete "{workspaceName}"?
+                            This action cannot be undone and all documents
+                            within this workspace will be permanently deleted.
+                          </p>
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() =>
+                                toggleModalState(
+                                  'showDeleteConfirmation',
+                                  false
+                                )
+                              }
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              onClick={() => {
+                                console.log('Deleting workspace');
+                                toggleModalState(
+                                  'showDeleteConfirmation',
+                                  false
+                                );
+                              }}
+                            >
+                              Delete
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="text-red-500 hover:text-red-500 hover:bg-red-100 justify-start px-3 h-auto"
+                          onClick={() =>
+                            toggleModalState('showDeleteConfirmation', true)
+                          }
+                        >
+                          Delete workspace
+                        </Button>
+                      )}
                     </div>
                   </div>
                 ) : (
@@ -565,7 +665,9 @@ const WorkspaceSettingsDialog = ({
                                       <Image
                                         src={
                                           (item as any).image ||
-                                          '/images/placeholder.svg'
+                                          '/images/placeholder.svg' ||
+                                          '/placeholder.svg' ||
+                                          '/placeholder.svg'
                                         }
                                         alt={(item as any).name || ''}
                                         width={32}
