@@ -2,7 +2,7 @@
 
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
-import { useWorkspaceSettings } from './WorkspaceSettingsContext';
+import { useWorkspaceSettings } from './WorkspaceSettingsProvider';
 
 export function EmojiPickerPanel() {
   const { setShowEmojiPicker, editWorkspaceForm } = useWorkspaceSettings();

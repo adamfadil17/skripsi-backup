@@ -17,7 +17,7 @@ import {
 import {
   WorkspaceSettingsProvider,
   useWorkspaceSettings,
-} from './WorkspaceSettingsContext';
+} from './WorkspaceSettingsProvider';
 import { WorkspaceGeneralSettings } from './WorkspaceGeneralSettings';
 import { WorkspaceAccountsSettings } from './WorkspaceAccountsSettings';
 import { EmojiPickerPanel } from './EmojiPickerPanel';

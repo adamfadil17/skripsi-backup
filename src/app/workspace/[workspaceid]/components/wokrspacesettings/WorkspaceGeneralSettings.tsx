@@ -1,16 +1,29 @@
-"use client"
+'use client';
 
-import { useEffect, useRef } from "react"
-import { ChevronLeft, ChevronRight } from "lucide-react"
-import { LuSmilePlus } from "react-icons/lu"
-import Image from "next/image"
+import { useEffect, useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { LuSmilePlus } from 'react-icons/lu';
+import Image from 'next/image';
 
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
 
-import coverOptions from "@/lib/coveroptions"
-import { useWorkspaceSettings, type WorkspaceFormValues } from "./WorkspaceSettingsContext"
+import coverOptions from '@/lib/coveroptions';
+import {
+  useWorkspaceSettings,
+  type WorkspaceFormValues,
+} from './WorkspaceSettingsProvider';
+import axios from 'axios';
+import toast from 'react-hot-toast';
+import { useRouter } from 'next/navigation';
 
 export function WorkspaceGeneralSettings() {
   const {
@@ -25,36 +38,65 @@ export function WorkspaceGeneralSettings() {
     showEmojiPicker,
     setShowEmojiPicker,
     editWorkspaceForm,
-  } = useWorkspaceSettings()
+    workspaceInfo,
+  } = useWorkspaceSettings();
 
-  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     editWorkspaceForm.reset({
       workspaceName: workspaceName,
       emoji: emoji,
       coverImage: coverImage,
-    })
-  }, [modalState.isEditing, workspaceName, emoji, coverImage, editWorkspaceForm])
+    });
+  }, [
+    modalState.isEditing,
+    workspaceName,
+    emoji,
+    coverImage,
+    editWorkspaceForm,
+  ]);
 
-  function onEditWorkspaceSubmit(values: WorkspaceFormValues) {
-    console.log(values)
-    toggleModalState("isEditing", false)
-    setWorkspaceName(values.workspaceName)
-    setCoverImage(values.coverImage)
-    setEmoji(values.emoji || "")
-  }
+  async function onEditWorkspaceSubmit(values: WorkspaceFormValues) {
+    setIsSubmitting(true);
+    try {
+      // Make API call to update workspace
+      const response = await axios.put(`/api/workspace/${workspaceInfo.id}`, {
+        name: values.workspaceName,
+        emoji: values.emoji,
+        coverImage: values.coverImage,
+      });
 
-  const scroll = (direction: "left" | "right") => {
-    const container = scrollContainerRef.current
-    if (container) {
-      const scrollAmount = container.clientWidth
-      container.scrollBy({
-        left: direction === "left" ? -scrollAmount : scrollAmount,
-        behavior: "smooth",
-      })
+      // If successful, update local state
+      if (response.status === 200) {
+        setWorkspaceName(values.workspaceName);
+        setCoverImage(values.coverImage);
+        setEmoji(values.emoji || '💼');
+        toggleModalState('isEditing', false);
+        console.log('Workspace updated successfully:', response.data);
+        toast.success('Workspace Profile has been updated');
+      }
+    } catch (error: any) {
+      console.error('Error updating workspace:', error);
+      // Tangani error misalnya dengan menampilkan notifikasi
+      toast.error('Failed to update workspace');
+    } finally {
+      setIsSubmitting(false);
     }
   }
+
+  const scroll = (direction: 'left' | 'right') => {
+    const container = scrollContainerRef.current;
+    if (container) {
+      const scrollAmount = container.clientWidth;
+      container.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth',
+      });
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -63,7 +105,9 @@ export function WorkspaceGeneralSettings() {
         {modalState.isEditing ? (
           <div className="space-y-4 border rounded-lg p-4">
             <Form {...editWorkspaceForm}>
-              <form onSubmit={editWorkspaceForm.handleSubmit(onEditWorkspaceSubmit)}>
+              <form
+                onSubmit={editWorkspaceForm.handleSubmit(onEditWorkspaceSubmit)}
+              >
                 <FormField
                   control={editWorkspaceForm.control}
                   name="coverImage"
@@ -75,7 +119,7 @@ export function WorkspaceGeneralSettings() {
                           <p className="text-sm font-medium mb-2">Cover</p>
                           <div className="mb-4">
                             <Image
-                              src={field.value || "/placeholder.svg"}
+                              src={field.value || '/placeholder.svg'}
                               alt="cover"
                               width={200}
                               height={200}
@@ -95,13 +139,18 @@ export function WorkspaceGeneralSettings() {
                                       <button
                                         key={index}
                                         type="button"
-                                        onClick={() => field.onChange(cover.imageUrl)}
+                                        onClick={() =>
+                                          field.onChange(cover.imageUrl)
+                                        }
                                         className={`relative w-[140px] h-[84px] rounded-lg overflow-hidden flex-shrink-0 transition-all ${
-                                          field.value === cover.imageUrl && "ring-2 ring-primary ring-offset-2"
+                                          field.value === cover.imageUrl &&
+                                          'ring-2 ring-primary ring-offset-2'
                                         }`}
                                       >
                                         <Image
-                                          src={cover.imageUrl || "/placeholder.svg"}
+                                          src={
+                                            cover.imageUrl || '/placeholder.svg'
+                                          }
                                           alt={`Cover option ${index + 1}`}
                                           fill
                                           className="object-cover"
@@ -114,7 +163,7 @@ export function WorkspaceGeneralSettings() {
                                     variant="ghost"
                                     size="icon"
                                     className="absolute left-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-background/80 hover:bg-background/90 backdrop-blur-sm z-50"
-                                    onClick={() => scroll("left")}
+                                    onClick={() => scroll('left')}
                                   >
                                     <ChevronLeft className="h-4 w-4" />
                                   </Button>
@@ -123,7 +172,7 @@ export function WorkspaceGeneralSettings() {
                                     variant="ghost"
                                     size="icon"
                                     className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-background/80 hover:bg-background/90 backdrop-blur-sm z-50"
-                                    onClick={() => scroll("right")}
+                                    onClick={() => scroll('right')}
                                   >
                                     <ChevronRight className="h-4 w-4" />
                                   </Button>
@@ -143,7 +192,9 @@ export function WorkspaceGeneralSettings() {
                       name="workspaceName"
                       render={({ field }) => (
                         <FormItem className="flex-1">
-                          <FormLabel className="sr-only">Workspace Name</FormLabel>
+                          <FormLabel className="sr-only">
+                            Workspace Name
+                          </FormLabel>
                           <FormControl>
                             <Input placeholder="Workspace name" {...field} />
                           </FormControl>
@@ -166,7 +217,11 @@ export function WorkspaceGeneralSettings() {
                             className="h-8 w-8 sm:h-10 sm:w-10"
                             onClick={() => setShowEmojiPicker(!showEmojiPicker)}
                           >
-                            {field.value ? field.value : <LuSmilePlus className="h-4 w-4" />}
+                            {field.value ? (
+                              field.value
+                            ) : (
+                              <LuSmilePlus className="h-4 w-4" />
+                            )}
                           </Button>
                         </FormControl>
                       </FormItem>
@@ -178,13 +233,23 @@ export function WorkspaceGeneralSettings() {
                     type="button"
                     variant="outline"
                     onClick={() => {
-                      toggleModalState("isEditing", false)
-                      setShowEmojiPicker(false)
+                      toggleModalState('isEditing', false);
+                      setShowEmojiPicker(false);
                     }}
+                    disabled={isSubmitting}
                   >
                     Cancel
                   </Button>
-                  <Button type="submit">Save</Button>
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Updating...
+                      </>
+                    ) : (
+                      'Update'
+                    )}
+                  </Button>
                 </div>
               </form>
             </Form>
@@ -193,7 +258,7 @@ export function WorkspaceGeneralSettings() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Image
-                src={coverImage || "/images/placeholder.svg"}
+                src={coverImage || '/images/placeholder.svg'}
                 alt="cover"
                 width={200}
                 height={200}
@@ -204,7 +269,11 @@ export function WorkspaceGeneralSettings() {
                 <span>{workspaceName}</span>
               </div>
             </div>
-            <Button type="button" variant="outline" onClick={() => toggleModalState("isEditing", true)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => toggleModalState('isEditing', true)}
+            >
               Update Profile
             </Button>
           </div>
@@ -213,32 +282,37 @@ export function WorkspaceGeneralSettings() {
       <WorkspaceLeaveSection />
       <WorkspaceDeleteSection />
     </div>
-  )
+  );
 }
 
 function WorkspaceLeaveSection() {
-  const { modalState, toggleModalState, workspaceName } = useWorkspaceSettings()
+  const { modalState, toggleModalState, workspaceName } =
+    useWorkspaceSettings();
 
   return (
     <div>
       <h3 className="text-sm font-medium mb-2">Leave workspace</h3>
       {modalState.showLeaveConfirmation ? (
         <div className="border rounded-lg p-4 space-y-4">
-          <p className="text-sm">
-            Are you sure you want to leave "{workspaceName}"? You will lose access to all documents and collaborations
-            within this workspace. This action cannot be undone.
+          <p className="text-sm text-muted-foreground">
+            Are you sure you want to leave "{workspaceName}"? You will lose
+            access to all documents and collaborations within this workspace.
+            This action cannot be undone.
           </p>
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => toggleModalState("showLeaveConfirmation", false)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => toggleModalState('showLeaveConfirmation', false)}
+            >
               Cancel
             </Button>
             <Button
               type="button"
-              variant="secondary"
-              className="bg-gray-600 hover:bg-gray-700 text-white"
+              variant="destructive"
               onClick={() => {
-                console.log("Leaving workspace")
-                toggleModalState("showLeaveConfirmation", false)
+                console.log('Leaving workspace');
+                // toggleModalState('showLeaveConfirmation', false);
               }}
             >
               Leave
@@ -250,40 +324,77 @@ function WorkspaceLeaveSection() {
           type="button"
           variant="ghost"
           className="text-red-500 hover:text-red-500 hover:bg-red-100 justify-start px-3 h-auto"
-          onClick={() => toggleModalState("showLeaveConfirmation", true)}
+          onClick={() => toggleModalState('showLeaveConfirmation', true)}
         >
           Leave workspace
         </Button>
       )}
     </div>
-  )
+  );
 }
 
 function WorkspaceDeleteSection() {
-  const { modalState, toggleModalState, workspaceName } = useWorkspaceSettings()
+  const { modalState, toggleModalState, workspaceName, workspaceInfo } =
+    useWorkspaceSettings();
+
+  const router = useRouter();
+
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  async function handleDelete() {
+    try {
+      setIsDeleting(true);
+      await axios.delete(`/api/workspace/${workspaceInfo.id}`);
+      toast.success('Workspace has been deleted');
+      router.push(`/dashboard`);
+    } catch (error: any) {
+      console.error(
+        'Error deleting workspace:',
+        error.response?.data || error.message
+      );
+      toast.error('Failed to delete workspace');
+    } finally {
+      setIsDeleting(false);
+    }
+  }
 
   return (
     <div>
       <h3 className="text-sm font-medium mb-2">Delete workspace</h3>
       {modalState.showDeleteConfirmation ? (
         <div className="border rounded-lg p-4 space-y-4">
-          <p className="text-sm">
-            Are you sure you want to delete "{workspaceName}"? This action cannot be undone and all documents within
-            this workspace will be permanently deleted.
+          <p className="text-sm text-muted-foreground">
+            Are you sure you want to delete "{workspaceName}"? This action
+            cannot be undone and all documents within this workspace will be
+            permanently deleted.
           </p>
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => toggleModalState("showDeleteConfirmation", false)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => toggleModalState('showDeleteConfirmation', false)}
+              disabled={isDeleting}
+            >
               Cancel
             </Button>
             <Button
               type="button"
               variant="destructive"
               onClick={() => {
-                console.log("Deleting workspace")
-                toggleModalState("showDeleteConfirmation", false)
+                handleDelete();
+                console.log('Deleting workspace');
+                // toggleModalState('showDeleteConfirmation', false);
               }}
+              disabled={isDeleting}
             >
-              Delete
+              {isDeleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete'
+              )}
             </Button>
           </div>
         </div>
@@ -292,12 +403,11 @@ function WorkspaceDeleteSection() {
           type="button"
           variant="ghost"
           className="text-red-500 hover:text-red-500 hover:bg-red-100 justify-start px-3 h-auto"
-          onClick={() => toggleModalState("showDeleteConfirmation", true)}
+          onClick={() => toggleModalState('showDeleteConfirmation', true)}
         >
           Delete workspace
         </Button>
       )}
     </div>
-  )
+  );
 }
-

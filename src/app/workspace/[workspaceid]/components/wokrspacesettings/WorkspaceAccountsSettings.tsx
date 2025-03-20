@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 import InviteForm from './InviteForm';
-import { useWorkspaceSettings } from './WorkspaceSettingsContext';
+import { useWorkspaceSettings } from './WorkspaceSettingsProvider';
 
 export function WorkspaceAccountsSettings() {
   const { workspaceInfo } = useWorkspaceSettings();

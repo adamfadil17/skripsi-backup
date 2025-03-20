@@ -42,7 +42,7 @@ const formSchema = z.object({
     .min(1, { message: 'Workspace name is required' })
     .max(50, 'Workspace name must be 50 characters or less'),
   emoji: z.string().optional(),
-  coverImage: z.string().default(coverOptions[0].imageUrl),
+  coverImage: z.string().default('/images/placeholder.svg'),
 });
 
 interface EditWorkspaceProps {
@@ -63,7 +63,7 @@ const EditWorkspace = ({ children, workspace }: EditWorkspaceProps) => {
     defaultValues: {
       workspaceName: workspace.name,
       emoji: workspace.emoji,
-      coverImage: workspace.coverImage || coverOptions[0].imageUrl,
+      coverImage: workspace.coverImage || '/images/placeholder.svg',
     },
   });
 
@@ -73,7 +73,7 @@ const EditWorkspace = ({ children, workspace }: EditWorkspaceProps) => {
       form.reset({
         workspaceName: workspace.name,
         emoji: workspace.emoji,
-        coverImage: workspace.coverImage || coverOptions[0].imageUrl,
+        coverImage: workspace.coverImage || '/images/placeholder.svg',
       });
     }
   }, [open, workspace, form]);

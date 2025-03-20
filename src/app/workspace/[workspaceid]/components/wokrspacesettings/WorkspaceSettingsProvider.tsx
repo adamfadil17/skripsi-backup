@@ -20,7 +20,7 @@ export const workspaceFormSchema = z.object({
     .min(1, { message: "Workspace name is required" })
     .max(50, "Workspace name must be 50 characters or less"),
   emoji: z.string().optional(),
-  coverImage: z.string().default("/images/cover.png"),
+  coverImage: z.string().default("/images/placeholder.svg"),
 })
 
 export type WorkspaceFormValues = z.infer<typeof workspaceFormSchema>

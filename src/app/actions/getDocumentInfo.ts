@@ -1,5 +1,5 @@
 // src/app/actions/getDocumentById.ts
-import prisma from '@/lib/prismadb';  
+import prisma from '@/lib/prismadb';
 
 export async function getDocumentInfo(workspaceId: string, documentId: string) {
   if (!workspaceId || !documentId)
@@ -14,6 +14,9 @@ export async function getDocumentInfo(workspaceId: string, documentId: string) {
         emoji: true,
         coverImage: true,
         createdAt: true,
+        createdBy: {
+          select: { id: true, name: true, email: true },
+        },
       },
     });
 
