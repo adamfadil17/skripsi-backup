@@ -199,7 +199,7 @@ export function WorkspaceAccountsSettings() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
+                      <SelectItem value="SUPER_ADMIN">Owner</SelectItem>
                       <SelectItem value="ADMIN">Admin</SelectItem>
                       <SelectItem value="MEMBER">Member</SelectItem>
                     </SelectContent>

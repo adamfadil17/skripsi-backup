@@ -698,7 +698,7 @@ const WorkspaceSettingsDialog = ({
                                   </SelectTrigger>
                                   <SelectContent>
                                     <SelectItem value="SUPER_ADMIN">
-                                      Super Admin
+                                      Owner
                                     </SelectItem>
                                     <SelectItem value="ADMIN">Admin</SelectItem>
                                     <SelectItem value="MEMBER">

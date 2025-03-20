@@ -42,9 +42,11 @@ import WorkspaceSettingsDialog from './wokrspacesettings/WorkspaceSettingsDialog
 interface SidebarNavProps {
   workspaceId: string;
   workspaceInfo: WorkspaceInfo;
+  isSuperAdmin: boolean;
+  isAdmin: boolean;
 }
 
-const SidebarNav = ({ workspaceId, workspaceInfo }: SidebarNavProps) => {
+const SidebarNav = ({ workspaceId, workspaceInfo, isSuperAdmin, isAdmin }: SidebarNavProps) => {
   const router = useRouter();
   const params = useParams<{ documentid: string }>();
   const [loading, setLoading] = useState(false);
