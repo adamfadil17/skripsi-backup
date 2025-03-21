@@ -45,6 +45,7 @@ export function WorkspaceGeneralSettings() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     editWorkspaceForm.reset({
@@ -76,6 +77,7 @@ export function WorkspaceGeneralSettings() {
         setCoverImage(values.coverImage);
         setEmoji(values.emoji || '💼');
         toggleModalState('isEditing', false);
+        router.refresh();
         console.log('Workspace updated successfully:', response.data);
         toast.success('Workspace Profile has been updated');
       }
@@ -288,15 +290,54 @@ export function WorkspaceGeneralSettings() {
 }
 
 function WorkspaceLeaveSection() {
-  const { modalState, toggleModalState, workspaceName, isSuperAdmin } =
-    useWorkspaceSettings();
+  const {
+    modalState,
+    toggleModalState,
+    workspaceName,
+    workspaceInfo,
+    isSuperAdmin,
+  } = useWorkspaceSettings();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const router = useRouter();
+
+  async function leaveWorkspace() {
+    try {
+      // Validasi apakah user adalah Super Admin terakhir
+      if (
+        workspaceInfo.members.filter((m) => m.role === 'SUPER_ADMIN').length ===
+          1 &&
+        isSuperAdmin
+      ) {
+        toast.error(
+          'You are the last Owner. Please assign a new Owner before leaving.'
+        );
+        return;
+      }
+
+      setIsSubmitting(true);
+
+      await axios.post(`/api/workspace/${workspaceInfo.id}/leave`);
+
+      toast.success('You have left the workspace');
+      router.push('/dashboard');
+    } catch (error: any) {
+      console.error(
+        'Error leaving workspace:',
+        error.response?.data || error.message
+      );
+      toast.error('Failed to leave workspace');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
 
   return (
     <div>
       <h3 className="text-sm font-medium mb-2">Leave workspace</h3>
       {modalState.showLeaveConfirmation ? (
         <div className="border rounded-lg p-4 space-y-4">
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm">
             Are you sure you want to leave "{workspaceName}"? You will lose
             access to all documents and collaborations within this workspace.
             This action cannot be undone.
@@ -313,11 +354,19 @@ function WorkspaceLeaveSection() {
               type="button"
               variant="destructive"
               onClick={() => {
+                leaveWorkspace();
                 console.log('Leaving workspace');
                 // toggleModalState('showLeaveConfirmation', false);
               }}
             >
-              Leave
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Leaving...
+                </>
+              ) : (
+                'Leave'
+              )}
             </Button>
           </div>
         </div>
@@ -370,7 +419,7 @@ function WorkspaceDeleteSection() {
       <h3 className="text-sm font-medium mb-2">Delete workspace</h3>
       {modalState.showDeleteConfirmation ? (
         <div className="border rounded-lg p-4 space-y-4">
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm">
             Are you sure you want to delete "{workspaceName}"? This action
             cannot be undone and all documents within this workspace will be
             permanently deleted.
