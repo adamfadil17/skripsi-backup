@@ -84,7 +84,9 @@ export function WorkspaceGeneralSettings() {
     } catch (error: any) {
       console.error('Error updating workspace:', error);
       // Tangani error misalnya dengan menampilkan notifikasi
-      toast.error('Failed to update workspace');
+      toast.error(
+        error.response?.data?.message || 'Failed to update workspace'
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -326,7 +328,7 @@ function WorkspaceLeaveSection() {
         'Error leaving workspace:',
         error.response?.data || error.message
       );
-      toast.error('Failed to leave workspace');
+      toast.error(error.response?.data?.message || 'Failed to leave workspace');
     } finally {
       setIsSubmitting(false);
     }
@@ -408,7 +410,9 @@ function WorkspaceDeleteSection() {
         'Error deleting workspace:',
         error.response?.data || error.message
       );
-      toast.error('Failed to delete workspace');
+      toast.error(
+        error.response?.data?.message || 'Failed to delete workspace'
+      );
     } finally {
       setIsDeleting(false);
     }

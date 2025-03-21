@@ -78,8 +78,9 @@ export function WorkspaceAccountsSettings() {
   );
 
   const handleRoleChange = async (userId: string, newRole: string) => {
+    console.log({ userId, newRole });
     try {
-      await axios.put(`/api/workspace/${workspaceInfo.id}/members/role`, {
+      await axios.put(`/api/workspace/${workspaceInfo.id}/member/role`, {
         userId,
         newRole,
       });
@@ -102,7 +103,7 @@ export function WorkspaceAccountsSettings() {
 
     // Admin hanya bisa menghapus Member
     if (isAdmin && (isTargetSuperAdmin || isTargetAdmin)) {
-      toast.error('Admin hanya bisa menghapus Member.');
+      toast.error('Admin can only remove Members.');
       return;
     }
 
@@ -113,16 +114,12 @@ export function WorkspaceAccountsSettings() {
       superAdmins.length === 1 &&
       currentUser.id === userId
     ) {
-      toast.error(
-        'Anda tidak bisa menghapus diri sendiri jika hanya ada satu Super Admin.'
-      );
+      toast.error('You cannot remove yourself if there is only one Owner.');
       return;
     }
 
     try {
-      await axios.delete(
-        `/api/workspace/${workspaceInfo.id}/members/${userId}`
-      );
+      await axios.delete(`/api/workspace/${workspaceInfo.id}/member/${userId}`);
       toast.success('User removed successfully.');
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Failed to remove user.');
@@ -292,8 +289,7 @@ export function WorkspaceAccountsSettings() {
                     disabled={
                       activeTab === 'invitations' ||
                       (!isSuperAdmin && !isAdmin) ||
-                      (isAdmin && item.role === 'SUPER_ADMIN') ||
-                      item.email === currentUser.email
+                      (isAdmin && item.role === 'SUPER_ADMIN')
                     }
                   >
                     <SelectTrigger className="h-8">
