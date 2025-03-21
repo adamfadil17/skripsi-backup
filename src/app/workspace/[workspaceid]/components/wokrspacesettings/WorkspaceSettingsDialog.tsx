@@ -27,17 +27,23 @@ interface WorkspaceSettingsDialogProps {
   openType: 'accounts' | 'general';
   workspaceInfo: WorkspaceInfo;
   children: ReactNode;
+  isSuperAdmin: boolean;
+  isAdmin: boolean;
 }
 
 const WorkspaceSettingsDialog = ({
   openType,
   workspaceInfo,
   children,
+  isSuperAdmin,
+  isAdmin,
 }: WorkspaceSettingsDialogProps) => {
   return (
     <WorkspaceSettingsProvider
       initialWorkspaceInfo={workspaceInfo}
       initialMenu={openType}
+      isSuperAdmin={isSuperAdmin}
+      isAdmin={}
     >
       <Dialog>
         <DialogTrigger asChild>{children}</DialogTrigger>

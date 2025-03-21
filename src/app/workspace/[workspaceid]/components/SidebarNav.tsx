@@ -46,7 +46,12 @@ interface SidebarNavProps {
   isAdmin: boolean;
 }
 
-const SidebarNav = ({ workspaceId, workspaceInfo, isSuperAdmin, isAdmin }: SidebarNavProps) => {
+const SidebarNav = ({
+  workspaceId,
+  workspaceInfo,
+  isSuperAdmin,
+  isAdmin,
+}: SidebarNavProps) => {
   const router = useRouter();
   const params = useParams<{ documentid: string }>();
   const [loading, setLoading] = useState(false);
@@ -157,6 +162,8 @@ const SidebarNav = ({ workspaceId, workspaceInfo, isSuperAdmin, isAdmin }: Sideb
             <WorkspaceSettingsDialog
               openType="accounts"
               workspaceInfo={workspaceInfo}
+              isSuperAdmin={isSuperAdmin}
+              isAdmin={isAdmin}
             >
               <Button size={'sm'} className="w-6 h-6 ">
                 <MdManageAccounts className="h-3 w-3" />
@@ -292,6 +299,8 @@ const SidebarNav = ({ workspaceId, workspaceInfo, isSuperAdmin, isAdmin }: Sideb
         <WorkspaceSettingsDialog
           openType="general"
           workspaceInfo={workspaceInfo}
+          isSuperAdmin={isSuperAdmin}
+          isAdmin={isAdmin}
         >
           <span>
             <Button className="w-full" size="lg">

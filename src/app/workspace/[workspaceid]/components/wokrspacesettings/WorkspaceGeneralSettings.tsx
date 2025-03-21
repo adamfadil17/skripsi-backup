@@ -39,6 +39,7 @@ export function WorkspaceGeneralSettings() {
     setShowEmojiPicker,
     editWorkspaceForm,
     workspaceInfo,
+    isSuperAdmin,
   } = useWorkspaceSettings();
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -272,6 +273,7 @@ export function WorkspaceGeneralSettings() {
             <Button
               type="button"
               variant="outline"
+              disabled={!isSuperAdmin}
               onClick={() => toggleModalState('isEditing', true)}
             >
               Update Profile
@@ -286,7 +288,7 @@ export function WorkspaceGeneralSettings() {
 }
 
 function WorkspaceLeaveSection() {
-  const { modalState, toggleModalState, workspaceName } =
+  const { modalState, toggleModalState, workspaceName, isSuperAdmin } =
     useWorkspaceSettings();
 
   return (
@@ -324,6 +326,7 @@ function WorkspaceLeaveSection() {
           type="button"
           variant="ghost"
           className="text-red-500 hover:text-red-500 hover:bg-red-100 justify-start px-3 h-auto"
+          disabled={!isSuperAdmin}
           onClick={() => toggleModalState('showLeaveConfirmation', true)}
         >
           Leave workspace
@@ -334,8 +337,13 @@ function WorkspaceLeaveSection() {
 }
 
 function WorkspaceDeleteSection() {
-  const { modalState, toggleModalState, workspaceName, workspaceInfo } =
-    useWorkspaceSettings();
+  const {
+    modalState,
+    toggleModalState,
+    workspaceName,
+    workspaceInfo,
+    isSuperAdmin,
+  } = useWorkspaceSettings();
 
   const router = useRouter();
 
@@ -403,6 +411,7 @@ function WorkspaceDeleteSection() {
           type="button"
           variant="ghost"
           className="text-red-500 hover:text-red-500 hover:bg-red-100 justify-start px-3 h-auto"
+          disabled={!isSuperAdmin}
           onClick={() => toggleModalState('showDeleteConfirmation', true)}
         >
           Delete workspace

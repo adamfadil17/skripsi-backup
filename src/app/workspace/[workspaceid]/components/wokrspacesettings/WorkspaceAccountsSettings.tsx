@@ -24,7 +24,7 @@ import InviteForm from './InviteForm';
 import { useWorkspaceSettings } from './WorkspaceSettingsProvider';
 
 export function WorkspaceAccountsSettings() {
-  const { workspaceInfo } = useWorkspaceSettings();
+  const { workspaceInfo, isSuperAdmin, isAdmin } = useWorkspaceSettings();
   const [activeTab, setActiveTab] = useState<'members' | 'invitations'>(
     'members'
   );
@@ -128,6 +128,7 @@ export function WorkspaceAccountsSettings() {
             }
             setCurrentPage(1);
           }}
+          disabled={!isSuperAdmin && !isAdmin}
         >
           Invite
         </Button>
@@ -193,7 +194,11 @@ export function WorkspaceAccountsSettings() {
                 <div>
                   <Select
                     defaultValue={item.role}
-                    disabled={activeTab === 'invitations'}
+                    disabled={
+                      activeTab === 'invitations' ||
+                      (!isSuperAdmin && !isAdmin) ||
+                      (isAdmin && item.role === 'SUPER_ADMIN')
+                    }
                   >
                     <SelectTrigger className="h-8">
                       <SelectValue />
@@ -205,23 +210,25 @@ export function WorkspaceAccountsSettings() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MoreHorizontal className="h-4 w-4" />
-                        <span className="sr-only">Actions</span>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-red-50">
-                        {activeTab === 'members'
-                          ? 'Remove member'
-                          : 'Revoke invitation'}
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
+                {(isSuperAdmin || isAdmin) && (
+                  <div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreHorizontal className="h-4 w-4" />
+                          <span className="sr-only">Actions</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-red-50">
+                          {activeTab === 'members'
+                            ? 'Remove member'
+                            : 'Revoke invitation'}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                )}
               </div>
             ))}
           </div>
