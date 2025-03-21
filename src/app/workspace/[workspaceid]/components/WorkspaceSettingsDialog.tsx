@@ -48,7 +48,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import InviteForm from './wokrspacesettings/InviteForm';
+import InviteForm from './workspacesettings/InviteForm';
 import type { WorkspaceInfo } from '@/types/types';
 import coverOptions from '@/lib/coveroptions';
 import { cn } from '@/lib/utils';

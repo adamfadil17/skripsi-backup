@@ -37,7 +37,7 @@ import { WorkspaceInfo } from '@/types/types';
 import { useParams, useRouter } from 'next/navigation';
 import axios from 'axios';
 import { DeleteDocument } from '../[documentid]/components/DeleteDocument';
-import WorkspaceSettingsDialog from './wokrspacesettings/WorkspaceSettingsDialog';
+import WorkspaceSettingsDialog from './workspacesettings/WorkspaceSettingsDialog';
 
 interface SidebarNavProps {
   workspaceId: string;

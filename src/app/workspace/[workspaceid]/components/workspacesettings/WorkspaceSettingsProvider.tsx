@@ -119,7 +119,7 @@ export function WorkspaceSettingsProvider({
         setShowEmojiPicker,
         editWorkspaceForm,
         isSuperAdmin,
-        isAdmin
+        isAdmin,
       }}
     >
       {children}

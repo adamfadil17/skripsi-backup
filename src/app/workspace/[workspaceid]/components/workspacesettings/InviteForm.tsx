@@ -1,5 +1,4 @@
 'use client';
-import { useState } from 'react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -23,17 +22,30 @@ import {
 
 const inviteFormSchema = z.object({
   email: z.string().email({ message: 'Invalid email address' }),
-  role: z.enum(["SUPER_ADMIN", "ADMIN", "MEMBER"]),
+  role: z.enum(['SUPER_ADMIN', 'ADMIN', 'MEMBER']),
 });
 
 type InviteFormValues = z.infer<typeof inviteFormSchema>;
 
 interface InviteFormProps {
+  isSuperAdmin: boolean;
+  isAdmin: boolean;
   onSubmit: (values: InviteFormValues) => void;
   onCancel: () => void;
 }
 
-function InviteForm({ onSubmit, onCancel }: InviteFormProps) {
+const roleLabels: Record<InviteFormValues['role'], string> = {
+  SUPER_ADMIN: 'Owner',
+  ADMIN: 'Admin',
+  MEMBER: 'Member',
+};
+
+function InviteForm({
+  onSubmit,
+  onCancel,
+  isSuperAdmin,
+  isAdmin,
+}: InviteFormProps) {
   const form = useForm<InviteFormValues>({
     resolver: zodResolver(inviteFormSchema),
     defaultValues: {
@@ -46,6 +58,13 @@ function InviteForm({ onSubmit, onCancel }: InviteFormProps) {
     onSubmit(values);
     form.reset();
   };
+
+  // Tentukan role yang tersedia berdasarkan peran pengundang
+  const availableRoles: InviteFormValues['role'][] = isSuperAdmin
+    ? ['SUPER_ADMIN', 'ADMIN', 'MEMBER']
+    : isAdmin
+    ? ['ADMIN', 'MEMBER']
+    : [];
 
   return (
     <Form {...form}>
@@ -81,9 +100,11 @@ function InviteForm({ onSubmit, onCancel }: InviteFormProps) {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
-                      <SelectItem value="ADMIN">Admin</SelectItem>
-                      <SelectItem value="MEMBER">Member</SelectItem>
+                      {availableRoles.map((role) => (
+                        <SelectItem key={role} value={role}>
+                          {roleLabels[role]}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -95,7 +116,9 @@ function InviteForm({ onSubmit, onCancel }: InviteFormProps) {
             <Button type="button" variant="outline" onClick={onCancel}>
               Cancel
             </Button>
-            <Button type="submit">Send Invitation</Button>
+            <Button type="submit" disabled={availableRoles.length === 0}>
+              Send Invitation
+            </Button>
           </div>
         </div>
       </form>

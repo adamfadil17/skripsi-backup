@@ -139,6 +139,8 @@ export function WorkspaceAccountsSettings() {
           <div className="rounded-lg border p-4">
             <h3 className="text-base font-medium mb-4">Invite new members</h3>
             <InviteForm
+              isSuperAdmin={isSuperAdmin}
+              isAdmin={isAdmin}
               onSubmit={(values) => {
                 console.log('Invitation sent:', values);
                 setShowInviteForm(false);

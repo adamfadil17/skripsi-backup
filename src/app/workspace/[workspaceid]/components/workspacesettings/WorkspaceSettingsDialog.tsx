@@ -43,7 +43,7 @@ const WorkspaceSettingsDialog = ({
       initialWorkspaceInfo={workspaceInfo}
       initialMenu={openType}
       isSuperAdmin={isSuperAdmin}
-      isAdmin={}
+      isAdmin={isAdmin}
     >
       <Dialog>
         <DialogTrigger asChild>{children}</DialogTrigger>
