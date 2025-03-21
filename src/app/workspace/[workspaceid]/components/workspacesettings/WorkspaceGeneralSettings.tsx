@@ -326,7 +326,6 @@ function WorkspaceLeaveSection() {
           type="button"
           variant="ghost"
           className="text-red-500 hover:text-red-500 hover:bg-red-100 justify-start px-3 h-auto"
-          disabled={!isSuperAdmin}
           onClick={() => toggleModalState('showLeaveConfirmation', true)}
         >
           Leave workspace
