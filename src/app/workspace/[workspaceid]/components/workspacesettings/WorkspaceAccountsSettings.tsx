@@ -24,6 +24,7 @@ import InviteForm from './InviteForm';
 import { useWorkspaceSettings } from './WorkspaceSettingsProvider';
 import toast from 'react-hot-toast';
 import axios from 'axios';
+import { useRouter } from 'next/navigation';
 
 export function WorkspaceAccountsSettings() {
   const { workspaceInfo, isSuperAdmin, isAdmin, currentUser } =
@@ -33,6 +34,9 @@ export function WorkspaceAccountsSettings() {
   );
   const [showInviteForm, setShowInviteForm] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const router = useRouter();
 
   const isInviteFormVisible = activeTab === 'invitations' && showInviteForm;
 
@@ -84,6 +88,77 @@ export function WorkspaceAccountsSettings() {
       toast.error(error.response?.data?.message || 'Failed to update role');
     }
   };
+
+  const handleRemoveMember = async (userId: string, role: string) => {
+    if (!workspaceInfo) return;
+
+    const isTargetSuperAdmin = role === 'SUPER_ADMIN';
+    const isTargetAdmin = role === 'ADMIN';
+
+    // Hitung jumlah Super Admin dalam workspace
+    const superAdmins = workspaceInfo.members.filter(
+      (member) => member.role === 'SUPER_ADMIN'
+    );
+
+    // Admin hanya bisa menghapus Member
+    if (isAdmin && (isTargetSuperAdmin || isTargetAdmin)) {
+      toast.error('Admin hanya bisa menghapus Member.');
+      return;
+    }
+
+    // Super Admin tidak bisa menghapus dirinya sendiri jika dia satu-satunya Super Admin
+    if (
+      isSuperAdmin &&
+      isTargetSuperAdmin &&
+      superAdmins.length === 1 &&
+      currentUser.id === userId
+    ) {
+      toast.error(
+        'Anda tidak bisa menghapus diri sendiri jika hanya ada satu Super Admin.'
+      );
+      return;
+    }
+
+    try {
+      await axios.delete(
+        `/api/workspace/${workspaceInfo.id}/members/${userId}`
+      );
+      toast.success('User removed successfully.');
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to remove user.');
+    }
+  };
+
+  async function leaveWorkspace() {
+    try {
+      // Validasi apakah user adalah Super Admin terakhir
+      if (
+        workspaceInfo.members.filter((m) => m.role === 'SUPER_ADMIN').length ===
+          1 &&
+        isSuperAdmin
+      ) {
+        toast.error(
+          'You are the last Owner. Please assign a new Owner before leaving.'
+        );
+        return;
+      }
+
+      setIsSubmitting(true);
+
+      await axios.post(`/api/workspace/${workspaceInfo.id}/leave`);
+
+      toast.success('You have left the workspace');
+      router.push('/dashboard');
+    } catch (error: any) {
+      console.error(
+        'Error leaving workspace:',
+        error.response?.data || error.message
+      );
+      toast.error('Failed to leave workspace');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
 
   return (
     <>
@@ -241,9 +316,25 @@ export function WorkspaceAccountsSettings() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-red-50">
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive focus:bg-red-50 cursor-pointer"
+                          onClick={() => {
+                            if (activeTab === 'members') {
+                              if (item.email === currentUser.email) {
+                                leaveWorkspace();
+                              } else {
+                                handleRemoveMember(
+                                  (item as any).userId,
+                                  item.role
+                                );
+                              }
+                            }
+                          }}
+                        >
                           {activeTab === 'members'
-                            ? 'Remove member'
+                            ? item.email === currentUser.email
+                              ? 'Leave workspace'
+                              : 'Remove member'
                             : 'Revoke invitation'}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
