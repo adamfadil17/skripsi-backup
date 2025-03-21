@@ -13,6 +13,7 @@ export interface UserWorkspace {
 export type WorkspaceMember = {
   id: string;
   role: string;
+  userId: string;
   joinedAt: Date;
   user: {
     id: string;

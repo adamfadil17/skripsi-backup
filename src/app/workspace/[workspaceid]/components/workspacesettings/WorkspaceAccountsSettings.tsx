@@ -22,9 +22,12 @@ import {
 
 import InviteForm from './InviteForm';
 import { useWorkspaceSettings } from './WorkspaceSettingsProvider';
+import toast from 'react-hot-toast';
+import axios from 'axios';
 
 export function WorkspaceAccountsSettings() {
-  const { workspaceInfo, isSuperAdmin, isAdmin } = useWorkspaceSettings();
+  const { workspaceInfo, isSuperAdmin, isAdmin, currentUser } =
+    useWorkspaceSettings();
   const [activeTab, setActiveTab] = useState<'members' | 'invitations'>(
     'members'
   );
@@ -69,6 +72,18 @@ export function WorkspaceAccountsSettings() {
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
+
+  const handleRoleChange = async (userId: string, newRole: string) => {
+    try {
+      await axios.put(`/api/workspace/${workspaceInfo.id}/members/role`, {
+        userId,
+        newRole,
+      });
+      toast.success('User role updated successfully');
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to update role');
+    }
+  };
 
   return (
     <>
@@ -196,10 +211,14 @@ export function WorkspaceAccountsSettings() {
                 <div>
                   <Select
                     defaultValue={item.role}
+                    onValueChange={(newRole) =>
+                      handleRoleChange((item as any).userId, newRole)
+                    }
                     disabled={
                       activeTab === 'invitations' ||
                       (!isSuperAdmin && !isAdmin) ||
-                      (isAdmin && item.role === 'SUPER_ADMIN')
+                      (isAdmin && item.role === 'SUPER_ADMIN') ||
+                      item.email === currentUser.email
                     }
                   >
                     <SelectTrigger className="h-8">

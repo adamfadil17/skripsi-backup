@@ -38,12 +38,14 @@ import { useParams, useRouter } from 'next/navigation';
 import axios from 'axios';
 import { DeleteDocument } from '../[documentid]/components/DeleteDocument';
 import WorkspaceSettingsDialog from './workspacesettings/WorkspaceSettingsDialog';
+import { User } from '@prisma/client';
 
 interface SidebarNavProps {
   workspaceId: string;
   workspaceInfo: WorkspaceInfo;
   isSuperAdmin: boolean;
   isAdmin: boolean;
+  currentUser: User;
 }
 
 const SidebarNav = ({
@@ -51,6 +53,7 @@ const SidebarNav = ({
   workspaceInfo,
   isSuperAdmin,
   isAdmin,
+  currentUser,
 }: SidebarNavProps) => {
   const router = useRouter();
   const params = useParams<{ documentid: string }>();
@@ -164,6 +167,7 @@ const SidebarNav = ({
               workspaceInfo={workspaceInfo}
               isSuperAdmin={isSuperAdmin}
               isAdmin={isAdmin}
+              currentUser={currentUser}
             >
               <Button size={'sm'} className="w-6 h-6 ">
                 <MdManageAccounts className="h-3 w-3" />
@@ -301,6 +305,7 @@ const SidebarNav = ({
           workspaceInfo={workspaceInfo}
           isSuperAdmin={isSuperAdmin}
           isAdmin={isAdmin}
+          currentUser={currentUser}
         >
           <span>
             <Button className="w-full" size="lg">

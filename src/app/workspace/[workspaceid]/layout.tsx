@@ -39,6 +39,7 @@ export default async function WorkspaceLayout({
           workspaceInfo={workspaceInfo}
           isSuperAdmin={isSuperAdmin}
           isAdmin={isAdmin}
+          currentUser={currentUser!}
         />
         <div className="flex flex-col flex-1">
           <TopbarWorkspace currentUser={currentUser!} />

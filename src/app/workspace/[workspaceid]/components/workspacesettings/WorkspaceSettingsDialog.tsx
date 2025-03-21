@@ -22,6 +22,7 @@ import { WorkspaceGeneralSettings } from './WorkspaceGeneralSettings';
 import { WorkspaceAccountsSettings } from './WorkspaceAccountsSettings';
 import { EmojiPickerPanel } from './EmojiPickerPanel';
 import { WorkspaceInfo } from '@/types/types';
+import { User } from '@prisma/client';
 
 interface WorkspaceSettingsDialogProps {
   openType: 'accounts' | 'general';
@@ -29,6 +30,7 @@ interface WorkspaceSettingsDialogProps {
   children: ReactNode;
   isSuperAdmin: boolean;
   isAdmin: boolean;
+  currentUser: User;
 }
 
 const WorkspaceSettingsDialog = ({
@@ -37,6 +39,7 @@ const WorkspaceSettingsDialog = ({
   children,
   isSuperAdmin,
   isAdmin,
+  currentUser,
 }: WorkspaceSettingsDialogProps) => {
   return (
     <WorkspaceSettingsProvider
@@ -44,6 +47,7 @@ const WorkspaceSettingsDialog = ({
       initialMenu={openType}
       isSuperAdmin={isSuperAdmin}
       isAdmin={isAdmin}
+      currentUser={currentUser}
     >
       <Dialog>
         <DialogTrigger asChild>{children}</DialogTrigger>

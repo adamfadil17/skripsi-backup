@@ -14,6 +14,7 @@ export async function getWorkspaceInfo(workspaceId: string): Promise<WorkspaceIn
           select: {
             id: true,
             role: true,
+            userId: true,
             joinedAt: true,
             user: {
               select: {

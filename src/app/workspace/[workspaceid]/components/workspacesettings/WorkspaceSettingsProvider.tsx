@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { WorkspaceInfo } from '@/types/types';
+import { User } from '@prisma/client';
 
 export interface ModalState {
   isEditing: boolean;
@@ -42,6 +43,7 @@ interface WorkspaceSettingsContextType {
   editWorkspaceForm: ReturnType<typeof useForm<WorkspaceFormValues>>;
   isSuperAdmin: boolean;
   isAdmin: boolean;
+  currentUser: User;
 }
 
 const WorkspaceSettingsContext = createContext<
@@ -54,12 +56,14 @@ export function WorkspaceSettingsProvider({
   initialMenu = 'general',
   isSuperAdmin,
   isAdmin,
+  currentUser
 }: {
   children: ReactNode;
   initialWorkspaceInfo: WorkspaceInfo;
   initialMenu?: 'general' | 'accounts';
   isSuperAdmin: boolean;
   isAdmin: boolean;
+  currentUser: User;
 }) {
   const [workspaceInfo] = useState<WorkspaceInfo>(initialWorkspaceInfo);
   const [currentMenu, setCurrentMenu] = useState<'general' | 'accounts'>(
@@ -120,6 +124,7 @@ export function WorkspaceSettingsProvider({
         editWorkspaceForm,
         isSuperAdmin,
         isAdmin,
+        currentUser,
       }}
     >
       {children}
