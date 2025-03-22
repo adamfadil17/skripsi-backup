@@ -1,3 +1,4 @@
+import transporter from '@/lib/nodemailer';
 import prisma from '@/lib/prismadb';
 import { Role, InvitationStatus } from '@prisma/client';
 import nodemailer from 'nodemailer';
@@ -28,14 +29,6 @@ export async function sendInvitation(
   if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
     throw new Error('Missing email credentials in environment variables');
   }
-
-  const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
-  });
 
   await transporter.sendMail({
     from: process.env.EMAIL_USER,

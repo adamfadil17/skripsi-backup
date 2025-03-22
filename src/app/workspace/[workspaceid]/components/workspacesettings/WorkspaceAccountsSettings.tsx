@@ -25,6 +25,7 @@ import { useWorkspaceSettings } from './WorkspaceSettingsProvider';
 import toast from 'react-hot-toast';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 export function WorkspaceAccountsSettings() {
   const { workspaceInfo, isSuperAdmin, isAdmin, currentUser } =
@@ -249,24 +250,29 @@ export function WorkspaceAccountsSettings() {
                 className="grid grid-cols-[1fr_120px_120px_40px] gap-4 items-center py-3 border-t"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-gray-100">
-                    {activeTab === 'members' && (item as any).image && (
-                      <Image
-                        src={(item as any).image || '/placeholder.svg'}
+                  <Avatar className="w-8 h-8">
+                    {activeTab === 'members' ? (
+                      <AvatarImage
+                        src={(item as any).image || ''}
                         alt={(item as any).name || ''}
-                        width={32}
-                        height={32}
-                        className="rounded-full"
                       />
-                    )}
-                  </div>
+                    ) : null}
+                    <AvatarFallback>
+                      {activeTab === 'members'
+                        ? (
+                            (item as any).name?.charAt(0) ||
+                            item.email.charAt(0)
+                          ).toUpperCase()
+                        : item.email.charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
                   <div>
-                    <div className="font-medium">
+                    <div className="font-medium truncate max-w-[180px]">
                       {activeTab === 'members'
                         ? (item as any).name
                         : item.email.split('@')[0]}
                     </div>
-                    <div className="text-sm text-muted-foreground">
+                    <div className="text-sm text-muted-foreground truncate max-w-[180px]">
                       {item.email}
                     </div>
                   </div>
