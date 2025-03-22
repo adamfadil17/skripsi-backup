@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
     const currentUser = await getCurrentUser();
 
     if (!currentUser?.id || !currentUser?.email) {
-      return new NextResponse('Unauthorized', { status: 401 });
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
     // Ambil semua workspaces yang diikuti oleh pengguna
     const workspaces = await getUserWorkspaces();
@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     console.error('Error fetching workspaces:', error);
     return NextResponse.json(
-      { error: 'Internal Server Error' },
+      { message: 'Internal Server Error' },
       { status: 500 }
     );
   }
@@ -29,14 +29,17 @@ export async function POST(req: NextRequest) {
     const currentUser = await getCurrentUser();
 
     if (!currentUser?.id || !currentUser?.email) {
-      return new NextResponse('Unauthorized', { status: 401 });
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
     // Ambil input dari request
     const { name, emoji, coverImage } = await req.json();
 
     if (!name) {
-      return new NextResponse('Workspace name is required', { status: 400 });
+      return NextResponse.json(
+        { message: 'Workspace name is required' },
+        { status: 400 }
+      );
     }
 
     const existingWorkspace = await prisma.workspace.findFirst({
@@ -51,9 +54,12 @@ export async function POST(req: NextRequest) {
     });
 
     if (existingWorkspace) {
-      return new NextResponse('Workspace name already exists', {
-        status: 400,
-      });
+      return NextResponse.json(
+        { message: 'Workspace name already exists' },
+        {
+          status: 400,
+        }
+      );
     }
 
     // Buat Workspace baru beserta dokumen, chat, dan anggota
@@ -115,9 +121,19 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return NextResponse.json({ success: true, newWorkspace }, { status: 201 });
+    return NextResponse.json(
+      {
+        success: true,
+        message: 'Workspace created successfully',
+        newWorkspace,
+      },
+      { status: 201 }
+    );
   } catch (error) {
     console.error('Error creating workspace:', error);
-    return new NextResponse('Internal Server Error', { status: 500 });
+    return NextResponse.json(
+      { message: 'Internal Server Error' },
+      { status: 500 }
+    );
   }
 }

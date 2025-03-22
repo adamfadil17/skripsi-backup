@@ -64,14 +64,12 @@ export function WorkspaceGeneralSettings() {
   async function onEditWorkspaceSubmit(values: WorkspaceFormValues) {
     setIsSubmitting(true);
     try {
-      // Make API call to update workspace
       const response = await axios.put(`/api/workspace/${workspaceInfo.id}`, {
         name: values.workspaceName,
         emoji: values.emoji,
         coverImage: values.coverImage,
       });
 
-      // If successful, update local state
       if (response.status === 200) {
         setWorkspaceName(values.workspaceName);
         setCoverImage(values.coverImage);
@@ -83,7 +81,6 @@ export function WorkspaceGeneralSettings() {
       }
     } catch (error: any) {
       console.error('Error updating workspace:', error);
-      // Tangani error misalnya dengan menampilkan notifikasi
       toast.error(
         error.response?.data?.message || 'Failed to update workspace'
       );
@@ -303,9 +300,8 @@ function WorkspaceLeaveSection() {
 
   const router = useRouter();
 
-  async function leaveWorkspace() {
+  async function handleLeave() {
     try {
-      // Validasi apakah user adalah Super Admin terakhir
       if (
         workspaceInfo.members.filter((m) => m.role === 'SUPER_ADMIN').length ===
           1 &&
@@ -319,15 +315,11 @@ function WorkspaceLeaveSection() {
 
       setIsSubmitting(true);
 
-      await axios.post(`/api/workspace/${workspaceInfo.id}/leave`);
+      await axios.delete(`/api/workspace/${workspaceInfo.id}/leave`);
 
       toast.success('You have left the workspace');
       router.push('/dashboard');
     } catch (error: any) {
-      console.error(
-        'Error leaving workspace:',
-        error.response?.data || error.message
-      );
       toast.error(error.response?.data?.message || 'Failed to leave workspace');
     } finally {
       setIsSubmitting(false);
@@ -356,7 +348,7 @@ function WorkspaceLeaveSection() {
               type="button"
               variant="destructive"
               onClick={() => {
-                leaveWorkspace();
+                handleLeave();
                 console.log('Leaving workspace');
                 // toggleModalState('showLeaveConfirmation', false);
               }}
@@ -406,10 +398,6 @@ function WorkspaceDeleteSection() {
       toast.success('Workspace has been deleted');
       router.push(`/dashboard`);
     } catch (error: any) {
-      console.error(
-        'Error deleting workspace:',
-        error.response?.data || error.message
-      );
       toast.error(
         error.response?.data?.message || 'Failed to delete workspace'
       );

@@ -102,19 +102,18 @@ const CreateWorkspace = ({ children }: CreateWorkspaceProps) => {
         coverImage: values.coverImage,
       });
 
-      console.log('Workspace created:', response.data);
-
       handleCancel();
       router.refresh(); // Refresh to reflect new workspace
       toast.success('Workspace has been created');
     } catch (error: any) {
-      console.error('Error creating workspace:', error);
       if (error?.response?.status === 400) {
         form.setError('workspaceName', {
           message: 'Workspace name already exists.',
         });
       }
-      toast.error('Failed to create workspace');
+      toast.error(
+        error.response?.data?.message || 'Failed to create workspace'
+      );
     } finally {
       setIsSubmitting(false);
     }

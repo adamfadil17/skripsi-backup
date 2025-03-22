@@ -8,11 +8,8 @@ export async function GET(
 ) {
   try {
     const currentUser = await getCurrentUser();
-    if (!currentUser?.id) {
-      return NextResponse.json(
-        { success: false, message: 'Unauthorized' },
-        { status: 401 }
-      );
+    if (!currentUser?.id || !currentUser?.email) {
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
     const documentContent = await prisma.documentContent.findFirst({
@@ -37,7 +34,7 @@ export async function GET(
   } catch (error) {
     console.error('Error fetching document content:', error);
     return NextResponse.json(
-      { success: false, message: 'Internal Server Error' },
+      { message: 'Internal Server Error' },
       { status: 500 }
     );
   }
@@ -49,11 +46,8 @@ export async function PUT(
 ) {
   try {
     const currentUser = await getCurrentUser();
-    if (!currentUser?.id) {
-      return NextResponse.json(
-        { success: false, message: 'Unauthorized' },
-        { status: 401 }
-      );
+    if (!currentUser?.id || !currentUser?.email) {
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
     const body = await req.json();
@@ -95,7 +89,7 @@ export async function PUT(
   } catch (error) {
     console.error('Error updating document content:', error);
     return NextResponse.json(
-      { success: false, message: 'Internal Server Error' },
+      { message: 'Internal Server Error' },
       { status: 500 }
     );
   }

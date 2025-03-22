@@ -45,11 +45,9 @@ export function DeleteWorkspace({ workspace, children }: DeleteWorkspaceProps) {
       setIsOpen(false);
       router.refresh();
     } catch (error: any) {
-      console.error(
-        'Error deleting workspace:',
-        error.response?.data || error.message
+      toast.error(
+        error.response?.data?.message || 'Failed to delete workspace'
       );
-      toast.error('Failed to delete workspace');
     } finally {
       setIsDeleting(false);
     }

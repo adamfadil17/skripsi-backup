@@ -44,24 +44,21 @@ const DocumentHeader = ({
       );
       router.refresh();
       toast.success('Document Header has been updated');
-    } catch (error) {
-      console.error('Error updating document:', error);
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to update document');
     }
   };
 
-  // Update cover image
   const handleCoverChange = (newCover: string) => {
     setCoverImage(newCover);
     updateDocument({ coverImage: newCover });
   };
 
-  // Update emoji
   const handleEmojiChange = (newEmoji: string) => {
     setEmoji(newEmoji);
     updateDocument({ emoji: newEmoji });
   };
 
-  // Update title saat kehilangan fokus (onBlur)
   const handleTitleChange = (newTitle: string) => {
     setDocumentTitle(newTitle);
     updateDocument({ title: newTitle });
@@ -123,8 +120,12 @@ const DocumentHeader = ({
           </Button>
         </AITemplateDialog>
       </div>
-      <div className='flex justify-center items-center ml-12'>
-      <DocumentNoteEditor workspaceId={workspaceId} documentId={documentId} modelResponse={modelResponse}/>
+      <div className="flex justify-center items-center ml-12">
+        <DocumentNoteEditor
+          workspaceId={workspaceId}
+          documentId={documentId}
+          modelResponse={modelResponse}
+        />
       </div>
     </>
   );

@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prismadb';
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
 
-export async function POST(
+export async function DELETE(
   req: NextRequest,
   { params }: { params: { workspaceId: string } }
 ) {
   try {
     const currentUser = await getCurrentUser();
-    if (!currentUser) {
+    if (!currentUser.id || !currentUser.email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -38,12 +38,10 @@ export async function POST(
       );
     }
 
-    // Hitung jumlah Super Admin dalam workspace
     const superAdminCount = workspace.members.filter(
       (m) => m.role === 'SUPER_ADMIN'
     ).length;
 
-    // **(1) Pastikan workspace tidak bisa tanpa Super Admin**
     if (superAdminCount === 0) {
       return NextResponse.json(
         { error: 'A workspace must have at least one Owner.' },
@@ -51,7 +49,6 @@ export async function POST(
       );
     }
 
-    // **(2) Super Admin terakhir tidak bisa keluar**
     if (superAdminCount === 1 && userMembership.role === 'SUPER_ADMIN') {
       return NextResponse.json(
         {
@@ -61,7 +58,6 @@ export async function POST(
       );
     }
 
-    // **(3) Hapus pengguna dari workspace jika lolos validasi**
     await prisma.workspaceMember.delete({
       where: {
         userId_workspaceId: {
@@ -72,7 +68,7 @@ export async function POST(
     });
 
     return NextResponse.json(
-      { message: 'Successfully left the workspace' },
+      { success: true, message: 'Successfully left the workspace' },
       { status: 200 }
     );
   } catch (error) {

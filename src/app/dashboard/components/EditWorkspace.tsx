@@ -98,21 +98,19 @@ const EditWorkspace = ({ children, workspace }: EditWorkspaceProps) => {
     try {
       setIsSubmitting(true);
 
-      // Mengirim request PUT untuk update workspace
       const response = await axios.put(`/api/workspace/${workspace.id}`, {
         name: values.workspaceName,
         emoji: values.emoji,
         coverImage: values.coverImage,
       });
 
-      console.log('Workspace updated:', response.data);
       handleCancel();
-      router.refresh(); // Refresh untuk menampilkan data terbaru
+      router.refresh();
       toast.success('Workspace has been updated');
     } catch (error: any) {
-      console.error('Error updating workspace:', error);
-      // Tangani error misalnya dengan menampilkan notifikasi
-      toast.error('Failed to update workspace');
+      toast.error(
+        error.response?.data?.message || 'Failed to update workspace'
+      );
     } finally {
       setIsSubmitting(false);
     }

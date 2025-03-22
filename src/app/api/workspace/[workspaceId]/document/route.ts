@@ -8,8 +8,8 @@ export async function POST(
 ) {
   try {
     const currentUser = await getCurrentUser();
-    if (!currentUser?.id) {
-      return new NextResponse('Unauthorized', { status: 401 });
+    if (!currentUser?.id || !currentUser?.email) {
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
     const { workspaceId } = params;
@@ -46,11 +46,14 @@ export async function POST(
       },
     });
 
-    return NextResponse.json({ success: true, newDocument }, { status: 201 });
+    return NextResponse.json(
+      { success: true, message: 'Document created successfully', newDocument },
+      { status: 201 }
+    );
   } catch (error) {
     console.error('Error creating document:', error);
     return NextResponse.json(
-      { error: 'Internal Server Error' },
+      { message: 'Internal Server Error' },
       { status: 500 }
     );
   }

@@ -11,17 +11,23 @@ export async function GET(
     const currentUser = await getCurrentUser();
 
     if (!currentUser?.id || !currentUser?.email) {
-      return new NextResponse('Unauthorized', { status: 401 });
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
     const { workspaceId } = params;
     if (!workspaceId) {
-      return new NextResponse('Workspace id is required', { status: 400 });
+      return NextResponse.json(
+        { message: 'Workspace id is required' },
+        { status: 400 }
+      );
     }
 
     const workspace = await getWorkspaceInfo(workspaceId);
     if (!workspace) {
-      return new NextResponse('Workspace not found', { status: 404 });
+      return NextResponse.json(
+        { message: 'Workspace not found' },
+        { status: 404 }
+      );
     }
 
     // Validate if the user is a member of the workspace
@@ -29,13 +35,16 @@ export async function GET(
       (member) => member.user.id === currentUser.id
     );
     if (!isMember) {
-      return new NextResponse('Forbidden', { status: 403 });
+      return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 
     return NextResponse.json({ success: true, workspace }, { status: 200 });
   } catch (error) {
     console.error('Error fetching workspace:', error);
-    return new NextResponse('Internal Server Error', { status: 500 });
+    return NextResponse.json(
+      { message: 'Internal Server Error' },
+      { status: 500 }
+    );
   }
 }
 
@@ -45,13 +54,16 @@ export async function PUT(
 ) {
   try {
     const currentUser = await getCurrentUser();
-    if (!currentUser?.id) {
-      return new NextResponse('Unauthorized', { status: 401 });
+    if (!currentUser?.id || !currentUser?.email) {
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
     const { workspaceId } = params;
     if (!workspaceId) {
-      return new NextResponse('Workspace id is required', { status: 400 });
+      return NextResponse.json(
+        { message: 'Workspace id is required' },
+        { status: 400 }
+      );
     }
 
     // Ambil data dari body
@@ -67,8 +79,8 @@ export async function PUT(
     });
 
     if (!userWorkspace) {
-      return new NextResponse(
-        'Forbidden: Only SUPER_ADMIN can update workspace',
+      return NextResponse.json(
+        { message: 'Forbidden: Only Owner can update workspace' },
         { status: 403 }
       );
     }
@@ -80,12 +92,19 @@ export async function PUT(
     });
 
     return NextResponse.json(
-      { success: true, updatedWorkspace },
+      {
+        success: true,
+        message: 'Workspace updated successfully',
+        updatedWorkspace,
+      },
       { status: 200 }
     );
   } catch (error) {
     console.error('Error updating workspace:', error);
-    return new NextResponse('Internal Server Error', { status: 500 });
+    return NextResponse.json(
+      { message: 'Internal Server Error' },
+      { status: 500 }
+    );
   }
 }
 export async function DELETE(
@@ -96,12 +115,15 @@ export async function DELETE(
     // Ambil user saat ini
     const currentUser = await getCurrentUser();
     if (!currentUser?.id || !currentUser?.email) {
-      return new NextResponse('Unauthorized', { status: 401 });
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
     const { workspaceId } = params;
     if (!workspaceId) {
-      return new NextResponse('Workspace ID is required', { status: 400 });
+      return NextResponse.json(
+        { message: 'Workspace ID is required' },
+        { status: 400 }
+      );
     }
 
     // Temukan workspace berdasarkan id, sertakan member untuk validasi peran
@@ -111,7 +133,10 @@ export async function DELETE(
     });
 
     if (!workspace) {
-      return new NextResponse('Workspace not found', { status: 404 });
+      return NextResponse.json(
+        { message: 'Workspace not found' },
+        { status: 404 }
+      );
     }
 
     // Validasi apakah currentUser adalah SUPER_ADMIN di workspace tersebut
@@ -121,7 +146,7 @@ export async function DELETE(
     );
 
     if (!isOwner) {
-      return new NextResponse('Forbidden', { status: 403 });
+      return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 
     // Hapus workspace
@@ -130,11 +155,18 @@ export async function DELETE(
     });
 
     return NextResponse.json(
-      { success: true, deletedWorkspace },
+      {
+        success: true,
+        message: 'Workspace deleted successfully',
+        deletedWorkspace,
+      },
       { status: 200 }
     );
   } catch (error) {
     console.error('Error deleting workspace:', error);
-    return new NextResponse('Internal Server Error', { status: 500 });
+    return NextResponse.json(
+      { message: 'Internal Server Error' },
+      { status: 500 }
+    );
   }
 }

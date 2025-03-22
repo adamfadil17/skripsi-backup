@@ -78,9 +78,8 @@ export function WorkspaceAccountsSettings() {
   );
 
   const handleRoleChange = async (userId: string, newRole: string) => {
-    console.log({ userId, newRole });
     try {
-      await axios.put(`/api/workspace/${workspaceInfo.id}/member/role`, {
+      await axios.put(`/api/workspace/${workspaceInfo.id}/member/${userId}`, {
         userId,
         newRole,
       });
@@ -96,18 +95,15 @@ export function WorkspaceAccountsSettings() {
     const isTargetSuperAdmin = role === 'SUPER_ADMIN';
     const isTargetAdmin = role === 'ADMIN';
 
-    // Hitung jumlah Super Admin dalam workspace
     const superAdmins = workspaceInfo.members.filter(
       (member) => member.role === 'SUPER_ADMIN'
     );
 
-    // Admin hanya bisa menghapus Member
     if (isAdmin && (isTargetSuperAdmin || isTargetAdmin)) {
       toast.error('Admin can only remove Members.');
       return;
     }
 
-    // Super Admin tidak bisa menghapus dirinya sendiri jika dia satu-satunya Super Admin
     if (
       isSuperAdmin &&
       isTargetSuperAdmin &&
@@ -126,9 +122,8 @@ export function WorkspaceAccountsSettings() {
     }
   };
 
-  async function leaveWorkspace() {
+  async function handleLeave() {
     try {
-      // Validasi apakah user adalah Super Admin terakhir
       if (
         workspaceInfo.members.filter((m) => m.role === 'SUPER_ADMIN').length ===
           1 &&
@@ -142,16 +137,12 @@ export function WorkspaceAccountsSettings() {
 
       setIsSubmitting(true);
 
-      await axios.post(`/api/workspace/${workspaceInfo.id}/leave`);
+      await axios.delete(`/api/workspace/${workspaceInfo.id}/leave`);
 
       toast.success('You have left the workspace');
       router.push('/dashboard');
     } catch (error: any) {
-      console.error(
-        'Error leaving workspace:',
-        error.response?.data || error.message
-      );
-      toast.error('Failed to leave workspace');
+      toast.error(error.response?.data?.message || 'Failed to leave workspace');
     } finally {
       setIsSubmitting(false);
     }
@@ -317,7 +308,7 @@ export function WorkspaceAccountsSettings() {
                           onClick={() => {
                             if (activeTab === 'members') {
                               if (item.email === currentUser.email) {
-                                leaveWorkspace();
+                                handleLeave();
                               } else {
                                 handleRemoveMember(
                                   (item as any).userId,

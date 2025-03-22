@@ -16,6 +16,7 @@ import List from '@editorjs/list';
 import Checklist from '@editorjs/checklist';
 import CodeTool from '@editorjs/code';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 
 interface DocumentNoteEditorProps {
   workspaceId: string;
@@ -47,8 +48,10 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
           editorRef.current?.render(response.data.data.content);
         }
         isFetchedRef.current = true;
-      } catch (error) {
-        console.error('Error fetching document:', error);
+      } catch (error: any) {
+        toast.error(
+          error.response?.data?.message || 'Failed to fetch document content.'
+        );
       }
     }
   }, [workspaceId, documentId]);
@@ -64,8 +67,10 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
             content: outputData,
           }
         );
-      } catch (error) {
-        console.error('Saving failed', error);
+      } catch (error: any) {
+        toast.error(
+          error.response?.data?.message || 'Failed to save document.'
+        );
       }
     }
   }, [workspaceId, documentId]);

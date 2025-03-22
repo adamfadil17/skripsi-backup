@@ -10,15 +10,15 @@ export async function GET(
 ) {
   try {
     const currentUser = await getCurrentUser();
-    if (!currentUser?.id) {
-      return new NextResponse('Unauthorized', { status: 401 });
+    if (!currentUser?.id || !currentUser?.email) {
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
     const { workspaceId, documentId } = params;
 
     if (!workspaceId || !documentId) {
       return NextResponse.json(
-        { error: 'workspaceId and documentId are required' },
+        { message: 'workspaceId and documentId are required' },
         { status: 400 }
       );
     }
@@ -29,7 +29,7 @@ export async function GET(
   } catch (error: any) {
     console.error('Error fetching document', error);
     return NextResponse.json(
-      { error: error.message || 'Internal Server Error' },
+      { message: 'Internal Server Error' },
       { status: 500 }
     );
   }
@@ -41,8 +41,8 @@ export async function PATCH(
 ) {
   try {
     const currentUser = await getCurrentUser();
-    if (!currentUser?.id) {
-      return new NextResponse('Unauthorized', { status: 401 });
+    if (!currentUser?.id || !currentUser?.email) {
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
     const { workspaceId, documentId } = params;
@@ -69,12 +69,16 @@ export async function PATCH(
     });
 
     return NextResponse.json(
-      { success: true, updatedDocument },
+      {
+        success: true,
+        message: 'Document updated successfully',
+        updatedDocument,
+      },
       { status: 200 }
     );
   } catch (error) {
     return NextResponse.json(
-      { error: 'Failed to update document' },
+      { message: 'Internal Server Error' },
       { status: 500 }
     );
   }
@@ -85,9 +89,9 @@ export async function DELETE(
   { params }: { params: { workspaceId: string; documentId: string } }
 ) {
   try {
-    const user = await getCurrentUser();
-    if (!user)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const currentUser = await getCurrentUser();
+    if (!currentUser?.id || !currentUser?.email)
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
 
     const { workspaceId, documentId } = params;
 
@@ -98,7 +102,7 @@ export async function DELETE(
 
     if (!document) {
       return NextResponse.json(
-        { error: 'Document not found' },
+        { message: 'Document not found' },
         { status: 404 }
       );
     }
@@ -108,13 +112,17 @@ export async function DELETE(
     });
 
     return NextResponse.json(
-      { success: true, deletedDocument },
+      {
+        success: true,
+        message: 'Document deleted successfully',
+        deletedDocument,
+      },
       { status: 200 }
     );
   } catch (error) {
     console.error('Delete document error:', error);
     return NextResponse.json(
-      { error: 'Internal Server Error' },
+      { message: 'Internal Server Error' },
       { status: 500 }
     );
   }
