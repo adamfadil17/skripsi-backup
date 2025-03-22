@@ -37,7 +37,6 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
   const hasInitialized = useRef(false);
   const prevModelResponseRef = useRef<any>(null);
 
-  // Fetch document content
   const getDocumentOutput = useCallback(async () => {
     if (!isFetchedRef.current) {
       try {
@@ -56,7 +55,6 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     }
   }, [workspaceId, documentId]);
 
-  // Save document content
   const saveDocument = useCallback(async () => {
     if (editorRef.current) {
       try {
@@ -75,7 +73,6 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     }
   }, [workspaceId, documentId]);
 
-  // Initialize EditorJS
   const initEditor = useCallback(() => {
     if (!hasInitialized.current) {
       hasInitialized.current = true;
@@ -108,7 +105,6 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     }
   }, [saveDocument, getDocumentOutput]);
 
-  // Append model response as a new block
   const appendModelResponse = useCallback(
     async (response: any) => {
       if (!editorRef.current) return;
@@ -136,13 +132,11 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
         const updatedContent: OutputData = {
           time: new Date().getTime(),
           blocks: [...(currentContent.blocks || []), ...newBlock],
-          version: currentContent.version || '2.30.8', // Ensure version consistency
+          version: currentContent.version || '2.30.8',
         };
 
-        // Render the updated content
         await editorRef.current.render(updatedContent);
 
-        // Scroll to the last block after rendering
         setTimeout(() => {
           if (editorRef.current) {
             const lastBlockIndex = updatedContent.blocks.length - 1;
@@ -164,9 +158,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     }
   }, [session, initEditor]);
 
-  // Effect to handle model response changes
   useEffect(() => {
-    // Only process if there's a new response and it's different from the previous one
     if (
       modelResponse &&
       modelResponse !== prevModelResponseRef.current &&

@@ -12,17 +12,17 @@ import toast from 'react-hot-toast';
 import AITemplateDialog from './AITemplateDialog';
 import DocumentNoteEditor from './DocumentNoteEditor';
 
-interface DocumentHeaderProps {
+interface DocumentContainerProps {
   workspaceId: string;
   documentId: string;
   documentInfo: WorkspaceDocument;
 }
 
-const DocumentHeader = ({
+const DocumentContainer = ({
   workspaceId,
   documentId,
   documentInfo,
-}: DocumentHeaderProps) => {
+}: DocumentContainerProps) => {
   const [emoji, setEmoji] = useState<string>('');
   const [coverImage, setCoverImage] = useState('/images/placeholder.svg');
   const [documentTitle, setDocumentTitle] = useState('');
@@ -131,4 +131,4 @@ const DocumentHeader = ({
   );
 };
 
-export default DocumentHeader;
+export default DocumentContainer;

@@ -1,6 +1,6 @@
 import React from 'react';
 import { notFound } from 'next/navigation';
-import DocumentHeader from './components/DocumentHeader';
+import DocumentContainer from './components/DocumentContainer';
 import DocumentNoteEditor from './components/DocumentNoteEditor';
 import { getDocumentInfo } from '@/app/actions/getDocumentInfo';
 
@@ -25,7 +25,7 @@ const DocumentPage = async ({ params }: DocumentPageProps) => {
 
   return (
     <div className="h-full">
-      <DocumentHeader
+      <DocumentContainer
         workspaceId={workspaceid}
         documentId={documentid}
         documentInfo={documentInfo}

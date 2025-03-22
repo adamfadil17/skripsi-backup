@@ -51,6 +51,7 @@ export function DeleteDocument({
       toast.success('Document has been deleted');
       setIsOpen(false);
       router.push(`/workspace/${workspaceId}`);
+      router.refresh();
     } catch (error: any) {
       console.error(
         'Error deleting workspace:',

@@ -39,6 +39,7 @@ import axios from 'axios';
 import { DeleteDocument } from '../[documentid]/components/DeleteDocument';
 import WorkspaceSettingsDialog from './workspacesettings/WorkspaceSettingsDialog';
 import { User } from '@prisma/client';
+import toast from 'react-hot-toast';
 
 interface SidebarNavProps {
   workspaceId: string;
@@ -59,8 +60,6 @@ const SidebarNav = ({
   const params = useParams<{ documentid: string }>();
   const [loading, setLoading] = useState(false);
 
-  console.log(workspaceInfo);
-
   const handleCreateDocument = async () => {
     setLoading(true);
     try {
@@ -75,10 +74,15 @@ const SidebarNav = ({
 
       if (response.status === 201) {
         const newDocument = response.data;
+        console.log(newDocument.id);
         router.push(`/workspace/${workspaceId}/${newDocument.id}`);
+        toast.success('Document has been created');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to create document:', error);
+      toast.error(
+        error.response?.data?.message || 'Failed to create document.'
+      );
     } finally {
       setLoading(false);
     }

@@ -67,6 +67,8 @@ function AITemplateDialog({
       const responseText = await result.response.text();
       const output = JSON.parse(responseText);
 
+      console.log(output);
+
       onGenerateTemplate(output);
       setOpen(false);
       form.reset();
