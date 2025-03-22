@@ -217,6 +217,7 @@ export function WorkspaceAccountsSettings() {
           <div className="rounded-lg border p-4">
             <h3 className="text-base font-medium mb-4">Invite new members</h3>
             <InviteForm
+              workspaceId={workspaceInfo.id}
               isSuperAdmin={isSuperAdmin}
               isAdmin={isAdmin}
               onSubmit={(values) => {

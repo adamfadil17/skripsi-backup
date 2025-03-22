@@ -1,4 +1,6 @@
 'use client';
+import { useState, useEffect } from 'react';
+import axios from 'axios';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -28,6 +30,7 @@ const inviteFormSchema = z.object({
 type InviteFormValues = z.infer<typeof inviteFormSchema>;
 
 interface InviteFormProps {
+  workspaceId: string;
   isSuperAdmin: boolean;
   isAdmin: boolean;
   onSubmit: (values: InviteFormValues) => void;
@@ -41,11 +44,16 @@ const roleLabels: Record<InviteFormValues['role'], string> = {
 };
 
 function InviteForm({
-  onSubmit,
-  onCancel,
+  workspaceId,
   isSuperAdmin,
   isAdmin,
+  onSubmit,
+  onCancel,
 }: InviteFormProps) {
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState('');
+  // const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
   const form = useForm<InviteFormValues>({
     resolver: zodResolver(inviteFormSchema),
     defaultValues: {
@@ -54,16 +62,44 @@ function InviteForm({
     },
   });
 
-  const handleSubmit = (values: InviteFormValues) => {
-    onSubmit(values);
-    form.reset();
+  // // Ambil user yang sedang login
+  // useEffect(() => {
+  //   const fetchUser = async () => {
+  //     try {
+  //       const res = await axios.get('/api/auth/currentUser'); // Endpoint baru untuk getCurrentUser()
+  //       setCurrentUserId(res.data?.id || null);
+  //     } catch (error) {
+  //       console.error('Failed to fetch current user');
+  //     }
+  //   };
+  //   fetchUser();
+  // }, []);
+
+  const handleSubmit = async (values: InviteFormValues) => {
+    setLoading(true);
+    setMessage('');
+    try {
+      const res = await axios.post('/api/invite', {
+        email: values.email,
+        role: values.role,
+        workspaceId,
+      });
+
+      setMessage('Invitation sent successfully!');
+      onSubmit(values);
+      form.reset();
+    } catch (error: any) {
+      setMessage(error.response?.data?.message || 'Failed to send invitation.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Tentukan role yang tersedia berdasarkan peran pengundang
   const availableRoles: InviteFormValues['role'][] = isSuperAdmin
     ? ['SUPER_ADMIN', 'ADMIN', 'MEMBER']
     : isAdmin
-    ? ['ADMIN', 'MEMBER']
+    ? ['MEMBER']
     : [];
 
   return (
@@ -76,7 +112,11 @@ function InviteForm({
             <FormItem>
               <FormLabel>Email</FormLabel>
               <FormControl>
-                <Input placeholder="Enter email address" {...field} />
+                <Input
+                  placeholder="Enter email address"
+                  {...field}
+                  disabled={loading}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -93,6 +133,7 @@ function InviteForm({
                   <Select
                     onValueChange={field.onChange}
                     defaultValue={field.value}
+                    disabled={loading || availableRoles.length === 0}
                   >
                     <FormControl>
                       <SelectTrigger>
@@ -113,14 +154,25 @@ function InviteForm({
             )}
           />
           <div className="flex justify-end space-x-2">
-            <Button type="button" variant="outline" onClick={onCancel}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onCancel}
+              disabled={loading}
+            >
               Cancel
             </Button>
-            <Button type="submit" disabled={availableRoles.length === 0}>
-              Send Invitation
+            <Button
+              type="submit"
+              disabled={loading || availableRoles.length === 0}
+            >
+              {loading ? 'Sending...' : 'Send Invitation'}
             </Button>
           </div>
         </div>
+        {message && (
+          <p className="text-sm text-center text-gray-600">{message}</p>
+        )}
       </form>
     </Form>
   );

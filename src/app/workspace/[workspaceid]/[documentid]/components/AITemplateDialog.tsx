@@ -24,7 +24,7 @@ import {
   FormItem,
   FormMessage,
 } from '../../../../../components/ui/form';
-import { chatSession } from '@/lib/GoogleAIModel';
+import { chatSession } from '@/lib/geminiaimodel';
 import toast from 'react-hot-toast';
 
 interface AITemplateDialogProps {
