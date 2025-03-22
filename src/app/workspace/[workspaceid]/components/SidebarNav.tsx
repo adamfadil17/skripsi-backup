@@ -73,9 +73,10 @@ const SidebarNav = ({
       );
 
       if (response.status === 201) {
-        const newDocument = response.data;
+        const newDocument = response.data.newDocument;
         console.log(newDocument.id);
-        router.push(`/workspace/${workspaceId}/${newDocument.id}`);
+        router.push(`/workspace/${workspaceId}/${newDocument?.id}`);
+        router.refresh();
         toast.success('Document has been created');
       }
     } catch (error: any) {
