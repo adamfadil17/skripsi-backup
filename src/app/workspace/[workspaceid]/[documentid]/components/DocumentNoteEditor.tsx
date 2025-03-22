@@ -59,10 +59,13 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     if (editorRef.current) {
       try {
         const outputData = await editorRef.current.save();
+        // Here we convert inlineToolbar to <b> tags before saving.
+        const htmlContent = convertEditorDataToHtml(outputData);
+
         await axios.put(
           `/api/workspace/${workspaceId}/document/${documentId}/content/`,
           {
-            content: outputData,
+            content: htmlContent,
           }
         );
       } catch (error: any) {
@@ -114,7 +117,37 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
         let newBlock;
 
         if (response && response.blocks) {
-          newBlock = response.blocks;
+          newBlock = response.blocks.map((block: any) => {
+            if (block.type === 'paragraph' && block.data.text) {
+              let text = block.data.text;
+              const inlineTools = [];
+
+              // Find bold sections using Markdown syntax (**bold text**)
+              const boldRegex = /\*\*(.*?)\*\*/g;
+              let match;
+
+              while ((match = boldRegex.exec(text)) !== null) {
+                const boldText = match[1];
+                const startIndex = match.index;
+                inlineTools.push({
+                  offset: startIndex,
+                  length: boldText.length,
+                  type: 'bold',
+                });
+                text = text.replace(`**${boldText}**`, boldText); // Remove the markdown bold characters
+              }
+
+              return {
+                ...block,
+                data: {
+                  ...block.data,
+                  text: text,
+                  inlineToolbar: inlineTools,
+                },
+              };
+            }
+            return block;
+          });
         } else {
           newBlock = [
             {
@@ -168,6 +201,35 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
       prevModelResponseRef.current = modelResponse;
     }
   }, [modelResponse, appendModelResponse]);
+
+  // Function to convert Editor.js data to HTML with <b> tags
+  function convertEditorDataToHtml(data: OutputData): OutputData {
+    data.blocks.forEach((block) => {
+      if (block.type === 'paragraph' && block.data.inlineToolbar) {
+        let text = block.data.text;
+        const inlineTools = block.data.inlineToolbar;
+
+        // Sort inline tools by offset (descending) to apply them correctly
+        inlineTools.sort((a: any, b: any) => b.offset - a.offset);
+
+        inlineTools.forEach((tool: any) => {
+          if (tool.type === 'bold') {
+            const startTag = '<b>';
+            const endTag = '</b>';
+            text =
+              text.slice(0, tool.offset) +
+              startTag +
+              text.slice(tool.offset, tool.offset + tool.length) +
+              endTag +
+              text.slice(tool.offset + tool.length);
+          }
+        });
+        block.data.text = text;
+        delete block.data.inlineToolbar; // Remove inlineToolbar after conversion.
+      }
+    });
+    return data;
+  }
 
   return <div id="editorjs" className="flex w-full flex-1"></div>;
 };
