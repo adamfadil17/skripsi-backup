@@ -16,7 +16,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 
-import coverOptions from '@/lib/coveroptions';
+import coverOptions from '@/lib/cover-options';
 import {
   useWorkspaceSettings,
   type WorkspaceFormValues,

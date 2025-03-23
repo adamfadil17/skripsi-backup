@@ -24,7 +24,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import coverOptions from '@/lib/coveroptions';
+import coverOptions from '@/lib/cover-options';
 import {
   Form,
   FormControl,

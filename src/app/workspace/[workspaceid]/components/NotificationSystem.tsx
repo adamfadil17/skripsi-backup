@@ -21,7 +21,7 @@ import {
 import {
   formatWorkspaceActivity,
   formatDocumentActivity,
-} from '@/utils/notification-formatter';
+} from '@/lib/notification-formatter';
 
 const MOCK_NOTIFICATIONS: Notification[] = [
   {

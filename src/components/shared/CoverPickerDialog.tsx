@@ -1,6 +1,6 @@
 'use client';
 import React, { useEffect, useState } from 'react';
-import coverOptions from '@/lib/coveroptions';
+import coverOptions from '@/lib/cover-options';
 import { ReactNode } from 'react';
 import Image from 'next/image';
 import { Button } from '../ui/button';

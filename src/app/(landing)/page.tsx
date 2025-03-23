@@ -13,13 +13,19 @@ export default function Home() {
             Access all your collaborative notes in <br></br> one place, anytime,
             anywhere.
           </p>
-          <div className="mt-10 overflow-hidden">
+          <div className="mt-10 w-full overflow-hidden flex justify-center">
             <Image
               alt="Catatan Cerdas"
-              src="/images/heroimage.png"
+              src="/images/landing.svg"
               width={600}
               height={200}
               priority
+              sizes="(max-width: 1280px) 100vw, 50vw"
+              style={{
+                width: '100%',
+                height: 'auto',
+                maxWidth: '600px',
+              }}
               className="object-cover rounded-lg"
             />
           </div>
@@ -27,13 +33,18 @@ export default function Home() {
       </div>
       <div className="flex flex-col justify-center items-center py-12 sm:px-6 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
-          <Image
-            alt="Logo"
-            height="64"
-            width="64"
-            className="mx-auto w-auto"
-            src="/images/logo.png"
-          />
+          <div className="relative h-16 w-16 mx-auto">
+            <Image
+              alt="Logo"
+              src="/images/logo.png"
+              fill
+              sizes="64px"
+              style={{
+                objectFit: 'contain',
+              }}
+              className="w-auto"
+            />
+          </div>
           <h2 className="mt-4 text-center text-4xl font-semibold tracking-tight text-primary">
             Catatan Cerdas
           </h2>
