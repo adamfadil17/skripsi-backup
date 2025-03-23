@@ -38,8 +38,8 @@ export async function sendInvitation(
     to: email,
     subject: `You're Invited to Join "${workspaceName}" on Catatan Cerdas!`,
     html: `
-  <div style="max-width: 600px; margin: 0 auto; font-family: Arial, sans-serif;">
-    <div style="background-color: #0039CB; padding: 20px;">
+  <div style="max-width: 600px; margin: 0 auto; font-family: Arial, sans-serif; border: 1px solid #ccc; border-radius: 8px; overflow: hidden;">
+    <div style="background-color: #0c0a09; padding: 20px;">
       <div style="display: inline-block;">
         <table cellpadding="0" cellspacing="0" border="0">
           <tr>
@@ -67,7 +67,7 @@ export async function sendInvitation(
     </div>
     
     <div style="padding: 40px 20px; background-color: white;">
-      <h1 style="color: #0039CB; font-size: 28px; margin-bottom: 20px;">You're Invited to Join "${workspaceName}" on Catatan Cerdas! 🎉</h1>
+      <h1 style="color: #0c0a09; font-size: 28px; margin-bottom: 20px;">You're Invited to Join "${workspaceName}" on Catatan Cerdas! 🎉</h1>
       
       <h2 style="color: #333; font-size: 18px; margin-bottom: 20px;">Catatan Cerdas is a smart and collaborative platform that helps teams work together seamlessly.</h2>
       
@@ -76,7 +76,7 @@ export async function sendInvitation(
       </p>
       
       <div style="margin: 30px 0;">
-        <a href="${inviteLink}" style="background-color: #0039CB; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block;">Accept Invitation & Join Now</a>
+        <a href="${inviteLink}" style="background-color: #0c0a09; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block;">Accept Invitation & Join Now</a>
       </div>
       
       <p style="color: #666; font-size: 14px; margin-top: 30px;">

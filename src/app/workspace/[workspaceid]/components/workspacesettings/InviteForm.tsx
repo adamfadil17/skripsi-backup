@@ -62,19 +62,6 @@ function InviteForm({
     },
   });
 
-  // // Ambil user yang sedang login
-  // useEffect(() => {
-  //   const fetchUser = async () => {
-  //     try {
-  //       const res = await axios.get('/api/auth/currentUser'); // Endpoint baru untuk getCurrentUser()
-  //       setCurrentUserId(res.data?.id || null);
-  //     } catch (error) {
-  //       console.error('Failed to fetch current user');
-  //     }
-  //   };
-  //   fetchUser();
-  // }, []);
-
   const handleSubmit = async (values: InviteFormValues) => {
     setLoading(true);
     setMessage('');
@@ -86,7 +73,7 @@ function InviteForm({
       });
 
       setMessage('Invitation sent successfully!');
-      onSubmit(values);
+      // onSubmit(values);
       form.reset();
     } catch (error: any) {
       setMessage(error.response?.data?.message || 'Failed to send invitation.');
