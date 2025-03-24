@@ -108,7 +108,7 @@ const DocumentContainer = ({
           type="text"
           placeholder="Untitled Document"
           defaultValue={documentTitle}
-          className="font-bold text-4xl outline-none"
+          className="max-w-[840px] font-bold text-4xl truncate outline-none"
           onChange={(e) => setDocumentTitle(e.target.value)}
           onBlur={(event) => handleTitleChange(event.target.value)}
         />

@@ -409,6 +409,7 @@ function WorkspaceDeleteSection() {
       if (response.data.status === 'success') {
         toast.success(response.data.message || 'Workspace has been deleted');
         router.push('/dashboard');
+        router.refresh();
       } else {
         toast.error(response.data.message || 'Failed to delete workspace');
       }

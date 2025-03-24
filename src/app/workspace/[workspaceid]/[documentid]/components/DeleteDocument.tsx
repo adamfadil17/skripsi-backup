@@ -47,7 +47,7 @@ export function DeleteDocument({
       setIsDeleting(true);
 
       const response = await axios.delete(
-        `/api/workspaces/${workspaceId}/documents/${document.id}`
+        `/api/workspace/${workspaceId}/document/${document.id}`
       );
 
       if (response.data.status === 'success') {

@@ -272,7 +272,10 @@ const SidebarNav = ({
                       </div>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <div className="h-7 w-7 rounded-md p-1">
+                          <div
+                            className="h-7 w-7 rounded-md p-1"
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             <MoreVertical className="h-full w-full" />
                           </div>
                         </DropdownMenuTrigger>

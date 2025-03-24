@@ -100,17 +100,6 @@ export async function PATCH(
     }
 
     const { title, emoji, coverImage } = await req.json();
-    if (!title || !emoji || !coverImage) {
-      return NextResponse.json(
-        {
-          status: 'error',
-          code: 400,
-          error_type: 'BadRequest',
-          message: 'All fields are required',
-        },
-        { status: 400 }
-      );
-    }
 
     const document = await prisma.document.findUnique({
       where: { id: documentId, workspaceId: workspaceId },
