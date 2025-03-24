@@ -11,25 +11,58 @@ export async function GET(
   try {
     const currentUser = await getCurrentUser();
     if (!currentUser?.id || !currentUser?.email) {
-      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 401,
+          error_type: 'Unauthorized',
+          message: 'Unauthorized access',
+        },
+        { status: 401 }
+      );
     }
 
     const { workspaceId, documentId } = params;
 
     if (!workspaceId || !documentId) {
       return NextResponse.json(
-        { message: 'workspaceId and documentId are required' },
+        {
+          status: 'error',
+          code: 400,
+          error_type: 'BadRequest',
+          message: 'workspaceId and documentId are required',
+        },
         { status: 400 }
       );
     }
 
     const document = await getDocumentInfo(workspaceId, documentId);
 
-    return NextResponse.json({ success: true, document }, { status: 200 });
+    if (!document) {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 404,
+          error_type: 'NotFound',
+          message: 'Document not found',
+        },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json(
+      { status: 'success', code: 200, data: { document } },
+      { status: 200 }
+    );
   } catch (error: any) {
     console.error('Error fetching document', error);
     return NextResponse.json(
-      { message: 'Internal Server Error' },
+      {
+        status: 'error',
+        code: 500,
+        error_type: 'InternalServerError',
+        message: 'An unexpected error occurred. Please try again later.',
+      },
       { status: 500 }
     );
   }
@@ -42,11 +75,42 @@ export async function PATCH(
   try {
     const currentUser = await getCurrentUser();
     if (!currentUser?.id || !currentUser?.email) {
-      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 401,
+          error_type: 'Unauthorized',
+          message: 'Unauthorized access',
+        },
+        { status: 401 }
+      );
     }
 
     const { workspaceId, documentId } = params;
+    if (!workspaceId || !documentId) {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 400,
+          error_type: 'BadRequest',
+          message: 'workspaceId and documentId are required',
+        },
+        { status: 400 }
+      );
+    }
+
     const { title, emoji, coverImage } = await req.json();
+    if (!title || !emoji || !coverImage) {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 400,
+          error_type: 'BadRequest',
+          message: 'All fields are required',
+        },
+        { status: 400 }
+      );
+    }
 
     const document = await prisma.document.findUnique({
       where: { id: documentId, workspaceId: workspaceId },
@@ -54,7 +118,12 @@ export async function PATCH(
 
     if (!document) {
       return NextResponse.json(
-        { success: false, message: 'Document not found' },
+        {
+          status: 'error',
+          code: 404,
+          error_type: 'NotFound',
+          message: 'Document not found',
+        },
         { status: 404 }
       );
     }
@@ -70,15 +139,21 @@ export async function PATCH(
 
     return NextResponse.json(
       {
-        success: true,
+        status: 'success',
+        code: 200,
         message: 'Document updated successfully',
-        updatedDocument,
+        data: { updatedDocument },
       },
       { status: 200 }
     );
   } catch (error) {
     return NextResponse.json(
-      { message: 'Internal Server Error' },
+      {
+        status: 'error',
+        code: 500,
+        error_type: 'InternalServerError',
+        message: 'An unexpected error occurred. Please try again later.',
+      },
       { status: 500 }
     );
   }
@@ -91,9 +166,28 @@ export async function DELETE(
   try {
     const currentUser = await getCurrentUser();
     if (!currentUser?.id || !currentUser?.email)
-      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 401,
+          error_type: 'Unauthorized',
+          message: 'Unauthorized access',
+        },
+        { status: 401 }
+      );
 
     const { workspaceId, documentId } = params;
+    if (!workspaceId || !documentId) {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 400,
+          error_type: 'BadRequest',
+          message: 'workspaceId and documentId are required',
+        },
+        { status: 400 }
+      );
+    }
 
     const document = await prisma.document.findUnique({
       where: { id: documentId, workspaceId: workspaceId },
@@ -102,7 +196,12 @@ export async function DELETE(
 
     if (!document) {
       return NextResponse.json(
-        { message: 'Document not found' },
+        {
+          status: 'error',
+          code: 404,
+          error_type: 'NotFound',
+          message: 'Document not found',
+        },
         { status: 404 }
       );
     }
@@ -113,16 +212,22 @@ export async function DELETE(
 
     return NextResponse.json(
       {
-        success: true,
+        status: 'success',
+        code: 200,
         message: 'Document deleted successfully',
-        deletedDocument,
+        data: { deletedDocument },
       },
       { status: 200 }
     );
   } catch (error) {
     console.error('Delete document error:', error);
     return NextResponse.json(
-      { message: 'Internal Server Error' },
+      {
+        status: 'error',
+        code: 500,
+        error_type: 'InternalServerError',
+        message: 'An unexpected error occurred. Please try again later.',
+      },
       { status: 500 }
     );
   }

@@ -40,14 +40,21 @@ export function DeleteWorkspace({ workspace, children }: DeleteWorkspaceProps) {
   async function handleDelete() {
     try {
       setIsDeleting(true);
-      await axios.delete(`/api/workspace/${workspace.id}`);
-      toast.success('Workspace has been deleted');
-      setIsOpen(false);
-      router.refresh();
+
+      const response = await axios.delete(`/api/workspace/${workspace.id}`);
+
+      // Cek apakah responsenya sukses berdasarkan API standar
+      if (response.data.status === 'success') {
+        toast.success(response.data.message || 'Workspace has been deleted');
+        setIsOpen(false);
+        router.refresh();
+      } else {
+        toast.error(response.data.message || 'Failed to delete workspace');
+      }
     } catch (error: any) {
-      toast.error(
-        error.response?.data?.message || 'Failed to delete workspace'
-      );
+      const errorMessage =
+        error.response?.data?.message || 'An unexpected error occurred.';
+      toast.error(errorMessage);
     } finally {
       setIsDeleting(false);
     }

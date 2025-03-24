@@ -18,7 +18,7 @@ export default async function WorkspaceLayout({
   const currentUser = await getCurrentUser();
   const workspaceId = params?.workspaceid;
 
-  const workspaceInfo = await getWorkspaceInfo(workspaceId);
+  const workspaceInfo = await getWorkspaceInfo(workspaceId, currentUser!);
 
   if (!workspaceInfo) {
     notFound();

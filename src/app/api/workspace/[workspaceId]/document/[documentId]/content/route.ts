@@ -9,7 +9,28 @@ export async function GET(
   try {
     const currentUser = await getCurrentUser();
     if (!currentUser?.id || !currentUser?.email) {
-      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 401,
+          error_type: 'Unauthorized',
+          message: 'Unauthorized access',
+        },
+        { status: 401 }
+      );
+    }
+
+    const { workspaceId, documentId } = params;
+    if (!workspaceId || !documentId) {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 400,
+          error_type: 'BadRequest',
+          message: 'workspaceId and documentId are required',
+        },
+        { status: 400 }
+      );
     }
 
     const documentContent = await prisma.documentContent.findFirst({
@@ -19,22 +40,34 @@ export async function GET(
 
     if (!documentContent) {
       return NextResponse.json(
-        { success: false, message: 'Document content not found' },
+        {
+          status: 'error',
+          code: 404,
+          error_type: 'NotFound',
+          message: 'Document content not found',
+        },
         { status: 404 }
       );
     }
 
-    return NextResponse.json({
-      success: true,
-      message: 'Document content retrieved successfully',
-      data: {
-        content: documentContent.content,
+    return NextResponse.json(
+      {
+        status: 'success',
+        code: 200,
+        message: 'Document content retrieved successfully',
+        data: { content: documentContent.content },
       },
-    });
+      { status: 200 }
+    );
   } catch (error) {
     console.error('Error fetching document content:', error);
     return NextResponse.json(
-      { message: 'Internal Server Error' },
+      {
+        status: 'error',
+        code: 500,
+        error_type: 'InternalServerError',
+        message: 'An unexpected error occurred. Please try again later.',
+      },
       { status: 500 }
     );
   }
@@ -47,10 +80,43 @@ export async function PUT(
   try {
     const currentUser = await getCurrentUser();
     if (!currentUser?.id || !currentUser?.email) {
-      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 401,
+          error_type: 'Unauthorized',
+          message: 'Unauthorized access',
+        },
+        { status: 401 }
+      );
+    }
+
+    const { workspaceId, documentId } = params;
+    if (!workspaceId || !documentId) {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 400,
+          error_type: 'BadRequest',
+          message: 'workspaceId and documentId are required',
+        },
+        { status: 400 }
+      );
     }
 
     const body = await req.json();
+    if (!body?.content) {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 400,
+          error_type: 'BadRequest',
+          message: 'Content is required',
+        },
+        { status: 400 }
+      );
+    }
+
     const safeContent = body.content ?? {}; // Pastikan konten tidak null/undefined
 
     // Cek apakah dokumen sudah ada di database
@@ -81,15 +147,24 @@ export async function PUT(
       });
     }
 
-    return NextResponse.json({
-      success: true,
-      message: 'Document content updated successfully',
-      data: updatedContent,
-    });
+    return NextResponse.json(
+      {
+        status: 'success',
+        code: 200,
+        message: 'Document content updated successfully',
+        data: { updatedContent },
+      },
+      { status: 200 }
+    );
   } catch (error) {
     console.error('Error updating document content:', error);
     return NextResponse.json(
-      { message: 'Internal Server Error' },
+      {
+        status: 'error',
+        code: 500,
+        error_type: 'InternalServerError',
+        message: 'An unexpected error occurred. Please try again later.',
+      },
       { status: 500 }
     );
   }

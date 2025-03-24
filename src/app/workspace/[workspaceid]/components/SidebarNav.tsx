@@ -73,7 +73,7 @@ const SidebarNav = ({
       );
 
       if (response.status === 201) {
-        const newDocument = response.data.newDocument;
+        const newDocument = response.data.data.newDocument;
         console.log(newDocument.id);
         router.push(`/workspace/${workspaceId}/${newDocument?.id}`);
         router.refresh();

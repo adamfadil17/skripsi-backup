@@ -43,13 +43,21 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
         const response = await axios.get(
           `/api/workspace/${workspaceId}/document/${documentId}/content/`
         );
-        if (response.data?.data?.content) {
+
+        if (
+          response.data?.status === 'success' &&
+          response.data.data?.content
+        ) {
           editorRef.current?.render(response.data.data.content);
+        } else {
+          toast.error(
+            response.data?.message || 'Failed to load document content.'
+          );
         }
         isFetchedRef.current = true;
       } catch (error: any) {
         toast.error(
-          error.response?.data?.message || 'Failed to fetch document content.'
+          error.response?.data?.message || 'An unexpected error occurred.'
         );
       }
     }
@@ -60,17 +68,21 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
       try {
         const outputData = await editorRef.current.save();
         // Here we convert inlineToolbar to <b> tags before saving.
-        const htmlContent = convertEditorDataToHtml(outputData);
+        const formattedContent = convertEditorDataToHtml(outputData);
 
-        await axios.put(
+        const response = await axios.put(
           `/api/workspace/${workspaceId}/document/${documentId}/content/`,
-          {
-            content: htmlContent,
-          }
+          { content: formattedContent }
         );
+
+        if (response.data?.status !== 'success') {
+          toast.error(
+            response.data?.message || 'Failed to save document content'
+          );
+        }
       } catch (error: any) {
         toast.error(
-          error.response?.data?.message || 'Failed to save document.'
+          error.response?.data?.message || 'An unexpected error occurred.'
         );
       }
     }

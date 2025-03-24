@@ -7,7 +7,7 @@ import { UserWorkspace } from '@/types/types';
 
 const Dashboard = async () => {
   const currentUser = await getCurrentUser();
-  const workspaces: UserWorkspace[] = await getUserWorkspaces();
+  const workspaces: UserWorkspace[] = await getUserWorkspaces(currentUser!);
 
   const isSuperAdmin = workspaces.some((workspace) =>
     workspace.members.some(

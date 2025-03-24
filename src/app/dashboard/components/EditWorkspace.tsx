@@ -104,13 +104,19 @@ const EditWorkspace = ({ children, workspace }: EditWorkspaceProps) => {
         coverImage: values.coverImage,
       });
 
-      handleCancel();
-      router.refresh();
-      toast.success('Workspace has been updated');
+      // Cek apakah responsenya sukses berdasarkan API standar
+      if (response.data.status === 'success') {
+        handleCancel();
+        router.refresh();
+        toast.success(response.data.message || 'Workspace has been updated');
+      } else {
+        toast.error(response.data.message || 'Failed to update workspace');
+      }
     } catch (error: any) {
-      toast.error(
-        error.response?.data?.message || 'Failed to update workspace'
-      );
+      const errorMessage =
+        error.response?.data?.message || 'An unexpected error occurred.';
+
+      toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
     }

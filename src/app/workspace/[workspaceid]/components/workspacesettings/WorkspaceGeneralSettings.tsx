@@ -315,12 +315,20 @@ function WorkspaceLeaveSection() {
 
       setIsSubmitting(true);
 
-      await axios.delete(`/api/workspace/${workspaceInfo.id}/leave`);
+      const res = await axios.delete(`/api/workspace/${workspaceInfo.id}`);
 
-      toast.success('You have left the workspace');
-      router.push('/dashboard');
+      if (res.data.status === 'success') {
+        toast.success(
+          res.data.message || 'You have successfully left the workspace'
+        );
+        router.push('/dashboard');
+      } else {
+        toast.error(res.data.message || 'Failed to leave workspace');
+      }
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to leave workspace');
+      const errorMessage =
+        error.response?.data?.message || 'An unexpected error occurred.';
+      toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -394,13 +402,20 @@ function WorkspaceDeleteSection() {
   async function handleDelete() {
     try {
       setIsDeleting(true);
-      await axios.delete(`/api/workspace/${workspaceInfo.id}`);
-      toast.success('Workspace has been deleted');
-      router.push(`/dashboard`);
+
+      const response = await axios.delete(`/api/workspace/${workspaceInfo.id}`);
+
+      // Cek apakah responsenya sukses berdasarkan API standar
+      if (response.data.status === 'success') {
+        toast.success(response.data.message || 'Workspace has been deleted');
+        router.push('/dashboard');
+      } else {
+        toast.error(response.data.message || 'Failed to delete workspace');
+      }
     } catch (error: any) {
-      toast.error(
-        error.response?.data?.message || 'Failed to delete workspace'
-      );
+      const errorMessage =
+        error.response?.data?.message || 'An unexpected error occurred.';
+      toast.error(errorMessage);
     } finally {
       setIsDeleting(false);
     }

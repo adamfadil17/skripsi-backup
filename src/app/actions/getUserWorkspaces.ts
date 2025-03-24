@@ -1,10 +1,10 @@
 import prisma from '@/lib/prismadb';
 import { getCurrentUser } from './getCurrentUser';
 import { UserWorkspace } from '@/types/types';
+import { User } from '@prisma/client';
 
-export async function getUserWorkspaces(): Promise<UserWorkspace[]> {
+export async function getUserWorkspaces(user: User): Promise<UserWorkspace[]> {
   try {
-    const user = await getCurrentUser();
     if (!user?.id || !user?.email) {
       throw new Error('User not authenticated');
     }
@@ -49,6 +49,8 @@ export async function getUserWorkspaces(): Promise<UserWorkspace[]> {
     }));
   } catch (error) {
     console.error('Error fetching workspaces:', error);
-    throw new Error('Failed to fetch workspaces');
+    throw new Error(
+      error instanceof Error ? error.message : 'Failed to fetch workspaces'
+    );
   }
 }

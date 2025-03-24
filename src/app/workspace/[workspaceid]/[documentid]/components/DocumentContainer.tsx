@@ -38,14 +38,21 @@ const DocumentContainer = ({
 
   const updateDocument = async (data: Partial<WorkspaceDocument>) => {
     try {
-      await axios.patch(
+      const response = await axios.patch(
         `/api/workspace/${workspaceId}/document/${documentId}`,
         data
       );
-      router.refresh();
-      toast.success('Document Header has been updated');
+
+      if (response.data.status === 'success') {
+        toast.success('Document updated successfully');
+        router.refresh();
+      } else {
+        toast.error(response.data.message || 'Unknown error occurred');
+      }
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to update document');
+      const errorMessage =
+        error.response?.data?.message || 'An unexpected error occurred.';
+      toast.error(errorMessage);
     }
   };
 

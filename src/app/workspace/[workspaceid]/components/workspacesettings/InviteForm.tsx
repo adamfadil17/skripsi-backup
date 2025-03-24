@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import toast from 'react-hot-toast';
 
 const inviteFormSchema = z.object({
   email: z.string().email({ message: 'Invalid email address' }),
@@ -51,8 +52,6 @@ function InviteForm({
   onCancel,
 }: InviteFormProps) {
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
-  // const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   const form = useForm<InviteFormValues>({
     resolver: zodResolver(inviteFormSchema),
@@ -64,7 +63,7 @@ function InviteForm({
 
   const handleSubmit = async (values: InviteFormValues) => {
     setLoading(true);
-    setMessage('');
+
     try {
       const res = await axios.post('/api/invite', {
         email: values.email,
@@ -72,11 +71,16 @@ function InviteForm({
         workspaceId,
       });
 
-      setMessage('Invitation sent successfully!');
-      // onSubmit(values);
-      form.reset();
+      if (res.data.status === 'success') {
+        form.reset();
+        toast.success(res.data.message || 'Invitation sent successfully.');
+      } else {
+        toast.error(res.data.message || 'Failed to send invitation.');
+      }
     } catch (error: any) {
-      setMessage(error.response?.data?.message || 'Failed to send invitation.');
+      const errorMessage =
+        error.response?.data?.message || 'An unexpected error occurred.';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -157,9 +161,6 @@ function InviteForm({
             </Button>
           </div>
         </div>
-        {message && (
-          <p className="text-sm text-center text-gray-600">{message}</p>
-        )}
       </form>
     </Form>
   );

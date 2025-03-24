@@ -9,11 +9,43 @@ export async function POST(
   try {
     const currentUser = await getCurrentUser();
     if (!currentUser?.id || !currentUser?.email) {
-      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 401,
+          error_type: 'Unauthorized',
+          message: 'Unauthorized access',
+        },
+        { status: 401 }
+      );
     }
 
     const { workspaceId } = params;
+    if (!workspaceId) {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 400,
+          error_type: 'BadRequest',
+          message: 'Workspace ID is required',
+        },
+        { status: 400 }
+      );
+    }
+
     const { title, emoji, coverImage } = await req.json();
+
+    if (!title || !emoji || !coverImage) {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 400,
+          error_type: 'BadRequest',
+          message: 'All fields are required',
+        },
+        { status: 400 }
+      );
+    }
 
     const newDocument = await prisma.document.create({
       data: {
@@ -47,13 +79,23 @@ export async function POST(
     });
 
     return NextResponse.json(
-      { success: true, message: 'Document created successfully', newDocument },
+      {
+        status: 'success',
+        code: 201,
+        message: 'Document created successfully',
+        data: { newDocument },
+      },
       { status: 201 }
     );
   } catch (error) {
     console.error('Error creating document:', error);
     return NextResponse.json(
-      { message: 'Internal Server Error' },
+      {
+        status: 'error',
+        code: 500,
+        error_type: 'InternalServerError',
+        message: 'An unexpected error occurred. Please try again later.',
+      },
       { status: 500 }
     );
   }

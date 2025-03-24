@@ -1,8 +1,16 @@
 import prisma from '@/lib/prismadb';
 import { WorkspaceInfo } from '@/types/types';
+import { User } from '@prisma/client';
 
-export async function getWorkspaceInfo(workspaceId: string): Promise<WorkspaceInfo | null> {
+export async function getWorkspaceInfo(
+  workspaceId: string,
+  currentUser: User
+): Promise<WorkspaceInfo | null> {
   try {
+    if (!currentUser.id || !currentUser.email) {
+      throw new Error('User not authenticated');
+    }
+
     const workspace = await prisma.workspace.findUnique({
       where: { id: workspaceId },
       select: {
@@ -83,9 +91,22 @@ export async function getWorkspaceInfo(workspaceId: string): Promise<WorkspaceIn
       },
     });
 
+    if (!workspace) return null;
+
+    // ✅ Jika `currentUserId` ada, cek apakah user adalah member
+    if (currentUser.id) {
+      const isMember = workspace.members.some(
+        (member) => member.userId === currentUser.id
+      );
+      if (!isMember) return null; // Kembalikan null jika bukan member
+    }
+
     return workspace;
   } catch (error) {
     console.error('Error fetching workspace info:', error);
-    throw new Error('Failed to fetch workspace info');
+    throw {
+      error_type: 'InternalServerError',
+      message: 'An unexpected error occurred. Please try again later.',
+    };
   }
 }

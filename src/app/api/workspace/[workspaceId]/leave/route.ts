@@ -9,10 +9,26 @@ export async function DELETE(
   try {
     const currentUser = await getCurrentUser();
     if (!currentUser.id || !currentUser.email) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 400,
+          error_type: 'BadRequest',
+          message: 'workspaceId and documentId are required',
+        },
+        { status: 400 }
+      );
     }
 
     const { workspaceId } = params;
+    if (!workspaceId) {
+      return NextResponse.json({
+        status: 'error',
+        code: 400,
+        error_type: 'BadRequest',
+        message: 'workspaceId is required',
+      });
+    }
 
     // Ambil workspace dengan anggota
     const workspace = await prisma.workspace.findUnique({
@@ -22,7 +38,7 @@ export async function DELETE(
 
     if (!workspace) {
       return NextResponse.json(
-        { error: 'Workspace not found' },
+        { status: 'error', code: 404, message: 'Workspace not found' },
         { status: 404 }
       );
     }
@@ -33,7 +49,11 @@ export async function DELETE(
 
     if (!userMembership) {
       return NextResponse.json(
-        { error: 'You are not a member of this workspace' },
+        {
+          status: 'error',
+          code: 403,
+          message: 'You are not a member of this workspace',
+        },
         { status: 403 }
       );
     }
@@ -44,7 +64,11 @@ export async function DELETE(
 
     if (superAdminCount === 0) {
       return NextResponse.json(
-        { error: 'A workspace must have at least one Owner.' },
+        {
+          status: 'error',
+          code: 400,
+          message: 'A workspace must have at least one Owner.',
+        },
         { status: 400 }
       );
     }
@@ -52,7 +76,10 @@ export async function DELETE(
     if (superAdminCount === 1 && userMembership.role === 'SUPER_ADMIN') {
       return NextResponse.json(
         {
-          error: 'You are the last Owner. Assign another Owner before leaving.',
+          status: 'error',
+          code: 400,
+          message:
+            'You are the last Owner. Assign another Owner before leaving.',
         },
         { status: 400 }
       );
@@ -68,13 +95,22 @@ export async function DELETE(
     });
 
     return NextResponse.json(
-      { success: true, message: 'Successfully left the workspace' },
+      {
+        status: 'success',
+        code: 200,
+        message: 'Successfully left the workspace',
+      },
       { status: 200 }
     );
   } catch (error) {
     console.error('Error leaving workspace:', error);
     return NextResponse.json(
-      { error: 'Internal Server Error' },
+      {
+        status: 'error',
+        code: 500,
+        error_type: 'InternalServerError',
+        message: 'An unexpected error occurred. Please try again later.',
+      },
       { status: 500 }
     );
   }

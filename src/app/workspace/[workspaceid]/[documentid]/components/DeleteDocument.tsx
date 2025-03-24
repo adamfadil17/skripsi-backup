@@ -45,19 +45,23 @@ export function DeleteDocument({
   async function handleDelete() {
     try {
       setIsDeleting(true);
-      await axios.delete(
-        `/api/workspace/${workspaceId}/document/${document.id}`
+
+      const response = await axios.delete(
+        `/api/workspaces/${workspaceId}/documents/${document.id}`
       );
-      toast.success('Document has been deleted');
-      setIsOpen(false);
-      router.push(`/workspace/${workspaceId}`);
-      router.refresh();
+
+      if (response.data.status === 'success') {
+        toast.success('Document has been deleted');
+        setIsOpen(false);
+        router.push(`/workspace/${workspaceId}`);
+        router.refresh();
+      } else {
+        toast.error(response.data.message || 'Unknown error occurred');
+      }
     } catch (error: any) {
-      console.error(
-        'Error deleting workspace:',
-        error.response?.data || error.message
-      );
-      toast.error('Failed to delete workspace');
+      const errorMessage =
+        error.response?.data?.message || 'An unexpected error occurred.';
+      toast.error(errorMessage);
     } finally {
       setIsDeleting(false);
     }
