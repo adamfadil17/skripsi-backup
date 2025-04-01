@@ -24,9 +24,28 @@ export async function POST(
       );
     }
 
-    if (invitation.status === 'ACCEPTED') {
+    // Cek apakah email pengguna sesuai dengan email dalam undangan
+    if (currentUser.email !== invitation.email) {
       return NextResponse.json(
-        { message: 'Invitation expired' },
+        { message: 'Forbidden: Email does not match the invitation' },
+        { status: 403 }
+      );
+    }
+
+    // Cek apakah pengguna sudah menjadi anggota workspace
+    const existingMember = await prisma.workspaceMember.findFirst({
+      where: {
+        workspaceId: invitation.workspaceId,
+        userId: currentUser.id,
+      },
+    });
+
+    if (existingMember) {
+      return NextResponse.json(
+        {
+          error_type: 'UserIsMember',
+          message: 'You are already a member of this workspace',
+        },
         { status: 400 }
       );
     }
@@ -47,10 +66,9 @@ export async function POST(
       },
     });
 
-    // Update status undangan
-    await prisma.invitation.update({
+    // Hapus undangan setelah diterima
+    await prisma.invitation.delete({
       where: { id: params.id },
-      data: { status: 'ACCEPTED' },
     });
 
     return NextResponse.json({ message: 'Invitation accepted' });

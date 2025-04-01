@@ -1,6 +1,7 @@
 import { sendInvitation } from '@/app/actions/sendInvitation';
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
+import prisma from '@/lib/prismadb';
 
 export async function POST(req: NextRequest) {
   try {
@@ -29,6 +30,28 @@ export async function POST(req: NextRequest) {
           code: 400,
           error_type: 'BadRequest',
           message: 'Missing required fields: email, workspaceId, or role.',
+        },
+        { status: 400 }
+      );
+    }
+
+    // Cek apakah email sudah menjadi member workspace
+    const existingMember = await prisma.workspaceMember.findFirst({
+      where: {
+        workspaceId: workspaceId,
+        user: {
+          email: email,
+        },
+      },
+    });
+
+    if (existingMember) {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 400,
+          error_type: 'BadRequest',
+          message: 'User is already a member of this workspace.',
         },
         { status: 400 }
       );

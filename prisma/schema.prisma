@@ -112,7 +112,7 @@ model Invitation {
 enum InvitationStatus {
   SENT
   ACCEPTED
-  REJECTED
+  EXPIRED
 }
 
 // Model Document
