@@ -24,6 +24,13 @@ export async function POST(
       );
     }
 
+    if (invitation.status === 'ACCEPTED') {
+      return NextResponse.json(
+        { message: 'Invitation expired' },
+        { status: 400 }
+      );
+    }
+
     if (new Date() > invitation.expiredAt) {
       return NextResponse.json(
         { message: 'Invitation expired' },

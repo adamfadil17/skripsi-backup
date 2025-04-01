@@ -20,7 +20,15 @@ const AuthForm = () => {
 
   useEffect(() => {
     if (session?.status === 'authenticated') {
-      router.push('/dashboard');
+      // Cek apakah ada inviteId di sessionStorage setelah login
+      const inviteId = sessionStorage.getItem('inviteId');
+
+      if (inviteId) {
+        sessionStorage.removeItem('inviteId'); // Hapus inviteId setelah digunakan
+        router.push(`/invitation/${inviteId}`);
+      } else {
+        router.push('/dashboard'); // Jika tidak ada inviteId, arahkan ke dashboard
+      }
     }
   }, [session?.status, router]);
 
@@ -51,7 +59,7 @@ const AuthForm = () => {
       axios
         .post('/api/register', data)
         .then(() => signIn('credentials', data))
-        .catch(() => toast.error('Someting went wrong!'))
+        .catch(() => toast.error('Something went wrong!'))
         .finally(() => setIsLoading(false));
     }
 
@@ -67,7 +75,6 @@ const AuthForm = () => {
 
           if (callback?.ok && !callback.error) {
             toast.success('Logged in');
-            router.push('/dashboard');
           }
         })
         .finally(() => setIsLoading(false));
@@ -89,6 +96,7 @@ const AuthForm = () => {
       })
       .finally(() => setIsLoading(false));
   };
+
   return (
     <div className="sm:mx-auto sm:w-full sm:max-w-md">
       <div className="mt-6">

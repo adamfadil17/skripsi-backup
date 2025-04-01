@@ -21,7 +21,7 @@ export async function sendInvitation(
     },
   });
 
-  const inviteLink = `${process.env.APP_URL}/invite/${invitation.id}`;
+  const inviteLink = `${process.env.APP_URL}/invitation/${invitation.id}`;
 
   if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
     throw new Error('Missing email credentials in environment variables');
