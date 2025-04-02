@@ -19,7 +19,7 @@ export async function POST(
 
     if (!invitation) {
       return NextResponse.json(
-        { message: 'Invitation not found' },
+        { message: 'Invitation not found or expired' },
         { status: 404 }
       );
     }
@@ -66,7 +66,7 @@ export async function POST(
       },
     });
 
-    // Hapus undangan setelah diterima
+    // Update status undangan
     await prisma.invitation.delete({
       where: { id: params.id },
     });

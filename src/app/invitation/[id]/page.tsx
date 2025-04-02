@@ -41,7 +41,7 @@ export default function AcceptInvitePage({
         }
 
         // Process the invitation if user is logged in
-        const response = await axios.post(`/api/invite/${params.id}/accept`);
+        const response = await axios.post(`/api/acceptinvitation/${params.id}`);
 
         if (response.status === 200) {
           setState('success');
@@ -136,12 +136,12 @@ export default function AcceptInvitePage({
         <CardFooter className="flex justify-center border-t bg-muted/50 p-4">
           {state === 'error' && !isAlreadyMember && (
             <div className="flex gap-4">
-              <Button variant="outline" onClick={() => router.back()}>
-                Go Back
+              <Button variant="outline" onClick={() => router.push('/')}>
+                Go to Login
               </Button>
 
-              <Button onClick={() => router.push('/')}>
-                Go to Login
+              <Button onClick={() => router.push('/dashboard')}>
+                Go to Dashboard
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </div>

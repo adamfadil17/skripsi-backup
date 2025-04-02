@@ -80,7 +80,6 @@ export async function getWorkspaceInfo(
             id: true,
             email: true,
             role: true,
-            status: true,
             invitedAt: true,
             invitedBy: {
               select: { id: true, name: true, email: true },

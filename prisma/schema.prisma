@@ -98,7 +98,6 @@ model Invitation {
   role        Role
   workspaceId String           @db.ObjectId
   invitedById String           @db.ObjectId
-  status      InvitationStatus @default(SENT)
   invitedAt   DateTime         @default(now())
   expiredAt   DateTime
 
@@ -107,12 +106,6 @@ model Invitation {
 
   @@unique([email, workspaceId])
   @@index([expiredAt])
-}
-
-enum InvitationStatus {
-  SENT
-  ACCEPTED
-  EXPIRED
 }
 
 // Model Document

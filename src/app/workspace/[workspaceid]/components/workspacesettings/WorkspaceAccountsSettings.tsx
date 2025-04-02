@@ -63,7 +63,6 @@ export function WorkspaceAccountsSettings() {
       date: new Date(invitation.invitedAt).toLocaleDateString(),
       role: invitation.role,
       id: invitation.id,
-      status: invitation.status,
       invitedBy: invitation.invitedBy?.name || '',
     })) || [];
 

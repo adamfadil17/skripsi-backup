@@ -68,7 +68,6 @@ export type WorkspaceInvitation = {
   id: string;
   email: string;
   role: 'SUPER_ADMIN' | 'ADMIN' | 'MEMBER';
-  status: 'SENT' | 'ACCEPTED' | 'EXPIRED';
   invitedAt: Date;
   invitedBy: {
     id: string;

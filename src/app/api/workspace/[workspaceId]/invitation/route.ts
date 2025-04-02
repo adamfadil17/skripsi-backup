@@ -3,7 +3,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
 import prisma from '@/lib/prismadb';
 
-export async function POST(req: NextRequest) {
+export async function POST(
+  req: NextRequest,
+  { params }: { params: { workspaceId: string } }
+) {
   try {
     const currentUser = await getCurrentUser();
 
@@ -14,16 +17,29 @@ export async function POST(req: NextRequest) {
           status: 'error',
           code: 401,
           error_type: 'Unauthorized',
-          message: 'Unauthorized access',
+          message: 'Unauthorized access. Please log in.',
         },
         { status: 401 }
       );
     }
 
-    const { email, workspaceId, role } = await req.json();
+    const { email, role } = await req.json();
+    const { workspaceId } = params; // Menggunakan destructuring di sini
+
+    if (!workspaceId) {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 400,
+          error_type: 'BadRequest',
+          message: 'Workspace ID is required',
+        },
+        { status: 400 }
+      );
+    }
 
     // Validasi input
-    if (!email || !workspaceId || !role) {
+    if (!email || !role) {
       return NextResponse.json(
         {
           status: 'error',
@@ -35,12 +51,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const normalizedEmail = email.trim().toLowerCase();
+
     // Cek apakah email sudah menjadi member workspace
     const existingMember = await prisma.workspaceMember.findFirst({
       where: {
-        workspaceId: workspaceId,
+        workspaceId,
         user: {
-          email: email,
+          email: normalizedEmail,
         },
       },
     });
@@ -50,8 +68,28 @@ export async function POST(req: NextRequest) {
         {
           status: 'error',
           code: 400,
-          error_type: 'BadRequest',
-          message: 'User is already a member of this workspace.',
+          error_type: 'AlreadyMember',
+          message: 'This user is already a member of the workspace.',
+        },
+        { status: 400 }
+      );
+    }
+
+    // Cek apakah email sudah menerima invitation sebelumnya
+    const existingInvitation = await prisma.invitation.findFirst({
+      where: {
+        workspaceId,
+        email: normalizedEmail,
+      },
+    });
+
+    if (existingInvitation) {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 400,
+          error_type: 'AlreadyInvited',
+          message: 'This user has already been invited to the workspace.',
         },
         { status: 400 }
       );
@@ -59,7 +97,7 @@ export async function POST(req: NextRequest) {
 
     // Kirim undangan
     const invitation = await sendInvitation(
-      email,
+      normalizedEmail,
       workspaceId,
       currentUser.id,
       role
@@ -75,6 +113,7 @@ export async function POST(req: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
+    console.error('Error sending invitation:', error);
     return NextResponse.json(
       {
         status: 'error',

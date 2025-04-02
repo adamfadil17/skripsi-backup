@@ -65,10 +65,11 @@ function InviteForm({
     setLoading(true);
 
     try {
-      const res = await axios.post('/api/invite', {
+      const normalizedEmail = values.email.trim().toLowerCase();
+
+      const res = await axios.post(`/api/workspace/${workspaceId}/invitation`, {
         email: values.email,
         role: values.role,
-        workspaceId,
       });
 
       if (res.data.status === 'success') {
