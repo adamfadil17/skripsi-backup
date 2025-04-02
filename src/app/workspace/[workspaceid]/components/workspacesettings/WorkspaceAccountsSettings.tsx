@@ -148,6 +148,21 @@ export function WorkspaceAccountsSettings() {
     }
   }
 
+  const handleRevokeInvitation = async (invitationId: string) => {
+    if (!workspaceInfo) return;
+
+    try {
+      await axios.delete(
+        `/api/workspace/${workspaceInfo.id}/invitation/${invitationId}`
+      );
+      toast.success('Invitation revoked successfully.');
+    } catch (error: any) {
+      toast.error(
+        error.response?.data?.message || 'Failed to revoke invitation.'
+      );
+    }
+  };
+
   return (
     <>
       <div className="border-b">
@@ -286,14 +301,18 @@ export function WorkspaceAccountsSettings() {
                     disabled={
                       activeTab === 'invitations' ||
                       (!isSuperAdmin && !isAdmin) ||
-                      (isAdmin && item.role === 'SUPER_ADMIN')
+                      (isAdmin && item.role === 'SUPER_ADMIN') ||
+                      item.email === currentUser.email ||
+                      (isAdmin && item.role === 'ADMIN')
                     }
                   >
                     <SelectTrigger className="h-8">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="SUPER_ADMIN">Owner</SelectItem>
+                      <SelectItem value="SUPER_ADMIN" disabled={isAdmin}>
+                        Owner
+                      </SelectItem>
                       <SelectItem value="ADMIN">Admin</SelectItem>
                       <SelectItem value="MEMBER">Member</SelectItem>
                     </SelectContent>
@@ -312,7 +331,9 @@ export function WorkspaceAccountsSettings() {
                         <DropdownMenuItem
                           className="text-destructive focus:text-destructive focus:bg-red-50 cursor-pointer"
                           onClick={() => {
-                            if (activeTab === 'members') {
+                            if (activeTab === 'invitations') {
+                              handleRevokeInvitation((item as any).id);
+                            } else if (activeTab === 'members') {
                               if (item.email === currentUser.email) {
                                 handleLeave();
                               } else {

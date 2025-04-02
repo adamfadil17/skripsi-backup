@@ -24,7 +24,7 @@ export async function POST(
     }
 
     const { email, role } = await req.json();
-    const { workspaceId } = params; // Menggunakan destructuring di sini
+    const { workspaceId } = params;
 
     if (!workspaceId) {
       return NextResponse.json(
@@ -93,6 +93,41 @@ export async function POST(
         },
         { status: 400 }
       );
+    }
+
+    // Cek role dari currentUser
+    const workspaceUser = await prisma.workspaceMember.findUnique({
+      where: {
+        userId_workspaceId: { userId: currentUser.id, workspaceId },
+      },
+    });
+
+    // Hanya Super Admin yang bisa memberikan role SUPER_ADMIN atau ADMIN
+    if (workspaceUser?.role !== 'SUPER_ADMIN') {
+      if (role === 'SUPER_ADMIN') {
+        return NextResponse.json(
+          {
+            status: 'error',
+            code: 403,
+            error_type: 'Forbidden',
+            message: 'Only Super Admin can invite users with role SUPER_ADMIN.',
+          },
+          { status: 403 }
+        );
+      }
+
+      // Admin hanya bisa mengundang user dengan role MEMBER
+      if (role !== 'MEMBER') {
+        return NextResponse.json(
+          {
+            status: 'error',
+            code: 403,
+            error_type: 'Forbidden',
+            message: 'Admin can only invite users with role MEMBER.',
+          },
+          { status: 403 }
+        );
+      }
     }
 
     // Kirim undangan
