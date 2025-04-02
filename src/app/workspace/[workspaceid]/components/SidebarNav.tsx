@@ -103,7 +103,7 @@ const SidebarNav = ({
         </Link>
         <div className="mt-4 px-2">
           <h3 className="text-sm text-muted-foreground mb-1">Workspace</h3>
-          <p className="font-medium">
+          <p className="font-semibold line-clamp-2 text-ellipsis overflow-hidden">
             {workspaceInfo.emoji} {workspaceInfo.name}
           </p>
         </div>
