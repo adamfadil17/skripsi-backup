@@ -137,7 +137,7 @@ export function WorkspaceAccountsSettings() {
 
       // Refresh the members list
       const response = await axios.get(
-        `/api/workspace/${workspaceInfo.id}/members`
+        `/api/workspace/${workspaceInfo.id}/member`
       );
       if (response.data.status === 'success') {
         setFetchedMembers(response.data.data.members);
@@ -178,7 +178,7 @@ export function WorkspaceAccountsSettings() {
 
       // Refresh the members list
       const response = await axios.get(
-        `/api/workspace/${workspaceInfo.id}/members`
+        `/api/workspace/${workspaceInfo.id}/member`
       );
       if (response.data.status === 'success') {
         setFetchedMembers(response.data.data.members);
@@ -224,7 +224,7 @@ export function WorkspaceAccountsSettings() {
 
       // Refresh the invitations list
       const response = await axios.get(
-        `/api/workspace/${workspaceInfo.id}/invitations`
+        `/api/workspace/${workspaceInfo.id}/invitation`
       );
       if (response.data.status === 'success') {
         setFetchedInvitations(response.data.data.invitations);
@@ -238,7 +238,7 @@ export function WorkspaceAccountsSettings() {
 
   if (isLoading && members.length === 0) {
     return (
-      <div className="flex justify-center items-center py-8">
+      <div className="flex justify-center items-center absolute inset-0">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
@@ -318,6 +318,22 @@ export function WorkspaceAccountsSettings() {
               isAdmin={isAdmin}
               onSubmit={(values) => {
                 console.log('Invitation sent:', values);
+
+                // Refresh the invitations list
+                const refreshInvitations = async () => {
+                  try {
+                    const response = await axios.get(
+                      `/api/workspace/${workspaceInfo.id}/invitation`
+                    );
+                    if (response.data.status === 'success') {
+                      setFetchedInvitations(response.data.data.invitations);
+                    }
+                  } catch (error: any) {
+                    console.error('Failed to refresh invitations:', error);
+                  }
+                };
+
+                refreshInvitations();
                 setShowInviteForm(false);
               }}
               onCancel={() => setShowInviteForm(false)}

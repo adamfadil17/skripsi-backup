@@ -65,8 +65,6 @@ function InviteForm({
     setLoading(true);
 
     try {
-      const normalizedEmail = values.email.trim().toLowerCase();
-
       const res = await axios.post(`/api/workspace/${workspaceId}/invitation`, {
         email: values.email,
         role: values.role,
@@ -75,6 +73,7 @@ function InviteForm({
       if (res.data.status === 'success') {
         form.reset();
         toast.success(res.data.message || 'Invitation sent successfully.');
+        onSubmit(values);
       } else {
         toast.error(res.data.message || 'Failed to send invitation.');
       }
