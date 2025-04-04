@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { MoreHorizontal, ChevronLeft, ChevronRight } from 'lucide-react';
+import { MoreHorizontal, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -238,8 +238,8 @@ export function WorkspaceAccountsSettings() {
 
   if (isLoading && members.length === 0) {
     return (
-      <div className="flex justify-center items-center absolute inset-0">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="flex justify-center items-center ml-60 absolute inset-0">
+        <Loader2 className="mr-2 h-8 w-8 animate-spin" />
       </div>
     );
   }
