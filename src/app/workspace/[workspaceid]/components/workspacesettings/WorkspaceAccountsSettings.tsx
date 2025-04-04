@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { MoreHorizontal, ChevronLeft, ChevronRight } from 'lucide-react';
-import Image from 'next/image';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -26,6 +25,7 @@ import toast from 'react-hot-toast';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { WorkspaceInvitation, WorkspaceMember } from '@/types/types';
 
 export function WorkspaceAccountsSettings() {
   const { workspaceInfo, isSuperAdmin, isAdmin, currentUser } =
@@ -36,6 +36,11 @@ export function WorkspaceAccountsSettings() {
   const [showInviteForm, setShowInviteForm] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fetchedMembers, setFetchedMembers] = useState<WorkspaceMember[]>([]);
+  const [fetchedInvitations, setFetchedInvitations] = useState<
+    WorkspaceInvitation[]
+  >([]);
+  const [isLoading, setIsLoading] = useState(false);
 
   const router = useRouter();
 
@@ -47,8 +52,53 @@ export function WorkspaceAccountsSettings() {
     }
   }, [activeTab]);
 
+  useEffect(() => {
+    const fetchMembers = async () => {
+      if (!workspaceInfo?.id) return;
+
+      setIsLoading(true);
+      try {
+        const response = await axios.get(
+          `/api/workspace/${workspaceInfo.id}/member`
+        );
+        if (response.data.status === 'success') {
+          setFetchedMembers(response.data.data.members);
+        }
+      } catch (error: any) {
+        console.error('Failed to fetch members:', error);
+        toast.error(error.response?.data?.message || 'Failed to fetch members');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    const fetchInvitations = async () => {
+      if (!workspaceInfo?.id) return;
+
+      setIsLoading(true);
+      try {
+        const response = await axios.get(
+          `/api/workspace/${workspaceInfo.id}/invitation`
+        );
+        if (response.data.status === 'success') {
+          setFetchedInvitations(response.data.data.invitations);
+        }
+      } catch (error: any) {
+        console.error('Failed to fetch invitations:', error);
+        toast.error(
+          error.response?.data?.message || 'Failed to fetch invitations'
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchMembers();
+    fetchInvitations();
+  }, [workspaceInfo?.id]);
+
   const members =
-    workspaceInfo?.members.map((member) => ({
+    fetchedMembers.map((member) => ({
       email: member.user.email,
       date: new Date(member.joinedAt).toLocaleDateString(),
       role: member.role,
@@ -58,7 +108,7 @@ export function WorkspaceAccountsSettings() {
     })) || [];
 
   const invitations =
-    workspaceInfo?.invitations.map((invitation) => ({
+    fetchedInvitations.map((invitation) => ({
       email: invitation.email,
       date: new Date(invitation.invitedAt).toLocaleDateString(),
       role: invitation.role,
@@ -84,6 +134,14 @@ export function WorkspaceAccountsSettings() {
         newRole,
       });
       toast.success('User role updated successfully');
+
+      // Refresh the members list
+      const response = await axios.get(
+        `/api/workspace/${workspaceInfo.id}/members`
+      );
+      if (response.data.status === 'success') {
+        setFetchedMembers(response.data.data.members);
+      }
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Failed to update role');
     }
@@ -95,7 +153,7 @@ export function WorkspaceAccountsSettings() {
     const isTargetSuperAdmin = role === 'SUPER_ADMIN';
     const isTargetAdmin = role === 'ADMIN';
 
-    const superAdmins = workspaceInfo.members.filter(
+    const superAdmins = fetchedMembers.filter(
       (member) => member.role === 'SUPER_ADMIN'
     );
 
@@ -117,6 +175,14 @@ export function WorkspaceAccountsSettings() {
     try {
       await axios.delete(`/api/workspace/${workspaceInfo.id}/member/${userId}`);
       toast.success('User removed successfully.');
+
+      // Refresh the members list
+      const response = await axios.get(
+        `/api/workspace/${workspaceInfo.id}/members`
+      );
+      if (response.data.status === 'success') {
+        setFetchedMembers(response.data.data.members);
+      }
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Failed to remove user.');
     }
@@ -125,8 +191,7 @@ export function WorkspaceAccountsSettings() {
   async function handleLeave() {
     try {
       if (
-        workspaceInfo.members.filter((m) => m.role === 'SUPER_ADMIN').length ===
-          1 &&
+        fetchedMembers.filter((m) => m.role === 'SUPER_ADMIN').length === 1 &&
         isSuperAdmin
       ) {
         toast.error(
@@ -156,12 +221,28 @@ export function WorkspaceAccountsSettings() {
         `/api/workspace/${workspaceInfo.id}/invitation/${invitationId}`
       );
       toast.success('Invitation revoked successfully.');
+
+      // Refresh the invitations list
+      const response = await axios.get(
+        `/api/workspace/${workspaceInfo.id}/invitations`
+      );
+      if (response.data.status === 'success') {
+        setFetchedInvitations(response.data.data.invitations);
+      }
     } catch (error: any) {
       toast.error(
         error.response?.data?.message || 'Failed to revoke invitation.'
       );
     }
   };
+
+  if (isLoading && members.length === 0) {
+    return (
+      <div className="flex justify-center items-center py-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <>

@@ -48,21 +48,6 @@ export async function GET(
       );
     }
 
-    // const isMember = workspace.members.some(
-    //   (member) => member.user.id === currentUser.id
-    // );
-    // if (!isMember) {
-    //   return NextResponse.json(
-    //     {
-    //       status: 'error',
-    //       code: 403,
-    //       error_type: 'Forbidden',
-    //       message: 'Forbidden',
-    //     },
-    //     { status: 403 }
-    //   );
-    // }
-
     return NextResponse.json(
       { status: 'success', code: 200, data: { workspace } },
       { status: 200 }
