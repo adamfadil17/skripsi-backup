@@ -1,8 +1,9 @@
 import { sendInvitation } from '@/app/actions/sendInvitation';
-import { NextRequest, NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
 import prisma from '@/lib/prismadb';
 import { getWorkspaceInvitations } from '@/app/actions/getWorkspaceInvitations';
+import { pusherServer } from '@/lib/pusher';
 
 export async function GET(
   req: NextRequest,
@@ -207,6 +208,13 @@ export async function POST(
       workspaceId,
       currentUser.id,
       role
+    );
+
+    // Trigger Pusher event for real-time updates
+    await pusherServer.trigger(
+      `workspace-${workspaceId}`,
+      'invitation-added',
+      invitation
     );
 
     return NextResponse.json(

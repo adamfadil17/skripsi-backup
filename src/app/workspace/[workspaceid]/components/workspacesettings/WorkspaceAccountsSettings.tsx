@@ -1,7 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { MoreHorizontal, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import {
+  MoreHorizontal,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+} from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -25,7 +30,8 @@ import toast from 'react-hot-toast';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { WorkspaceInvitation, WorkspaceMember } from '@/types/types';
+import { usePusherChannel } from '@/hooks/use-pusher-channel';
+import type { WorkspaceInvitation, WorkspaceMember } from '@/types/types';
 
 export function WorkspaceAccountsSettings() {
   const { workspaceInfo, isSuperAdmin, isAdmin, currentUser } =
@@ -44,79 +50,38 @@ export function WorkspaceAccountsSettings() {
 
   const router = useRouter();
 
+  // Subscribe to workspace-specific channel
+  const workspaceChannel = usePusherChannel(
+    workspaceInfo?.id ? `workspace-${workspaceInfo.id}` : ''
+  );
+
+  // Simple derived state - no need for useMemo
   const isInviteFormVisible = activeTab === 'invitations' && showInviteForm;
 
-  useEffect(() => {
-    if (activeTab === 'members') {
-      setShowInviteForm(false);
-    }
-  }, [activeTab]);
+  // Simple derived state - no need for useMemo
+  const superAdmins = fetchedMembers.filter((m) => m.role === 'SUPER_ADMIN');
 
-  useEffect(() => {
-    const fetchMembers = async () => {
-      if (!workspaceInfo?.id) return;
-
-      setIsLoading(true);
-      try {
-        const response = await axios.get(
-          `/api/workspace/${workspaceInfo.id}/member`
-        );
-        if (response.data.status === 'success') {
-          setFetchedMembers(response.data.data.members);
-        }
-      } catch (error: any) {
-        console.error('Failed to fetch members:', error);
-        toast.error(error.response?.data?.message || 'Failed to fetch members');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    const fetchInvitations = async () => {
-      if (!workspaceInfo?.id) return;
-
-      setIsLoading(true);
-      try {
-        const response = await axios.get(
-          `/api/workspace/${workspaceInfo.id}/invitation`
-        );
-        if (response.data.status === 'success') {
-          setFetchedInvitations(response.data.data.invitations);
-        }
-      } catch (error: any) {
-        console.error('Failed to fetch invitations:', error);
-        toast.error(
-          error.response?.data?.message || 'Failed to fetch invitations'
-        );
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchMembers();
-    fetchInvitations();
-  }, [workspaceInfo?.id]);
-
-  const members =
-    fetchedMembers.map((member) => ({
-      email: member.user.email,
-      date: new Date(member.joinedAt).toLocaleDateString(),
-      role: member.role,
-      userId: member.user.id,
-      name: member.user.name,
-      image: member.user.image,
-    })) || [];
-
-  const invitations =
-    fetchedInvitations.map((invitation) => ({
-      email: invitation.email,
-      date: new Date(invitation.invitedAt).toLocaleDateString(),
-      role: invitation.role,
-      id: invitation.id,
-      invitedBy: invitation.invitedBy?.name || '',
-    })) || [];
-
+  // Simple derived state - no need for useMemo
   const itemsPerPage = activeTab === 'members' ? 4 : 2;
+
+  // Simple calculations - no need for useMemo
+  const members = fetchedMembers.map((member) => ({
+    email: member.user.email,
+    date: new Date(member.joinedAt).toLocaleDateString(),
+    role: member.role,
+    userId: member.user.id,
+    name: member.user.name,
+    image: member.user.image,
+  }));
+
+  const invitations = fetchedInvitations.map((invitation) => ({
+    email: invitation.email,
+    date: new Date(invitation.invitedAt).toLocaleDateString(),
+    role: invitation.role,
+    id: invitation.id,
+    invitedBy: invitation.invitedBy?.name || '',
+  }));
+
   const totalPages = Math.ceil(
     (activeTab === 'members' ? members.length : invitations.length) /
       itemsPerPage
@@ -127,73 +92,164 @@ export function WorkspaceAccountsSettings() {
     currentPage * itemsPerPage
   );
 
-  const handleRoleChange = async (userId: string, newRole: string) => {
-    try {
-      await axios.put(`/api/workspace/${workspaceInfo.id}/member/${userId}`, {
-        userId,
-        newRole,
-      });
-      toast.success('User role updated successfully');
+  // Set up Pusher event listeners
+  useEffect(() => {
+    if (!workspaceChannel) return;
 
-      // Refresh the members list
-      const response = await axios.get(
-        `/api/workspace/${workspaceInfo.id}/member`
+    // Listen for member updates
+    const handleMemberAdded = (member: WorkspaceMember) => {
+      setFetchedMembers((prev) => [...prev, member]);
+      toast.success(
+        `${member.user.name || member.user.email} joined the workspace`
       );
-      if (response.data.status === 'success') {
-        setFetchedMembers(response.data.data.members);
-      }
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to update role');
-    }
-  };
+    };
 
-  const handleRemoveMember = async (userId: string, role: string) => {
+    const handleMemberRemoved = (userId: string) => {
+      setFetchedMembers((prev) =>
+        prev.filter((member) => member.user.id !== userId)
+      );
+      toast.success('User removed successfully.');
+    };
+
+    const handleMemberUpdated = (updatedMember: WorkspaceMember) => {
+      setFetchedMembers((prev) =>
+        prev.map((member) =>
+          member.user.id === updatedMember.user.id ? updatedMember : member
+        )
+      );
+      toast.success(
+        `${
+          updatedMember.user.name || updatedMember.user.email
+        }'s role was updated`
+      );
+    };
+
+    // Listen for invitation updates
+    const handleInvitationAdded = (invitation: WorkspaceInvitation) => {
+      setFetchedInvitations((prev) => [...prev, invitation]);
+      toast.success(`Invitation sent to ${invitation.email}`);
+    };
+
+    const handleInvitationRemoved = (invitationId: string) => {
+      setFetchedInvitations((prev) =>
+        prev.filter((invitation) => invitation.id !== invitationId)
+      );
+      toast.success('Invitation revoked successfully.');
+    };
+
+    // Subscribe to events
+    workspaceChannel.bind('member-added', handleMemberAdded);
+    workspaceChannel.bind('member-removed', handleMemberRemoved);
+    workspaceChannel.bind('member-updated', handleMemberUpdated);
+    workspaceChannel.bind('invitation-added', handleInvitationAdded);
+    workspaceChannel.bind('invitation-removed', handleInvitationRemoved);
+
+    // Cleanup
+    return () => {
+      workspaceChannel.unbind('member-added', handleMemberAdded);
+      workspaceChannel.unbind('member-removed', handleMemberRemoved);
+      workspaceChannel.unbind('member-updated', handleMemberUpdated);
+      workspaceChannel.unbind('invitation-added', handleInvitationAdded);
+      workspaceChannel.unbind('invitation-removed', handleInvitationRemoved);
+    };
+  }, [workspaceChannel]);
+
+  useEffect(() => {
+    if (activeTab === 'members') {
+      setShowInviteForm(false);
+    }
+  }, [activeTab]);
+
+  // Simplified fetch data logic with useCallback
+  const fetchData = useCallback(async () => {
+    if (!workspaceInfo?.id) return;
+
+    setIsLoading(true);
+
+    try {
+      // Fetch both members and invitations in parallel
+      const [membersResponse, invitationsResponse] = await Promise.all([
+        axios.get(`/api/workspace/${workspaceInfo.id}/member`),
+        axios.get(`/api/workspace/${workspaceInfo.id}/invitation`),
+      ]);
+
+      if (membersResponse.data.status === 'success') {
+        setFetchedMembers(membersResponse.data.data.members);
+      }
+
+      if (invitationsResponse.data.status === 'success') {
+        setFetchedInvitations(invitationsResponse.data.data.invitations);
+      }
+    } catch (error) {
+      console.error('Failed to fetch workspace data:', error);
+      toast.error('Failed to load workspace data');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [workspaceInfo?.id]);
+
+  // Call fetchData when component mounts or workspaceId changes
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Using useCallback for functions passed to child components or event handlers
+  const canChangeRole = useCallback(
+    (item: any) => {
+      return !(
+        activeTab === 'invitations' ||
+        (!isSuperAdmin && !isAdmin) ||
+        (isAdmin && item.role === 'SUPER_ADMIN') ||
+        item.email === currentUser.email ||
+        (isAdmin && item.role === 'ADMIN')
+      );
+    },
+    [activeTab, isSuperAdmin, isAdmin, currentUser.email]
+  );
+
+  const handleRemoveMember = useCallback(
+    async (userId: string, role: string) => {
+      if (!workspaceInfo) return;
+
+      const isTargetSuperAdmin = role === 'SUPER_ADMIN';
+      const isTargetAdmin = role === 'ADMIN';
+      const currentSuperAdmins = fetchedMembers.filter(
+        (member) => member.role === 'SUPER_ADMIN'
+      );
+
+      if (isAdmin && (isTargetSuperAdmin || isTargetAdmin)) {
+        toast.error('Admin can only remove Members.');
+        return;
+      }
+
+      if (
+        isSuperAdmin &&
+        isTargetSuperAdmin &&
+        currentSuperAdmins.length === 1 &&
+        currentUser.id === userId
+      ) {
+        toast.error('You cannot remove yourself if there is only one Owner.');
+        return;
+      }
+
+      try {
+        await axios.delete(
+          `/api/workspace/${workspaceInfo.id}/member/${userId}`
+        );
+        // toast.success('User removed successfully.');
+        // No need to manually refresh since Pusher will handle it
+      } catch (error: any) {
+        toast.error(error.response?.data?.message || 'Failed to remove user.');
+      }
+    },
+    [workspaceInfo, isAdmin, isSuperAdmin, fetchedMembers, currentUser.id]
+  );
+
+  const handleLeave = useCallback(async () => {
     if (!workspaceInfo) return;
 
-    const isTargetSuperAdmin = role === 'SUPER_ADMIN';
-    const isTargetAdmin = role === 'ADMIN';
-
-    const superAdmins = fetchedMembers.filter(
-      (member) => member.role === 'SUPER_ADMIN'
-    );
-
-    if (isAdmin && (isTargetSuperAdmin || isTargetAdmin)) {
-      toast.error('Admin can only remove Members.');
-      return;
-    }
-
-    if (
-      isSuperAdmin &&
-      isTargetSuperAdmin &&
-      superAdmins.length === 1 &&
-      currentUser.id === userId
-    ) {
-      toast.error('You cannot remove yourself if there is only one Owner.');
-      return;
-    }
-
     try {
-      await axios.delete(`/api/workspace/${workspaceInfo.id}/member/${userId}`);
-      toast.success('User removed successfully.');
-
-      // Refresh the members list
-      const response = await axios.get(
-        `/api/workspace/${workspaceInfo.id}/member`
-      );
-      if (response.data.status === 'success') {
-        setFetchedMembers(response.data.data.members);
-      }
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to remove user.');
-    }
-  };
-
-  async function handleLeave() {
-    try {
-      if (
-        fetchedMembers.filter((m) => m.role === 'SUPER_ADMIN').length === 1 &&
-        isSuperAdmin
-      ) {
+      if (superAdmins.length === 1 && isSuperAdmin) {
         toast.error(
           'You are the last Owner. Please assign a new Owner before leaving.'
         );
@@ -211,30 +267,69 @@ export function WorkspaceAccountsSettings() {
     } finally {
       setIsSubmitting(false);
     }
-  }
+  }, [workspaceInfo, superAdmins.length, isSuperAdmin, router]);
 
-  const handleRevokeInvitation = async (invitationId: string) => {
-    if (!workspaceInfo) return;
+  const handleRevokeInvitation = useCallback(
+    async (invitationId: string) => {
+      if (!workspaceInfo) return;
 
-    try {
-      await axios.delete(
-        `/api/workspace/${workspaceInfo.id}/invitation/${invitationId}`
-      );
-      toast.success('Invitation revoked successfully.');
-
-      // Refresh the invitations list
-      const response = await axios.get(
-        `/api/workspace/${workspaceInfo.id}/invitation`
-      );
-      if (response.data.status === 'success') {
-        setFetchedInvitations(response.data.data.invitations);
+      try {
+        await axios.delete(
+          `/api/workspace/${workspaceInfo.id}/invitation/${invitationId}`
+        );
+        // toast.success('Invitation revoked successfully.');
+        // No need to manually refresh since Pusher will handle it
+      } catch (error: any) {
+        toast.error(
+          error.response?.data?.message || 'Failed to revoke invitation.'
+        );
       }
-    } catch (error: any) {
-      toast.error(
-        error.response?.data?.message || 'Failed to revoke invitation.'
-      );
+    },
+    [workspaceInfo]
+  );
+
+  const handleRoleChange = useCallback(
+    async (userId: string, newRole: string) => {
+      if (!workspaceInfo) return;
+
+      try {
+        await axios.put(`/api/workspace/${workspaceInfo.id}/member/${userId}`, {
+          userId,
+          newRole,
+        });
+        // toast.success('User role updated successfully');
+        // No need to manually refresh since Pusher will handle it
+      } catch (error: any) {
+        toast.error(error.response?.data?.message || 'Failed to update role');
+      }
+    },
+    [workspaceInfo]
+  );
+
+  const handleTabChange = useCallback((tab: 'members' | 'invitations') => {
+    setActiveTab(tab);
+    setCurrentPage(1);
+  }, []);
+
+  const handleInviteClick = useCallback(() => {
+    if (activeTab === 'members') {
+      setActiveTab('invitations');
+      setShowInviteForm(true);
+    } else {
+      setShowInviteForm(true);
     }
-  };
+    setCurrentPage(1);
+  }, [activeTab]);
+
+  const handleInviteSubmit = useCallback((values: any) => {
+    console.log('Invitation sent:', values);
+    setShowInviteForm(false);
+    // No need to manually refresh since Pusher will handle it
+  }, []);
+
+  const handleInviteCancel = useCallback(() => {
+    setShowInviteForm(false);
+  }, []);
 
   if (isLoading && members.length === 0) {
     return (
@@ -254,10 +349,7 @@ export function WorkspaceAccountsSettings() {
                 ? 'text-primary before:absolute before:bottom-0 before:left-0 before:right-0 before:h-0.5 before:bg-primary'
                 : 'text-muted-foreground'
             }`}
-            onClick={() => {
-              setActiveTab('members');
-              setCurrentPage(1);
-            }}
+            onClick={() => handleTabChange('members')}
           >
             Members{' '}
             <Badge
@@ -274,10 +366,7 @@ export function WorkspaceAccountsSettings() {
                 ? 'text-primary before:absolute before:bottom-0 before:left-0 before:right-0 before:h-0.5 before:bg-primary'
                 : 'text-muted-foreground'
             }`}
-            onClick={() => {
-              setActiveTab('invitations');
-              setCurrentPage(1);
-            }}
+            onClick={() => handleTabChange('invitations')}
           >
             Invitations{' '}
             <Badge
@@ -293,15 +382,7 @@ export function WorkspaceAccountsSettings() {
 
       <div className="flex justify-end items-center mt-4">
         <Button
-          onClick={() => {
-            if (activeTab === 'members') {
-              setActiveTab('invitations');
-              setShowInviteForm(true);
-            } else {
-              setShowInviteForm(true);
-            }
-            setCurrentPage(1);
-          }}
+          onClick={handleInviteClick}
           disabled={!isSuperAdmin && !isAdmin}
         >
           Invite
@@ -316,27 +397,8 @@ export function WorkspaceAccountsSettings() {
               workspaceId={workspaceInfo.id}
               isSuperAdmin={isSuperAdmin}
               isAdmin={isAdmin}
-              onSubmit={(values) => {
-                console.log('Invitation sent:', values);
-
-                // Refresh the invitations list
-                const refreshInvitations = async () => {
-                  try {
-                    const response = await axios.get(
-                      `/api/workspace/${workspaceInfo.id}/invitation`
-                    );
-                    if (response.data.status === 'success') {
-                      setFetchedInvitations(response.data.data.invitations);
-                    }
-                  } catch (error: any) {
-                    console.error('Failed to refresh invitations:', error);
-                  }
-                };
-
-                refreshInvitations();
-                setShowInviteForm(false);
-              }}
-              onCancel={() => setShowInviteForm(false)}
+              onSubmit={handleInviteSubmit}
+              onCancel={handleInviteCancel}
             />
           </div>
         </div>
@@ -391,17 +453,11 @@ export function WorkspaceAccountsSettings() {
                 <div className="text-sm">{item.date}</div>
                 <div>
                   <Select
-                    defaultValue={item.role}
+                    value={item.role}
                     onValueChange={(newRole) =>
                       handleRoleChange((item as any).userId, newRole)
                     }
-                    disabled={
-                      activeTab === 'invitations' ||
-                      (!isSuperAdmin && !isAdmin) ||
-                      (isAdmin && item.role === 'SUPER_ADMIN') ||
-                      item.email === currentUser.email ||
-                      (isAdmin && item.role === 'ADMIN')
-                    }
+                    disabled={!canChangeRole(item)}
                   >
                     <SelectTrigger className="h-8">
                       <SelectValue />

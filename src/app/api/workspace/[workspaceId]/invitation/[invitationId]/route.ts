@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
 import prisma from '@/lib/prismadb';
+import { pusherServer } from '@/lib/pusher';
 
 export async function DELETE(
   req: NextRequest,
@@ -60,6 +61,14 @@ export async function DELETE(
       (isAdmin && invitation.invitedById === currentUser.id)
     ) {
       await prisma.invitation.delete({ where: { id: invitationId } });
+
+      // Trigger Pusher event for real-time updates
+      await pusherServer.trigger(
+        `workspace-${workspaceId}`,
+        'invitation-removed',
+        invitationId
+      );
+
       return NextResponse.json(
         { message: 'Invitation revoked successfully' },
         { status: 200 }

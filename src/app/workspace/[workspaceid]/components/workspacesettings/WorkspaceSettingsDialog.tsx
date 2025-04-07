@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogDescription,
 } from '@/components/ui/dialog';
 
 import {
@@ -118,6 +119,9 @@ function WorkspaceDialogContent() {
               <DialogTitle>
                 {currentMenu === 'general' ? 'General' : 'Accounts'}
               </DialogTitle>
+              <DialogDescription className="sr-only">
+                Manage your Workspace here.
+              </DialogDescription>
             </DialogHeader>
 
             <div className="p-6">
