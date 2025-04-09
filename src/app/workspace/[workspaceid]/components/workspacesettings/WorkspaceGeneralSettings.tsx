@@ -50,12 +50,8 @@ export function WorkspaceGeneralSettings() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
 
-  // Subscribe to workspace-specific channel
-  // const workspaceChannel = usePusherChannel(
-  //   workspaceInfo?.id ? `workspace-${workspaceInfo.id}` : ''
-  // );
-    const { channel: workspaceChannel } = usePusherChannelContext();
-  
+  const { channel: workspaceChannel } = usePusherChannelContext();
+
   // Set up Pusher event listeners
   useEffect(() => {
     if (!workspaceChannel) return;

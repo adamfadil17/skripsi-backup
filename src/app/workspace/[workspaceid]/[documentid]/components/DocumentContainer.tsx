@@ -1,17 +1,17 @@
 'use client';
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import CoverPickerDialog from '../../../../../components/shared/CoverPickerDialog';
 import EmojiPickerPopover from '../../../../../components/shared/EmojiPickerPopover';
 import { SmilePlus } from 'lucide-react';
 import { Button } from '../../../../../components/ui/button';
-import { WorkspaceDocument } from '@/types/types';
+import type { WorkspaceDocument } from '@/types/types';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import AITemplateDialog from './AITemplateDialog';
 import DocumentNoteEditor from './DocumentNoteEditor';
-
+import { usePusherChannelContext } from '../../components/PusherChannelProvider';
 interface DocumentContainerProps {
   workspaceId: string;
   documentId: string;
@@ -30,11 +30,43 @@ const DocumentContainer = ({
 
   const router = useRouter();
 
+  const { channel: workspaceChannel } = usePusherChannelContext();
+
   useEffect(() => {
     setEmoji(documentInfo?.emoji || '');
     setCoverImage(documentInfo?.coverImage || '/images/placeholder.svg');
     setDocumentTitle(documentInfo?.title || '');
   }, [documentInfo]);
+
+  useEffect(() => {
+    if (!workspaceChannel) return;
+
+    console.log('Setting up Pusher listeners for document:', documentId);
+
+    // Document update event handler
+    const handleDocumentUpdated = (updatedDocument: WorkspaceDocument) => {
+      console.log(
+        '🔥 EVENT RECEIVED document-updated in DocumentContainer:',
+        updatedDocument
+      );
+
+      // Only update if it's the current document
+      if (updatedDocument.id === documentId) {
+        setEmoji(updatedDocument.emoji || '');
+        setCoverImage(updatedDocument.coverImage || '/images/placeholder.svg');
+        setDocumentTitle(updatedDocument.title || '');
+      }
+    };
+
+    // Subscribe to document events
+    workspaceChannel.bind('document-updated', handleDocumentUpdated);
+
+    // Cleanup
+    return () => {
+      console.log('Cleaning up Pusher listeners');
+      workspaceChannel.unbind('document-updated', handleDocumentUpdated);
+    };
+  }, [workspaceChannel, documentId]);
 
   const updateDocument = async (data: Partial<WorkspaceDocument>) => {
     try {
@@ -45,7 +77,7 @@ const DocumentContainer = ({
 
       if (response.data.status === 'success') {
         toast.success('Document updated successfully');
-        router.refresh();
+        // No need to call router.refresh() since Pusher will handle the real-time update
       } else {
         toast.error(response.data.message || 'Unknown error occurred');
       }
@@ -81,7 +113,7 @@ const DocumentContainer = ({
           <div className="group-hover:opacity-40">
             <Image
               priority
-              src={coverImage}
+              src={coverImage || '/placeholder.svg'}
               alt="cover"
               width={400}
               height={400}

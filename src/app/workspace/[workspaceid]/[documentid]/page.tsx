@@ -30,9 +30,7 @@ const DocumentPage = async ({ params }: DocumentPageProps) => {
         documentId={documentid}
         documentInfo={documentInfo}
       />
-      {/* <div className="flex justify-start my-4 ml-14 mr-12">
-        <DocumentNoteEditor workspaceId={workspaceid} documentId={documentid} />
-      </div> */}
+      
     </div>
   );
 };

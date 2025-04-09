@@ -82,7 +82,7 @@ export function WorkspaceAccountsSettings() {
     email: invitation.email,
     date: new Date(invitation.invitedAt).toLocaleDateString(),
     role: invitation.role,
-    id: invitation.id,
+    id: invitation.id, 
     invitedBy: invitation.invitedBy?.name || '',
   }));
 
