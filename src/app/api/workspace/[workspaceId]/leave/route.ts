@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prismadb';
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
+import { pusherServer } from '@/lib/pusher';
 
 export async function DELETE(
   req: NextRequest,
@@ -12,11 +13,11 @@ export async function DELETE(
       return NextResponse.json(
         {
           status: 'error',
-          code: 400,
-          error_type: 'BadRequest',
-          message: 'workspaceId and documentId are required',
+          code: 401,
+          error_type: 'Unauthorized',
+          message: 'Unauthorized access',
         },
-        { status: 400 }
+        { status: 401 }
       );
     }
 
@@ -85,6 +86,7 @@ export async function DELETE(
       );
     }
 
+    // Delete the member
     await prisma.workspaceMember.delete({
       where: {
         userId_workspaceId: {
@@ -93,6 +95,13 @@ export async function DELETE(
         },
       },
     });
+
+    // Trigger Pusher event for real-time updates
+    await pusherServer.trigger(
+      `workspace-${workspaceId}`,
+      'member-removed',
+      currentUser.id
+    );
 
     return NextResponse.json(
       {

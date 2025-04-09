@@ -32,28 +32,32 @@ import { useRouter } from 'next/navigation';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { usePusherChannel } from '@/hooks/use-pusher-channel';
 import type { WorkspaceInvitation, WorkspaceMember } from '@/types/types';
+import { usePusherChannelContext } from '../PusherChannelProvider';
 
 export function WorkspaceAccountsSettings() {
-  const { workspaceInfo, isSuperAdmin, isAdmin, currentUser } =
-    useWorkspaceSettings();
+  const {
+    workspaceInfo,
+    isSuperAdmin,
+    isAdmin,
+    currentUser,
+    initialMembers,
+    initialInvitations,
+  } = useWorkspaceSettings();
   const [activeTab, setActiveTab] = useState<'members' | 'invitations'>(
     'members'
   );
   const [showInviteForm, setShowInviteForm] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [fetchedMembers, setFetchedMembers] = useState<WorkspaceMember[]>([]);
-  const [fetchedInvitations, setFetchedInvitations] = useState<
-    WorkspaceInvitation[]
-  >([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [fetchedMembers, setFetchedMembers] =
+    useState<WorkspaceMember[]>(initialMembers);
+  const [fetchedInvitations, setFetchedInvitations] =
+    useState<WorkspaceInvitation[]>(initialInvitations);
 
   const router = useRouter();
 
   // Subscribe to workspace-specific channel
-  const workspaceChannel = usePusherChannel(
-    workspaceInfo?.id ? `workspace-${workspaceInfo.id}` : ''
-  );
+  const { channel: workspaceChannel } = usePusherChannelContext();
 
   // Simple derived state - no need for useMemo
   const isInviteFormVisible = activeTab === 'invitations' && showInviteForm;
@@ -159,39 +163,6 @@ export function WorkspaceAccountsSettings() {
       setShowInviteForm(false);
     }
   }, [activeTab]);
-
-  // Simplified fetch data logic with useCallback
-  const fetchData = useCallback(async () => {
-    if (!workspaceInfo?.id) return;
-
-    setIsLoading(true);
-
-    try {
-      // Fetch both members and invitations in parallel
-      const [membersResponse, invitationsResponse] = await Promise.all([
-        axios.get(`/api/workspace/${workspaceInfo.id}/member`),
-        axios.get(`/api/workspace/${workspaceInfo.id}/invitation`),
-      ]);
-
-      if (membersResponse.data.status === 'success') {
-        setFetchedMembers(membersResponse.data.data.members);
-      }
-
-      if (invitationsResponse.data.status === 'success') {
-        setFetchedInvitations(invitationsResponse.data.data.invitations);
-      }
-    } catch (error) {
-      console.error('Failed to fetch workspace data:', error);
-      toast.error('Failed to load workspace data');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [workspaceInfo?.id]);
-
-  // Call fetchData when component mounts or workspaceId changes
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
 
   // Using useCallback for functions passed to child components or event handlers
   const canChangeRole = useCallback(
@@ -330,14 +301,6 @@ export function WorkspaceAccountsSettings() {
   const handleInviteCancel = useCallback(() => {
     setShowInviteForm(false);
   }, []);
-
-  if (isLoading && members.length === 0) {
-    return (
-      <div className="flex justify-center items-center ml-60 absolute inset-0">
-        <Loader2 className="mr-2 h-8 w-8 animate-spin" />
-      </div>
-    );
-  }
 
   return (
     <>

@@ -1,17 +1,14 @@
-import prisma from '@/lib/prismadb';
-import { WorkspaceInvitation } from '@/types/types';
-import type { User } from '@prisma/client';
+import prisma from "@/lib/prismadb"
+import type { User } from "@prisma/client"
+import type { WorkspaceInvitation } from "@/types/types"
 
-export async function getWorkspaceInvitations(
-  workspaceId: string,
-  currentUser: User
-): Promise<WorkspaceInvitation[] | null> {
+export async function getWorkspaceInvitations(workspaceId: string, currentUser: User): Promise<WorkspaceInvitation[]> {
   try {
     if (!currentUser.id || !currentUser.email) {
-      throw new Error('User not authenticated');
+      throw new Error("User not authenticated")
     }
 
-    // First check if the user is a member of the workspace
+    // Check if user is a member of the workspace
     const isMember = await prisma.workspaceMember.findUnique({
       where: {
         userId_workspaceId: {
@@ -19,33 +16,35 @@ export async function getWorkspaceInvitations(
           workspaceId,
         },
       },
-    });
+    })
 
     if (!isMember) {
-      return null;
+      return [] // User is not a member of the workspace
     }
 
-    // Fetch invitations for the workspace
+    // Get all invitations for the workspace
     const invitations = await prisma.invitation.findMany({
-      where: { workspaceId },
-      select: {
-        id: true,
-        email: true,
-        role: true,
-        invitedAt: true,
+      where: {
+        workspaceId,
+      },
+      include: {
         invitedBy: {
-          select: { id: true, name: true, email: true },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            image: true,
+          },
         },
       },
-      orderBy: { invitedAt: 'desc' },
-    });
+      orderBy: {
+        invitedAt: "desc",
+      },
+    })
 
-    return invitations;
+    return invitations
   } catch (error) {
-    console.error('Error fetching workspace invitations:', error);
-    throw {
-      error_type: 'InternalServerError',
-      message: 'An unexpected error occurred. Please try again later.',
-    };
+    console.error("Error fetching workspace invitations:", error)
+    return []
   }
 }

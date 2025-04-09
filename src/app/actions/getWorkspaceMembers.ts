@@ -5,10 +5,23 @@ import { User } from '@prisma/client';
 export async function getWorkspaceMembers(
   workspaceId: string,
   currentUser: User
-): Promise<WorkspaceMember[] | null> {
+): Promise<WorkspaceMember[]> {
   try {
     if (!currentUser.id || !currentUser.email) {
       throw new Error('User not authenticated');
+    }
+
+    const isMember = await prisma.workspaceMember.findUnique({
+      where: {
+        userId_workspaceId: {
+          userId: currentUser.id,
+          workspaceId,
+        },
+      },
+    });
+
+    if (!isMember) {
+      return null;
     }
 
     // Ambil semua anggota di workspace langsung dari WorkspaceMember
@@ -32,10 +45,6 @@ export async function getWorkspaceMembers(
 
     // Jika tidak ada anggota, berarti workspace tidak ada atau kosong
     if (!members.length) return null;
-
-    // Pastikan currentUser adalah anggota workspace
-    const isMember = members.some((member) => member.userId === currentUser.id);
-    if (!isMember) return null;
 
     return members;
   } catch (error) {

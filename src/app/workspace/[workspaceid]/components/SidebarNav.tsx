@@ -1,8 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Bell, Settings, MoreVertical, Loader2 } from 'lucide-react';
+import axios from 'axios';
+import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
+import Image from 'next/image';
+import toast from 'react-hot-toast';
 
+// UI Components
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,50 +23,192 @@ import {
 } from '@/components/ui/sidebar';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
-import Image from 'next/image';
-import { FaPlus } from 'react-icons/fa6';
-import { PiVideoConference } from 'react-icons/pi';
-import { GrGroup } from 'react-icons/gr';
-import { MdManageAccounts } from 'react-icons/md';
-import { LuNotebookPen, LuNotebookTabs } from 'react-icons/lu';
-import MeetingDialog from './MeetingDialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+
+// Icons
+import { FaPlus } from 'react-icons/fa6';
+import { PiVideoConference } from 'react-icons/pi';
+import { GrGroup } from 'react-icons/gr';
+import { MdManageAccounts } from 'react-icons/md';
+import { LuNotebookPen, LuNotebookTabs } from 'react-icons/lu';
+
+// Components
+import MeetingDialog from './MeetingDialog';
 import NotificationSystem from './NotificationSystem';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import Link from 'next/link';
-import { WorkspaceInfo } from '@/types/types';
-import { useParams, useRouter } from 'next/navigation';
-import axios from 'axios';
-import { DeleteDocument } from '../[documentid]/components/DeleteDocument';
+import { DeleteDocument } from '@/app/workspace/[workspaceid]/[documentid]/components/DeleteDocument';
 import WorkspaceSettingsDialog from './workspacesettings/WorkspaceSettingsDialog';
-import { User } from '@prisma/client';
-import toast from 'react-hot-toast';
+
+// Types
+import type {
+  WorkspaceInfo,
+  WorkspaceMember,
+  WorkspaceDocument,
+  WorkspaceInvitation,
+} from '@/types/types';
+import type { User } from '@prisma/client';
+
+// Pusher
+import { usePusherChannelContext } from './PusherChannelProvider';
 
 interface SidebarNavProps {
   workspaceId: string;
-  workspaceInfo: WorkspaceInfo;
+  currentUser: User;
+  initialWorkspaceInfo?: WorkspaceInfo;
+  initialMembers: WorkspaceMember[];
+  initialDocuments: WorkspaceDocument[];
+  initialInvitations: WorkspaceInvitation[]
   isSuperAdmin: boolean;
   isAdmin: boolean;
-  currentUser: User;
 }
 
 const SidebarNav = ({
   workspaceId,
-  workspaceInfo,
+  currentUser,
+  initialWorkspaceInfo,
+  initialMembers,
+  initialDocuments,
+  initialInvitations,
   isSuperAdmin,
   isAdmin,
-  currentUser,
 }: SidebarNavProps) => {
   const router = useRouter();
   const params = useParams<{ documentid: string }>();
   const [loading, setLoading] = useState(false);
+  const [members, setMembers] = useState<WorkspaceMember[]>(initialMembers);
+  const [documents, setDocuments] =
+  useState<WorkspaceDocument[]>(initialDocuments);
+  const [invitations, setInvitations] = useState<WorkspaceInvitation[]>(initialInvitations);
+  const [workspaceInfo, setWorkspaceInfo] = useState<WorkspaceInfo | null>(
+    initialWorkspaceInfo || null
+  );
 
-  const handleCreateDocument = async () => {
+  const { channel: workspaceChannel } = usePusherChannelContext();
+
+  // Set up Pusher event listeners
+  useEffect(() => {
+    if (!workspaceChannel) return;
+
+    console.log('Setting up Pusher listeners for workspace:', workspaceId);
+
+    // Workspace events
+    const handleWorkspaceUpdated = (updatedWorkspace: any) => {
+      console.log(
+        '🔥 EVENT RECEIVED workspace-updated in SidebarNav:',
+        updatedWorkspace
+      );
+
+      // Create a new object with the updated properties to ensure React detects the change
+      setWorkspaceInfo((prev) => {
+        if (!prev) return updatedWorkspace;
+
+        const updated = {
+          ...prev,
+          ...updatedWorkspace,
+        };
+
+        console.log('Updated workspace info:', updated);
+        return updated;
+      });
+    };
+
+    // Member events
+    const handleMemberAdded = (member: WorkspaceMember) => {
+      console.log('Pusher event received: member-added', member);
+      setMembers((prev) => {
+        // Check if member already exists to prevent duplicates
+        const exists = prev.some((m) => m.user.id === member.user.id);
+        if (exists) return prev;
+        return [...prev, member];
+      });
+      toast.success(
+        `${member.user.name || member.user.email} joined the workspace`
+      );
+    };
+
+    const handleMemberRemoved = (userId: string) => {
+      console.log('Pusher event received: member-removed', userId);
+      setMembers((prev) => prev.filter((member) => member.user.id !== userId));
+
+      // If current user is removed, redirect to dashboard
+      if (userId === currentUser.id) {
+        toast.success('You have been removed from the workspace');
+        router.push('/dashboard');
+      }
+    };
+
+    const handleMemberUpdated = (updatedMember: WorkspaceMember) => {
+      console.log('Pusher event received: member-updated', updatedMember);
+      setMembers((prev) =>
+        prev.map((member) =>
+          member.user.id === updatedMember.user.id ? updatedMember : member
+        )
+      );
+
+      toast.success(
+        `${
+          updatedMember.user.name || updatedMember.user.email
+        }'s role was updated`
+      );
+    };
+
+    // Document events
+    const handleDocumentAdded = (document: WorkspaceDocument) => {
+      console.log('Pusher event received: document-added', document);
+      setDocuments((prev) => {
+        // Check if document already exists to prevent duplicates
+        const exists = prev.some((d) => d.id === document.id);
+        if (exists) return prev;
+        return [document, ...prev]; // Add new document at the beginning
+      });
+    };
+
+    const handleDocumentRemoved = (documentId: string) => {
+      console.log('Pusher event received: document-removed', documentId);
+      setDocuments((prev) => prev.filter((doc) => doc.id !== documentId));
+    };
+
+    const handleDocumentUpdated = (updatedDocument: WorkspaceDocument) => {
+      console.log('Pusher event received: document-updated', updatedDocument);
+      setDocuments((prev) =>
+        prev.map((doc) =>
+          doc.id === updatedDocument.id ? updatedDocument : doc
+        )
+      );
+    };
+
+    // Subscribe to events
+    workspaceChannel.bind('workspace-updated', handleWorkspaceUpdated);
+    workspaceChannel.bind('member-added', handleMemberAdded);
+    workspaceChannel.bind('member-removed', handleMemberRemoved);
+    workspaceChannel.bind('member-updated', handleMemberUpdated);
+    workspaceChannel.bind('document-added', handleDocumentAdded);
+    workspaceChannel.bind('document-removed', handleDocumentRemoved);
+    workspaceChannel.bind('document-updated', handleDocumentUpdated);
+
+    // Cleanup
+    return () => {
+      console.log('Cleaning up Pusher listeners');
+      workspaceChannel.unbind('workspace-updated', handleWorkspaceUpdated);
+      workspaceChannel.unbind('member-added', handleMemberAdded);
+      workspaceChannel.unbind('member-removed', handleMemberRemoved);
+      workspaceChannel.unbind('member-updated', handleMemberUpdated);
+      workspaceChannel.unbind('document-added', handleDocumentAdded);
+      workspaceChannel.unbind('document-removed', handleDocumentRemoved);
+      workspaceChannel.unbind('document-updated', handleDocumentUpdated);
+    };
+  }, [workspaceChannel, workspaceId, currentUser.id, router, workspaceInfo]);
+
+  useEffect(() => {
+    console.log('workspaceInfo updated:', workspaceInfo);
+  }, [workspaceInfo]);
+
+  const handleCreateDocument = useCallback(async () => {
     setLoading(true);
     try {
       const response = await axios.post(
@@ -76,7 +224,7 @@ const SidebarNav = ({
         const newDocument = response.data.data.newDocument;
         console.log(newDocument.id);
         router.push(`/workspace/${workspaceId}/${newDocument?.id}`);
-        router.refresh();
+        // No need to call router.refresh() since Pusher will handle the real-time update
         toast.success('Document has been created');
       }
     } catch (error: any) {
@@ -87,7 +235,12 @@ const SidebarNav = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [workspaceId, router]);
+
+  // If workspace info couldn't be loaded
+  if (!workspaceInfo) {
+    return null;
+  }
 
   return (
     <Sidebar>
@@ -104,7 +257,7 @@ const SidebarNav = ({
         <div className="mt-4 px-2">
           <h3 className="text-sm text-muted-foreground mb-1">Workspace</h3>
           <p className="font-semibold line-clamp-2 text-ellipsis overflow-hidden">
-            {workspaceInfo.emoji} {workspaceInfo.name}
+            {workspaceInfo?.emoji} {workspaceInfo?.name}
           </p>
         </div>
       </SidebarHeader>
@@ -173,6 +326,8 @@ const SidebarNav = ({
               isSuperAdmin={isSuperAdmin}
               isAdmin={isAdmin}
               currentUser={currentUser}
+              initialMembers={members}
+              initialInvitations={invitations}
             >
               <Button size={'sm'} className="w-6 h-6 ">
                 <MdManageAccounts className="h-3 w-3" />
@@ -183,7 +338,7 @@ const SidebarNav = ({
           <SidebarGroupContent className="py-2 px-0">
             <ScrollArea className="h-[160px]">
               <SidebarMenu>
-                {workspaceInfo.members.map((member) => (
+                {members.map((member) => (
                   <SidebarMenuItem
                     key={member.id}
                     className="flex w-full justify-between py-1.5 px-2"
@@ -249,9 +404,9 @@ const SidebarNav = ({
           <SidebarGroupContent className="py-2 px-0">
             <ScrollArea className="h-[220px]">
               <SidebarMenu>
-                {workspaceInfo.documents.map((document, index) => (
+                {documents.map((document) => (
                   <SidebarMenuItem
-                    key={index}
+                    key={document.id}
                     onClick={() =>
                       router.push(`/workspace/${workspaceId}/${document.id}`)
                     }
@@ -314,6 +469,8 @@ const SidebarNav = ({
           isSuperAdmin={isSuperAdmin}
           isAdmin={isAdmin}
           currentUser={currentUser}
+          initialMembers={members}
+          initialInvitations={invitations}
         >
           <span>
             <Button className="w-full" size="lg">

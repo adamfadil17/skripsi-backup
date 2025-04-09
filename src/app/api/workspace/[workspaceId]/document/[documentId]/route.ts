@@ -1,8 +1,9 @@
 // src/app/api/workspaces/[id]/documents/[id]/route.ts
-import { NextRequest, NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 import { getDocumentInfo } from '@/app/actions/getDocumentInfo';
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
 import prisma from '@/lib/prismadb';
+import { pusherServer } from '@/lib/pusher';
 
 export async function GET(
   req: NextRequest,
@@ -124,6 +125,33 @@ export async function PATCH(
         emoji,
         coverImage,
       },
+      include: {
+        createdBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        updatedBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    // Trigger Pusher event for real-time updates
+    await pusherServer.trigger(`workspace-${workspaceId}`, 'document-updated', {
+      id: updatedDocument.id,
+      title: updatedDocument.title,
+      emoji: updatedDocument.emoji,
+      coverImage: updatedDocument.coverImage,
+      createdAt: updatedDocument.createdAt,
+      createdBy: updatedDocument.createdBy,
+      updatedBy: updatedDocument.updatedBy,
     });
 
     return NextResponse.json(
@@ -198,6 +226,13 @@ export async function DELETE(
     const deletedDocument = await prisma.document.delete({
       where: { id: documentId },
     });
+
+    // Trigger Pusher event for real-time updates
+    await pusherServer.trigger(
+      `workspace-${workspaceId}`,
+      'document-removed',
+      documentId
+    );
 
     return NextResponse.json(
       {

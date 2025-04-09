@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 import { getWorkspaceInfo } from '@/app/actions/getWorkspaceInfo';
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
 import prisma from '@/lib/prismadb';
+import { pusherServer } from '@/lib/pusher';
 
 export async function GET(
   req: NextRequest,
@@ -35,14 +36,16 @@ export async function GET(
       );
     }
 
+    // Use the existing getWorkspaceInfo action
     const workspace = await getWorkspaceInfo(workspaceId, currentUser);
+
     if (!workspace) {
       return NextResponse.json(
         {
           status: 'error',
           code: 404,
           error_type: 'NotFound',
-          message: 'Workspace not found',
+          message: 'Workspace not found or access denied',
         },
         { status: 404 }
       );
@@ -138,6 +141,13 @@ export async function PUT(
       data: { name, emoji, coverImage },
     });
 
+    // Trigger Pusher event for real-time updates
+    await pusherServer.trigger(
+      `workspace-${workspaceId}`,
+      'workspace-updated',
+      updatedWorkspace
+    );
+
     return NextResponse.json(
       {
         status: 'success',
@@ -160,6 +170,7 @@ export async function PUT(
     );
   }
 }
+
 export async function DELETE(
   req: NextRequest,
   { params }: { params: { workspaceId: string } }
@@ -232,6 +243,13 @@ export async function DELETE(
     const deletedWorkspace = await prisma.workspace.delete({
       where: { id: workspaceId },
     });
+
+    // Trigger Pusher event for real-time updates
+    await pusherServer.trigger(
+      `workspace-${workspaceId}`,
+      'workspace-deleted',
+      workspaceId
+    );
 
     return NextResponse.json(
       {

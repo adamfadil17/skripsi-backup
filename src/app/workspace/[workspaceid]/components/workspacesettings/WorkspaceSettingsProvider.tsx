@@ -4,8 +4,8 @@ import { createContext, useContext, useState, type ReactNode } from 'react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { WorkspaceInfo } from '@/types/types';
-import { User } from '@prisma/client';
+import type { WorkspaceInfo, WorkspaceInvitation, WorkspaceMember } from '@/types/types';
+import type { User } from '@prisma/client';
 
 export interface ModalState {
   isEditing: boolean;
@@ -44,19 +44,25 @@ interface WorkspaceSettingsContextType {
   isSuperAdmin: boolean;
   isAdmin: boolean;
   currentUser: User;
+  initialMembers: WorkspaceMember[]
+  initialInvitations: WorkspaceInvitation[]
 }
 
 const WorkspaceSettingsContext = createContext<
   WorkspaceSettingsContextType | undefined
 >(undefined);
 
+// Add a comment to clarify that this provider doesn't need direct Pusher implementation
+// since it's just a state container
 export function WorkspaceSettingsProvider({
   children,
   initialWorkspaceInfo,
   initialMenu = 'general',
   isSuperAdmin,
   isAdmin,
-  currentUser
+  currentUser,
+  initialMembers,
+  initialInvitations
 }: {
   children: ReactNode;
   initialWorkspaceInfo: WorkspaceInfo;
@@ -64,7 +70,11 @@ export function WorkspaceSettingsProvider({
   isSuperAdmin: boolean;
   isAdmin: boolean;
   currentUser: User;
+  initialMembers: WorkspaceMember[]
+  initialInvitations: WorkspaceInvitation[]
 }) {
+  // This provider doesn't directly implement Pusher
+  // It provides state that's updated by child components when they receive Pusher events
   const [workspaceInfo] = useState<WorkspaceInfo>(initialWorkspaceInfo);
   const [currentMenu, setCurrentMenu] = useState<'general' | 'accounts'>(
     initialMenu
@@ -125,6 +135,8 @@ export function WorkspaceSettingsProvider({
         isSuperAdmin,
         isAdmin,
         currentUser,
+        initialMembers,
+        initialInvitations
       }}
     >
       {children}

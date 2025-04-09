@@ -1,10 +1,11 @@
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
-import SidebarNav from './components/SidebarNav';
-import TopbarWorkspace from './components/TopbarWorkspace';
 import { SidebarProvider } from '@/components/ui/sidebar';
-import { ReactNode } from 'react';
-import { getWorkspaceInfo } from '@/app/actions/getWorkspaceInfo';
+import { PusherChannelProvider } from './components/PusherChannelProvider'; // pastikan path sesuai
+import type { ReactNode } from 'react';
 import { notFound } from 'next/navigation';
+import prisma from '@/lib/prismadb';
+import TopbarWorkspace from './components/TopbarWorkspace';
+import WorkspaceSidebar from './components/WorkspaceSidebar';
 
 interface WorkspaceLayoutProps {
   children: ReactNode;
@@ -16,36 +17,40 @@ export default async function WorkspaceLayout({
   params,
 }: WorkspaceLayoutProps) {
   const currentUser = await getCurrentUser();
-  const workspaceId = params?.workspaceid;
 
-  const workspaceInfo = await getWorkspaceInfo(workspaceId, currentUser!);
-
-  if (!workspaceInfo) {
-    notFound();
+  if (!currentUser) {
+    return notFound();
   }
 
-  const currentMember = workspaceInfo.members.find(
-    (member) => member.user.id === currentUser?.id
-  );
+  const workspaceId = params?.workspaceid;
 
-  const isSuperAdmin = currentMember?.role === 'SUPER_ADMIN';
-  const isAdmin = currentMember?.role === 'ADMIN';
+  const currentMember = await prisma.workspaceMember.findUnique({
+    where: {
+      userId_workspaceId: {
+        userId: currentUser.id,
+        workspaceId,
+      },
+    },
+  });
+
+  if (!currentMember) {
+    return notFound();
+  }
 
   return (
     <SidebarProvider>
-      <div className="flex w-full min-h-screen">
-        <SidebarNav
-          workspaceId={workspaceId}
-          workspaceInfo={workspaceInfo}
-          isSuperAdmin={isSuperAdmin}
-          isAdmin={isAdmin}
-          currentUser={currentUser!}
-        />
-        <div className="flex flex-col flex-1">
-          <TopbarWorkspace currentUser={currentUser!} />
-          <main className="flex-1 p-6 overflow-auto">{children}</main>
+      <PusherChannelProvider channelName={`workspace-${workspaceId}`}>
+        <div className="flex w-full min-h-screen">
+          <WorkspaceSidebar
+            workspaceId={workspaceId}
+            currentUser={currentUser}
+          />
+          <div className="flex flex-col flex-1">
+            <TopbarWorkspace currentUser={currentUser} />
+            <main className="flex-1 p-6 overflow-auto">{children}</main>
+          </div>
         </div>
-      </div>
+      </PusherChannelProvider>
     </SidebarProvider>
   );
 }

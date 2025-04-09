@@ -22,8 +22,8 @@ import {
 import { WorkspaceGeneralSettings } from './WorkspaceGeneralSettings';
 import { WorkspaceAccountsSettings } from './WorkspaceAccountsSettings';
 import { EmojiPickerPanel } from './EmojiPickerPanel';
-import { WorkspaceInfo } from '@/types/types';
-import { User } from '@prisma/client';
+import type { WorkspaceInfo, WorkspaceInvitation, WorkspaceMember } from '@/types/types';
+import type { User } from '@prisma/client';
 
 interface WorkspaceSettingsDialogProps {
   openType: 'accounts' | 'general';
@@ -32,6 +32,8 @@ interface WorkspaceSettingsDialogProps {
   isSuperAdmin: boolean;
   isAdmin: boolean;
   currentUser: User;
+  initialMembers: WorkspaceMember[];
+  initialInvitations: WorkspaceInvitation[];
 }
 
 const WorkspaceSettingsDialog = ({
@@ -41,6 +43,8 @@ const WorkspaceSettingsDialog = ({
   isSuperAdmin,
   isAdmin,
   currentUser,
+  initialMembers,
+  initialInvitations
 }: WorkspaceSettingsDialogProps) => {
   return (
     <WorkspaceSettingsProvider
@@ -49,6 +53,8 @@ const WorkspaceSettingsDialog = ({
       isSuperAdmin={isSuperAdmin}
       isAdmin={isAdmin}
       currentUser={currentUser}
+      initialMembers={initialMembers}
+      initialInvitations={initialInvitations}
     >
       <Dialog>
         <DialogTrigger asChild>{children}</DialogTrigger>

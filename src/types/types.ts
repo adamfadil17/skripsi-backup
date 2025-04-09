@@ -82,9 +82,9 @@ export type WorkspaceInfo = {
   name: string;
   emoji: string | null;
   coverImage: string | null;
-  members: WorkspaceMember[];
-  documents: WorkspaceDocument[];
-  chat: WorkspaceChat | null;
-  notifications: WorkspaceNotification[];
-  invitations: WorkspaceInvitation[];
+  // members: WorkspaceMember[];
+  // documents: WorkspaceDocument[];
+  // chat: WorkspaceChat | null;
+  // notifications: WorkspaceNotification[];
+  // invitations: WorkspaceInvitation[];
 };

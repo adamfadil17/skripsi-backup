@@ -1,16 +1,18 @@
+// lib/getWorkspaceDocuments.tsx
 import prisma from '@/lib/prismadb';
-import { WorkspaceInfo } from '@/types/types';
+import { WorkspaceDocument } from '@/types/types';
 import { User } from '@prisma/client';
 
-export async function getWorkspaceInfo(
+export async function getWorkspaceDocuments(
   workspaceId: string,
   currentUser: User
-): Promise<WorkspaceInfo | null> {
+): Promise<WorkspaceDocument[] | null> {
   try {
     if (!currentUser.id || !currentUser.email) {
       throw new Error('User not authenticated');
     }
 
+    // 🔐 Validasi apakah user adalah member dari workspace
     const isMember = await prisma.workspaceMember.findUnique({
       where: {
         userId_workspaceId: {
@@ -24,21 +26,28 @@ export async function getWorkspaceInfo(
       return null;
     }
 
-    const workspace = await prisma.workspace.findUnique({
-      where: { id: workspaceId },
+    // ✅ Ambil dokumen jika user valid
+    const documents = await prisma.document.findMany({
+      where: { workspaceId },
       select: {
         id: true,
-        name: true,
+        title: true,
         emoji: true,
         coverImage: true,
+        createdAt: true,
+        createdBy: {
+          select: { id: true, name: true, email: true },
+        },
+        updatedBy: {
+          select: { id: true, name: true, email: true },
+        },
       },
+      orderBy: { createdAt: 'desc' },
     });
 
-    if (!workspace) return null;
-
-    return workspace;
+    return documents;
   } catch (error) {
-    console.error('Error fetching workspace info:', error);
+    console.error('Error fetching workspace documents:', error);
     throw {
       error_type: 'InternalServerError',
       message: 'An unexpected error occurred. Please try again later.',

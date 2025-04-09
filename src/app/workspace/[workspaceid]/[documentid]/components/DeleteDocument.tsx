@@ -2,9 +2,11 @@
 
 import type React from 'react';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import axios from 'axios';
-import type { UserWorkspace, WorkspaceDocument } from '@/types/types';
+import toast from 'react-hot-toast';
+import { Loader2 } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,9 +18,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { Loader2 } from 'lucide-react';
-import toast from 'react-hot-toast';
-import { useRouter } from 'next/navigation';
+import type { WorkspaceDocument } from '@/types/types';
 
 interface DeleteDocumentProps {
   workspaceId: string;
@@ -31,44 +31,34 @@ export function DeleteDocument({
   document,
   children,
 }: DeleteDocumentProps) {
-  const [isOpen, setIsOpen] = useState(false);
+  const router = useRouter();
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!isOpen) {
-      setIsDeleting(false);
-    }
-  }, [isOpen]);
-
-  async function handleDelete() {
+  const handleDelete = async () => {
+    setIsDeleting(true);
     try {
-      setIsDeleting(true);
-
-      const response = await axios.delete(
+      await axios.delete(
         `/api/workspace/${workspaceId}/document/${document.id}`
       );
 
-      if (response.data.status === 'success') {
-        toast.success('Document has been deleted');
-        setIsOpen(false);
+      // Redirect if we're currently viewing this document
+      if (window.location.pathname.includes(document.id)) {
         router.push(`/workspace/${workspaceId}`);
-        router.refresh();
-      } else {
-        toast.error(response.data.message || 'Unknown error occurred');
       }
+
+      toast.success('Document deleted successfully');
+
+      // No need to manually refresh since Pusher will handle it
     } catch (error: any) {
-      const errorMessage =
-        error.response?.data?.message || 'An unexpected error occurred.';
-      toast.error(errorMessage);
+      console.error('Error deleting document:', error);
+      toast.error(error.response?.data?.message || 'Failed to delete document');
     } finally {
       setIsDeleting(false);
     }
-  }
+  };
 
   return (
-    <AlertDialog open={isOpen} onOpenChange={setIsOpen}>
+    <AlertDialog>
       <AlertDialogTrigger asChild>{children}</AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>

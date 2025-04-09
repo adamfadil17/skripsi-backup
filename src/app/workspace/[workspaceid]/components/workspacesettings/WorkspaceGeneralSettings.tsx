@@ -1,9 +1,12 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { LuSmilePlus } from 'react-icons/lu';
 import Image from 'next/image';
+import axios from 'axios';
+import toast from 'react-hot-toast';
+import { useRouter } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,9 +24,9 @@ import {
   useWorkspaceSettings,
   type WorkspaceFormValues,
 } from './WorkspaceSettingsProvider';
-import axios from 'axios';
-import toast from 'react-hot-toast';
-import { useRouter } from 'next/navigation';
+import { usePusherChannel } from '@/hooks/use-pusher-channel';
+import type { WorkspaceMember } from '@/types/types';
+import { usePusherChannelContext } from '../PusherChannelProvider';
 
 export function WorkspaceGeneralSettings() {
   const {
@@ -47,6 +50,54 @@ export function WorkspaceGeneralSettings() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
 
+  // Subscribe to workspace-specific channel
+  // const workspaceChannel = usePusherChannel(
+  //   workspaceInfo?.id ? `workspace-${workspaceInfo.id}` : ''
+  // );
+    const { channel: workspaceChannel } = usePusherChannelContext();
+  
+  // Set up Pusher event listeners
+  useEffect(() => {
+    if (!workspaceChannel) return;
+
+    // Listen for workspace updates
+    const handleWorkspaceUpdated = (updatedWorkspace: any) => {
+      console.log('Pusher event received: workspace-updated', updatedWorkspace);
+      setWorkspaceName(updatedWorkspace.name);
+      setCoverImage(updatedWorkspace.coverImage);
+      setEmoji(updatedWorkspace.emoji);
+    };
+
+    // Listen for workspace deletion
+    const handleWorkspaceDeleted = (deletedWorkspaceId: string) => {
+      console.log(
+        'Pusher event received: workspace-deleted',
+        deletedWorkspaceId
+      );
+      if (deletedWorkspaceId === workspaceInfo.id) {
+        toast.success('Workspace has been deleted');
+        router.push('/dashboard');
+      }
+    };
+
+    // Subscribe to events
+    workspaceChannel.bind('workspace-updated', handleWorkspaceUpdated);
+    workspaceChannel.bind('workspace-deleted', handleWorkspaceDeleted);
+
+    // Cleanup
+    return () => {
+      workspaceChannel.unbind('workspace-updated', handleWorkspaceUpdated);
+      workspaceChannel.unbind('workspace-deleted', handleWorkspaceDeleted);
+    };
+  }, [
+    workspaceChannel,
+    setWorkspaceName,
+    setCoverImage,
+    setEmoji,
+    workspaceInfo.id,
+    router,
+  ]);
+
   useEffect(() => {
     editWorkspaceForm.reset({
       workspaceName: workspaceName,
@@ -61,35 +112,54 @@ export function WorkspaceGeneralSettings() {
     editWorkspaceForm,
   ]);
 
-  async function onEditWorkspaceSubmit(values: WorkspaceFormValues) {
-    setIsSubmitting(true);
-    try {
-      const response = await axios.put(`/api/workspace/${workspaceInfo.id}`, {
-        name: values.workspaceName,
-        emoji: values.emoji,
-        coverImage: values.coverImage,
-      });
+  const onEditWorkspaceSubmit = useCallback(
+    async (values: WorkspaceFormValues) => {
+      setIsSubmitting(true);
+      try {
+        const response = await axios.put(`/api/workspace/${workspaceInfo.id}`, {
+          name: values.workspaceName,
+          emoji: values.emoji,
+          coverImage: values.coverImage,
+        });
 
-      if (response.status === 200) {
-        setWorkspaceName(values.workspaceName);
-        setCoverImage(values.coverImage);
-        setEmoji(values.emoji || '💼');
-        toggleModalState('isEditing', false);
-        router.refresh();
-        console.log('Workspace updated successfully:', response.data);
-        toast.success('Workspace Profile has been updated');
+        if (response.status === 200) {
+          // Update local state
+          setWorkspaceName(values.workspaceName);
+          setCoverImage(values.coverImage);
+          setEmoji(values.emoji || '💼');
+          toggleModalState('isEditing', false);
+
+          // Log the complete response for debugging
+          console.log(
+            'Workspace updated successfully. Response:',
+            response.data
+          );
+          console.log(
+            'Pusher should broadcast workspace-updated event with:',
+            response.data.data.workspace || response.data.data.updatedWorkspace
+          );
+
+          toast.success('Workspace Profile has been updated');
+        }
+      } catch (error: any) {
+        console.error('Error updating workspace:', error);
+        toast.error(
+          error.response?.data?.message || 'Failed to update workspace'
+        );
+      } finally {
+        setIsSubmitting(false);
       }
-    } catch (error: any) {
-      console.error('Error updating workspace:', error);
-      toast.error(
-        error.response?.data?.message || 'Failed to update workspace'
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
+    },
+    [
+      workspaceInfo.id,
+      setWorkspaceName,
+      setCoverImage,
+      setEmoji,
+      toggleModalState,
+    ]
+  );
 
-  const scroll = (direction: 'left' | 'right') => {
+  const scroll = useCallback((direction: 'left' | 'right') => {
     const container = scrollContainerRef.current;
     if (container) {
       const scrollAmount = container.clientWidth;
@@ -98,7 +168,7 @@ export function WorkspaceGeneralSettings() {
         behavior: 'smooth',
       });
     }
-  };
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -297,16 +367,36 @@ function WorkspaceLeaveSection() {
     isSuperAdmin,
   } = useWorkspaceSettings();
   const [isSubmitting, setIsSubmitting] = useState(false);
-
+  const [superAdminCount, setSuperAdminCount] = useState(0);
   const router = useRouter();
 
-  async function handleLeave() {
+  // Fetch the super admin count when needed
+  useEffect(() => {
+    if (modalState.showLeaveConfirmation) {
+      const fetchSuperAdminCount = async () => {
+        try {
+          const response = await axios.get(
+            `/api/workspace/${workspaceInfo.id}/member`
+          );
+          if (response.data.status === 'success') {
+            const members = response.data.data.members;
+            const count = members.filter(
+              (m: WorkspaceMember) => m.role === 'SUPER_ADMIN'
+            ).length;
+            setSuperAdminCount(count);
+          }
+        } catch (error) {
+          console.error('Failed to fetch members:', error);
+        }
+      };
+
+      fetchSuperAdminCount();
+    }
+  }, [modalState.showLeaveConfirmation, workspaceInfo.id]);
+
+  const handleLeave = useCallback(async () => {
     try {
-      if (
-        workspaceInfo.members.filter((m) => m.role === 'SUPER_ADMIN').length ===
-          1 &&
-        isSuperAdmin
-      ) {
+      if (superAdminCount === 1 && isSuperAdmin) {
         toast.error(
           'You are the last Owner. Please assign a new Owner before leaving.'
         );
@@ -315,7 +405,9 @@ function WorkspaceLeaveSection() {
 
       setIsSubmitting(true);
 
-      const res = await axios.delete(`/api/workspace/${workspaceInfo.id}`);
+      const res = await axios.delete(
+        `/api/workspace/${workspaceInfo.id}/leave`
+      );
 
       if (res.data.status === 'success') {
         toast.success(
@@ -332,7 +424,7 @@ function WorkspaceLeaveSection() {
     } finally {
       setIsSubmitting(false);
     }
-  }
+  }, [superAdminCount, isSuperAdmin, workspaceInfo.id, router]);
 
   return (
     <div>
@@ -355,11 +447,8 @@ function WorkspaceLeaveSection() {
             <Button
               type="button"
               variant="destructive"
-              onClick={() => {
-                handleLeave();
-                console.log('Leaving workspace');
-                // toggleModalState('showLeaveConfirmation', false);
-              }}
+              onClick={handleLeave}
+              disabled={isSubmitting}
             >
               {isSubmitting ? (
                 <>
@@ -399,17 +488,15 @@ function WorkspaceDeleteSection() {
 
   const [isDeleting, setIsDeleting] = useState(false);
 
-  async function handleDelete() {
+  const handleDelete = useCallback(async () => {
     try {
       setIsDeleting(true);
 
       const response = await axios.delete(`/api/workspace/${workspaceInfo.id}`);
 
-      // Cek apakah responsenya sukses berdasarkan API standar
       if (response.data.status === 'success') {
         toast.success(response.data.message || 'Workspace has been deleted');
         router.push('/dashboard');
-        router.refresh();
       } else {
         toast.error(response.data.message || 'Failed to delete workspace');
       }
@@ -420,7 +507,7 @@ function WorkspaceDeleteSection() {
     } finally {
       setIsDeleting(false);
     }
-  }
+  }, [workspaceInfo.id, router]);
 
   return (
     <div>
@@ -444,11 +531,7 @@ function WorkspaceDeleteSection() {
             <Button
               type="button"
               variant="destructive"
-              onClick={() => {
-                handleDelete();
-                console.log('Deleting workspace');
-                // toggleModalState('showDeleteConfirmation', false);
-              }}
+              onClick={handleDelete}
               disabled={isDeleting}
             >
               {isDeleting ? (

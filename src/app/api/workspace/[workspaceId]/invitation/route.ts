@@ -57,7 +57,7 @@ export async function GET(
       {
         status: 'success',
         code: 200,
-        data: { invitations },
+        data: { invitations: invitations || [] },
       },
       { status: 200 }
     );
