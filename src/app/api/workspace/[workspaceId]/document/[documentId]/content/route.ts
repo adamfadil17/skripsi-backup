@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prismadb';
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
+import { pusherServer } from '@/lib/pusher'; // Import the Pusher server instance
 
 export async function GET(
   req: NextRequest,
@@ -8,7 +9,7 @@ export async function GET(
 ) {
   try {
     const currentUser = await getCurrentUser();
-    if (!currentUser?.id || !currentUser?.email) {
+    if (!currentUser.id || !currentUser?.email) {
       return NextResponse.json(
         {
           status: 'error',
@@ -33,8 +34,10 @@ export async function GET(
       );
     }
 
+    // Get the latest document content
     const documentContent = await prisma.documentContent.findFirst({
       where: { documentId: params.documentId },
+      orderBy: { editedAt: 'desc' }, // Ensure we get the most recent version
       select: { content: true },
     });
 
@@ -117,35 +120,75 @@ export async function PUT(
       );
     }
 
-    const safeContent = body.content ?? {}; // Pastikan konten tidak null/undefined
+    const safeContent = body.content ?? {}; // Ensure content is not null/undefined
+    const editorEmail = body.userEmail || currentUser.email; // Get the editor email instead of ID
 
-    // Cek apakah dokumen sudah ada di database
+    // Find the user by email to get their ID for the database
+    const user = await prisma.user.findUnique({
+      where: { email: currentUser.email },
+      select: { id: true },
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 404,
+          error_type: 'NotFound',
+          message: 'User not found',
+        },
+        { status: 404 }
+      );
+    }
+
+    // Check if document already exists in database
     const existingContent = await prisma.documentContent.findFirst({
       where: { documentId: params.documentId },
     });
 
     let updatedContent;
     if (existingContent) {
-      // Jika sudah ada, lakukan update
+      // If it exists, update it
       updatedContent = await prisma.documentContent.update({
         where: { id: existingContent.id },
         data: {
           content: safeContent,
           editedAt: new Date(),
-          editedById: currentUser.id,
+          editedById: user.id, // Use the user ID from the database
         },
       });
     } else {
-      // Jika belum ada, buat entry baru
+      // If it doesn't exist, create a new entry
       updatedContent = await prisma.documentContent.create({
         data: {
           documentId: params.documentId,
           content: safeContent,
           editedAt: new Date(),
-          editedById: currentUser.id,
+          editedById: user.id, // Use the user ID from the database
         },
       });
     }
+
+    // Update the document's updatedBy field
+    await prisma.document.update({
+      where: { id: documentId },
+      data: {
+        updatedById: user.id, // Use the user ID from the database
+        updatedAt: new Date(),
+      },
+    });
+
+    // Trigger Pusher event for real-time updates
+    // Use the workspace channel for broadcasting
+    const channelName = `workspace-${workspaceId}`;
+
+    await pusherServer.trigger(channelName, 'document-content-updated', {
+      documentId,
+      content: safeContent,
+      editorEmail, // Include the editor's email to prevent update loops
+      timestamp: new Date().toISOString(),
+      editorName: currentUser.name, // Optional: include editor name for UI display
+    });
 
     return NextResponse.json(
       {

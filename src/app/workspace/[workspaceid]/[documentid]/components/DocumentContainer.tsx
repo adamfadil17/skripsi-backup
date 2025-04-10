@@ -7,7 +7,6 @@ import { SmilePlus } from 'lucide-react';
 import { Button } from '../../../../../components/ui/button';
 import type { WorkspaceDocument } from '@/types/types';
 import axios from 'axios';
-import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import AITemplateDialog from './AITemplateDialog';
 import DocumentNoteEditor from './DocumentNoteEditor';
@@ -27,8 +26,6 @@ const DocumentContainer = ({
   const [coverImage, setCoverImage] = useState('/images/placeholder.svg');
   const [documentTitle, setDocumentTitle] = useState('');
   const [modelResponse, setModelResponse] = useState<any>(null);
-
-  const router = useRouter();
 
   const { channel: workspaceChannel } = usePusherChannelContext();
 

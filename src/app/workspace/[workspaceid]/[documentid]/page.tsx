@@ -1,8 +1,4 @@
-import React from 'react';
-import { notFound } from 'next/navigation';
-import DocumentContainer from './components/DocumentContainer';
-import DocumentNoteEditor from './components/DocumentNoteEditor';
-import { getDocumentInfo } from '@/app/actions/getDocumentInfo';
+import DocumentWrapper from './components/DocumentWrapper';
 
 interface DocumentPageProps {
   params: {
@@ -11,26 +7,12 @@ interface DocumentPageProps {
   };
 }
 
-const DocumentPage = async ({ params }: DocumentPageProps) => {
+const DocumentPage = ({ params }: DocumentPageProps) => {
   const { workspaceid, documentid } = params;
-
-  const documentInfo = await getDocumentInfo(
-    params?.workspaceid,
-    params?.documentid
-  );
-
-  if (!documentInfo) {
-    notFound();
-  }
 
   return (
     <div className="h-full">
-      <DocumentContainer
-        workspaceId={workspaceid}
-        documentId={documentid}
-        documentInfo={documentInfo}
-      />
-      
+      <DocumentWrapper workspaceId={workspaceid} documentId={documentid} />
     </div>
   );
 };
