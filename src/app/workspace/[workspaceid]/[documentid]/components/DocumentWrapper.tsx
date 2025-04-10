@@ -74,13 +74,11 @@ const DocumentWrapper = ({ workspaceId, documentId }: DocumentWrapperProps) => {
   }
 
   return (
-    <PusherChannelProvider channelName={`workspace-${workspaceId}`}>
-      <DocumentContainer
-        workspaceId={workspaceId}
-        documentId={documentId}
-        documentInfo={documentInfo}
-      />
-    </PusherChannelProvider>
+    <DocumentContainer
+      workspaceId={workspaceId}
+      documentId={documentId}
+      documentInfo={documentInfo}
+    />
   );
 };
 
