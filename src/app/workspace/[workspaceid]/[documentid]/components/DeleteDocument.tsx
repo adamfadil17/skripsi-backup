@@ -1,10 +1,9 @@
 'use client';
 
 import type React from 'react';
-
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import axios from 'axios';
-import type { UserWorkspace, WorkspaceDocument } from '@/types/types';
+import type { WorkspaceDocument } from '@/types/types';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,16 +30,8 @@ export function DeleteDocument({
   document,
   children,
 }: DeleteDocumentProps) {
-  const [isOpen, setIsOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-
   const router = useRouter();
-
-  useEffect(() => {
-    if (!isOpen) {
-      setIsDeleting(false);
-    }
-  }, [isOpen]);
 
   async function handleDelete() {
     try {
@@ -52,9 +43,19 @@ export function DeleteDocument({
 
       if (response.data.status === 'success') {
         toast.success('Document has been deleted');
-        setIsOpen(false);
-        router.push(`/workspace/${workspaceId}`);
-        router.refresh();
+
+        // Fetch dokumen terbaru setelah delete
+        const fetchRes = await axios.get(
+          `/api/workspace/${workspaceId}/document`
+        );
+        const latestDocuments = fetchRes.data?.data?.documents;
+
+        // Arahkan ke dokumen pertama jika masih ada, atau kembali ke halaman workspace
+        if (latestDocuments && latestDocuments.length > 0) {
+          router.push(`/workspace/${workspaceId}/${latestDocuments[0].id}`);
+        } else {
+          router.push(`/workspace/${workspaceId}`);
+        }
       } else {
         toast.error(response.data.message || 'Unknown error occurred');
       }
@@ -68,15 +69,15 @@ export function DeleteDocument({
   }
 
   return (
-    <AlertDialog open={isOpen} onOpenChange={setIsOpen}>
+    <AlertDialog>
       <AlertDialogTrigger asChild>{children}</AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Delete Document</AlertDialogTitle>
           <AlertDialogDescription>
             Are you sure you want to delete &quot;{document.title}&quot;? This
-            action cannot be undone and all documents within this document will
-            be permanently deleted.
+            action cannot be undone and all content inside it will be
+            permanently deleted.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
