@@ -1,6 +1,6 @@
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
 import { SidebarProvider } from '@/components/ui/sidebar';
-import { PusherChannelProvider } from './components/PusherChannelProvider'; // pastikan path sesuai
+import { PusherChannelProvider } from './components/PusherChannelProvider';
 import type { ReactNode } from 'react';
 import { notFound } from 'next/navigation';
 import prisma from '@/lib/prismadb';
@@ -40,12 +40,12 @@ export default async function WorkspaceLayout({
   return (
     <SidebarProvider>
       <PusherChannelProvider channelName={`workspace-${workspaceId}`}>
-        <div className="flex w-full min-h-screen">
+        <div className="flex w-full min-h-screen overflow-hidden">
           <WorkspaceSidebar
             workspaceId={workspaceId}
             currentUser={currentUser}
           />
-          <div className="flex flex-col flex-1">
+          <div className="flex flex-col flex-1 min-w-0">
             <TopbarWorkspace currentUser={currentUser} />
             <main className="flex-1 p-6 overflow-auto">{children}</main>
           </div>

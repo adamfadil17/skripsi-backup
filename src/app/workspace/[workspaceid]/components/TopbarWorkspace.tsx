@@ -1,6 +1,5 @@
-// 'use client';
-import { User } from '@prisma/client';
-import React from 'react';
+'use client';
+import type { User } from '@prisma/client';
 import Avatar from '@/components/shared/Avatar';
 import {
   DropdownMenu,
@@ -8,6 +7,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { DropdownMenuTrigger } from '@radix-ui/react-dropdown-menu';
 import SignOutButton from '@/components/shared/SignOutButton';
+import { SidebarTrigger } from '@/components/ui/sidebar';
+import { Menu } from 'lucide-react';
 
 interface TopbarWorkspaceProps {
   currentUser: User;
@@ -15,7 +16,13 @@ interface TopbarWorkspaceProps {
 
 const TopbarWorkspace = ({ currentUser }: TopbarWorkspaceProps) => {
   return (
-    <div className="sticky top-0 z-30 flex w-full h-[70px] items-center justify-end bg-white px-6 shadow-md">
+    <div className="sticky top-0 z-10 flex w-full h-[70px] items-center justify-between bg-white px-4 md:px-6 shadow-md">
+      <SidebarTrigger className="md:hidden">
+        <Menu className="h-5 w-5" />
+      </SidebarTrigger>
+
+      <div className="flex-1" />
+
       <DropdownMenu>
         <DropdownMenuTrigger
           asChild

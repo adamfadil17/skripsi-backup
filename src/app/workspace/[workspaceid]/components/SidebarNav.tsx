@@ -1,5 +1,7 @@
 'use client';
 
+import type React from 'react';
+
 import { useState, useEffect, useCallback } from 'react';
 import { Bell, Settings, MoreVertical, Loader2 } from 'lucide-react';
 import axios from 'axios';
@@ -20,6 +22,8 @@ import {
   SidebarMenuButton,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarFooter,
+  SidebarRail,
 } from '@/components/ui/sidebar';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
@@ -62,7 +66,7 @@ interface SidebarNavProps {
   initialWorkspaceInfo?: WorkspaceInfo;
   initialMembers: WorkspaceMember[];
   initialDocuments: WorkspaceDocument[];
-  initialInvitations: WorkspaceInvitation[]
+  initialInvitations: WorkspaceInvitation[];
   isSuperAdmin: boolean;
   isAdmin: boolean;
 }
@@ -82,8 +86,9 @@ const SidebarNav = ({
   const [loading, setLoading] = useState(false);
   const [members, setMembers] = useState<WorkspaceMember[]>(initialMembers);
   const [documents, setDocuments] =
-  useState<WorkspaceDocument[]>(initialDocuments);
-  const [invitations, setInvitations] = useState<WorkspaceInvitation[]>(initialInvitations);
+    useState<WorkspaceDocument[]>(initialDocuments);
+  const [invitations, setInvitations] =
+    useState<WorkspaceInvitation[]>(initialInvitations);
   const [workspaceInfo, setWorkspaceInfo] = useState<WorkspaceInfo | null>(
     initialWorkspaceInfo || null
   );
@@ -243,7 +248,17 @@ const SidebarNav = ({
   }
 
   return (
-    <Sidebar>
+    <Sidebar
+      variant="sidebar"
+      collapsible="offcanvas"
+      className="border-r border-gray-200 z-20 shrink-0"
+      style={
+        {
+          '--sidebar-width': '280px',
+          '--sidebar-width-mobile': '280px',
+        } as React.CSSProperties
+      }
+    >
       <SidebarHeader className="px-4 mt-2">
         <Link
           href={`/dashboard`}
@@ -462,7 +477,7 @@ const SidebarNav = ({
         </SidebarGroup>
       </SidebarContent>
 
-      <div className="border-t mt-auto p-4">
+      <SidebarFooter className="border-t mt-auto p-4">
         <WorkspaceSettingsDialog
           openType="general"
           workspaceInfo={workspaceInfo}
@@ -479,7 +494,9 @@ const SidebarNav = ({
             </Button>
           </span>
         </WorkspaceSettingsDialog>
-      </div>
+      </SidebarFooter>
+
+      <SidebarRail />
     </Sidebar>
   );
 };

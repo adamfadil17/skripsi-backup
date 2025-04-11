@@ -118,6 +118,35 @@ body {
   }
 } */
 
+.overflow-hidden {
+  overflow: hidden !important;
+}
+
+.min-w-0 {
+  min-width: 0 !important;
+}
+
+/* Ensure sidebar stays fixed */
+[data-sidebar='sidebar'] {
+  position: relative;
+  z-index: 20;
+  width: var(--sidebar-width);
+  min-width: var(--sidebar-width);
+  flex-shrink: 0;
+}
+
+/* Ensure content doesn't overflow */
+[data-sidebar='content'] {
+  overflow-x: hidden;
+}
+
+/* Fix for the gap between sidebar and topbar */
+.flex-col > .sticky {
+  left: 0;
+  right: 0;
+  width: 100%;
+}
+
 .hidden-scrollbar {
   overflow-y: auto; /* Mengaktifkan scroll secara vertikal */
   scrollbar-width: none; /* Menyembunyikan scrollbar di Firefox */
@@ -135,8 +164,6 @@ body {
     @apply bg-background text-foreground;
   }
 }
-
-
 
 @layer base {
   * {
