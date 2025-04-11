@@ -254,8 +254,8 @@ const SidebarNav = ({
       className="border-r border-gray-200 z-20 shrink-0"
       style={
         {
-          '--sidebar-width': '280px',
-          '--sidebar-width-mobile': '280px',
+          '--sidebar-width': '260px',
+          '--sidebar-width-mobile': '260px',
         } as React.CSSProperties
       }
     >
