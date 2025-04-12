@@ -84,7 +84,6 @@ export function DeleteDocument({
           <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
           <AlertDialogAction
             onClick={(e) => {
-              // e.preventDefault();
               e.stopPropagation();
               handleDelete();
             }}

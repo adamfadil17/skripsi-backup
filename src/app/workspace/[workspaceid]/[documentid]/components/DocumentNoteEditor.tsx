@@ -37,6 +37,8 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
   const hasInitialized = useRef(false);
   const prevModelResponseRef = useRef<any>(null);
   const lastSavedContentRef = useRef<string>('');
+  const lastInputTimeRef = useRef<number>(0);
+  const hasInteractedRef = useRef(false);
   const isProcessingExternalUpdateRef = useRef(false);
   const [editorReady, setEditorReady] = useState(false);
 
@@ -139,6 +141,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
       hasInitialized.current = true;
       editorRef.current = new EditorJS({
         onChange: () => {
+          lastInputTimeRef.current = Date.now();
           debouncedSave();
         },
         onReady: () => {
@@ -183,55 +186,66 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     const handleDocumentContentUpdated = async (data: {
       content: OutputData;
       documentId: string;
-      editorEmail: string; // Changed from editorId to editorEmail
+      editorEmail: string;
     }) => {
-      console.log('🔥 EVENT RECEIVED document-content-updated:', data);
-
-      // Only update if it's the current document and not from the current user
       if (data.documentId === documentId && data.editorEmail !== userEmail) {
-        if (editorRef.current) {
+        const now = Date.now();
+        const idleThreshold = 2000; // 2 seconds
+
+        // Skip updates if no changes are made
+        if (JSON.stringify(data.content) === lastSavedContentRef.current) {
+          return;
+        }
+
+        // Capture scroll position before update
+        const scrollPosition = window.scrollY;
+
+        const applyUpdate = async () => {
+          if (!editorRef.current) return;
+
           try {
-            // Set flag to prevent triggering another save
             isProcessingExternalUpdateRef.current = true;
 
-            // Store cursor position
             const currentBlockIndex =
               editorRef.current.blocks.getCurrentBlockIndex();
             const cursorPosition = 'end';
 
-            // Update the editor content
+            // Apply content update
             await editorRef.current.render(data.content);
-
-            // Update the last saved content to prevent duplicate saves
             lastSavedContentRef.current = JSON.stringify(data.content);
 
-            // Restore cursor position
+            // Delay scroll or caret focus update to ensure smooth rendering
             setTimeout(() => {
+              // Set caret position without affecting scroll
               if (editorRef.current && currentBlockIndex !== undefined) {
-                try {
-                  // Try to restore cursor to the same block if it still exists
-                  if (
-                    editorRef.current.blocks.getBlockByIndex(currentBlockIndex)
-                  ) {
-                    editorRef.current.caret.setToBlock(
-                      currentBlockIndex,
-                      cursorPosition
-                    );
-                  }
-                } catch (e) {
-                  console.log('Could not restore cursor position', e);
-                }
-
-                // Reset the flag after a short delay to ensure rendering is complete
-                setTimeout(() => {
-                  isProcessingExternalUpdateRef.current = false;
-                }, 100);
+                editorRef.current.caret.setToBlock(
+                  currentBlockIndex,
+                  cursorPosition
+                );
               }
+
+              // Restore scroll position after update
+              window.scrollTo(0, scrollPosition);
+
+              isProcessingExternalUpdateRef.current = false;
             }, 100);
           } catch (error) {
             console.error('Error updating editor content:', error);
             isProcessingExternalUpdateRef.current = false;
           }
+        };
+
+        const timeSinceLastInput = now - lastInputTimeRef.current;
+
+        if (timeSinceLastInput > idleThreshold) {
+          await applyUpdate(); // Apply immediately
+        } else {
+          const delay = idleThreshold - timeSinceLastInput;
+          setTimeout(() => {
+            if (Date.now() - lastInputTimeRef.current >= idleThreshold) {
+              applyUpdate();
+            }
+          }, delay);
         }
       }
     };
