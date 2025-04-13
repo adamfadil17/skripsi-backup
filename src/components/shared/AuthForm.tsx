@@ -7,7 +7,7 @@ import { FcGoogle } from 'react-icons/fc';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { signIn, useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Input from './Input';
 
 type Variant = 'LOGIN' | 'REGISTER';
@@ -15,8 +15,19 @@ type Variant = 'LOGIN' | 'REGISTER';
 const AuthForm = () => {
   const session = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [variant, setVariant] = useState<Variant>('LOGIN');
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    // Periksa error parameter di URL
+    const error = searchParams?.get('error');
+    if (error === 'RefreshAccessTokenError') {
+      toast.error(
+        'Sesi Anda telah berakhir. Silakan login kembali untuk melanjutkan.'
+      );
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (session?.status === 'authenticated') {
@@ -96,6 +107,29 @@ const AuthForm = () => {
       })
       .finally(() => setIsLoading(false));
   };
+
+  // const socialAction = (action: string) => {
+  //   setIsLoading(true);
+
+  //   // Tambahkan prompt=consent untuk memaksa dialog persetujuan Google setiap kali
+  //   // Ini akan memastikan refresh token baru setiap kali login
+  //   const options = {
+  //     redirect: false,
+  //     ...(action === 'google' ? { prompt: 'consent' } : {}),
+  //   };
+
+  //   signIn(action, options)
+  //     .then((callback) => {
+  //       if (callback?.error) {
+  //         toast.error('Invalid credentials');
+  //       }
+
+  //       if (callback?.ok && !callback.error) {
+  //         toast.success('Logged in');
+  //       }
+  //     })
+  //     .finally(() => setIsLoading(false));
+  // };
 
   return (
     <div className="sm:mx-auto sm:w-full sm:max-w-md">
