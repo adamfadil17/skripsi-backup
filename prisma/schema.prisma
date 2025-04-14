@@ -29,6 +29,8 @@ model User {
   invitations      Invitation[]
   messages         Message[]
   documentContents DocumentContent[]
+  meetings         Meeting[]        @relation("MeetingCreator")
+  meetingAttendees MeetingAttendee[]
 
   createdDocuments Document[] @relation("DocumentCreator")
   updatedDocuments Document[] @relation("DocumentEditor")
@@ -67,6 +69,7 @@ model Workspace {
   chat          Conversation?
   invitations   Invitation[]
   notifications Notification[]
+  meetings      Meeting[]
 
   @@unique([name])
 }
@@ -175,4 +178,51 @@ enum NotificationType {
   DOCUMENT_CREATE
   DOCUMENT_UPDATE
   DOCUMENT_DELETE
+  MEETING_CREATE
+  MEETING_UPDATE
+  MEETING_DELETE
+}
+
+// Model Meeting
+model Meeting {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  title             String
+  description       String?
+  startDateTime     DateTime
+  endDateTime       DateTime
+  meetingLink       String?
+  googleCalendarId  String?  @unique
+  googleEventId     String?  @unique
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  workspaceId       String   @db.ObjectId
+  createdById       String   @db.ObjectId
+
+  workspace   Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy   User              @relation("MeetingCreator", fields: [createdById], references: [id])
+  attendees   MeetingAttendee[]
+
+  @@index([workspaceId])
+  @@index([createdById])
+}
+
+// Model MeetingAttendee
+model MeetingAttendee {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  meetingId String   @db.ObjectId
+  userId    String   @db.ObjectId
+  status    AttendeeStatus @default(PENDING)
+  addedAt   DateTime @default(now())
+
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([meetingId, userId])
+}
+
+enum AttendeeStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  TENTATIVE
 }

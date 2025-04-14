@@ -1,7 +1,23 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
-import { CalendarDays, CalendarIcon, Copy, Edit, Trash2 } from 'lucide-react';
+import {
+  useEffect,
+  useState,
+  type ReactNode,
+  useCallback,
+  useMemo,
+} from 'react';
+import {
+  CalendarDays,
+  CalendarIcon,
+  Copy,
+  Edit,
+  Trash2,
+  Clock,
+  AlertCircle,
+  CheckCircle,
+  XCircle,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -35,7 +51,6 @@ import {
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { SiGooglemeet } from 'react-icons/si';
 import {
   Tooltip,
   TooltipContent,
@@ -54,102 +69,80 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Textarea } from '@/components/ui/textarea';
+import { useSession } from 'next-auth/react';
+import { meetingApi } from '@/lib/api-client';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import debounce from 'lodash/debounce';
+import toast from 'react-hot-toast';
+import { getCurrentUser } from '@/app/actions/getCurrentUser';
 
 interface Meeting {
+  id: string;
   title: string;
-  date: Date;
-  startTime: string;
-  endTime: string;
-  link: string;
-  members: Member[];
+  description?: string;
+  startDateTime: Date;
+  endDateTime: Date;
+  meetingLink: string;
+  googleCalendarId?: string;
+  googleEventId?: string;
+  attendees: MeetingAttendee[];
+  createdBy: {
+    id: string;
+    name: string;
+    email: string;
+    image?: string;
+  };
+}
+
+interface MeetingAttendee {
+  id: string;
+  meetingId: string;
+  userId: string;
+  status: 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'TENTATIVE';
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    image?: string;
+  };
 }
 
 interface Member {
   id: string;
   name: string;
   email: string;
-  avatar?: string;
+  image?: string;
 }
 
 interface MeetingDialogProps {
   children: ReactNode;
+  workspaceId: string;
+  members: Member[]; // These should be workspace members
 }
 
-const sampleMembers: Member[] = [
-  {
-    id: '1',
-    name: 'Alex Johnson',
-    email: 'alex@example.com',
-    avatar: '/placeholder.svg?height=32&width=32',
-  },
-  {
-    id: '2',
-    name: 'Sam Wilson',
-    email: 'sam@example.com',
-    avatar: '/placeholder.svg?height=32&width=32',
-  },
-  {
-    id: '3',
-    name: 'Taylor Kim',
-    email: 'taylor@example.com',
-    avatar: '/placeholder.svg?height=32&width=32',
-  },
-  {
-    id: '4',
-    name: 'Jordan Smith',
-    email: 'jordan@example.com',
-    avatar: '/placeholder.svg?height=32&width=32',
-  },
-  {
-    id: '5',
-    name: 'Casey Brown',
-    email: 'casey@example.com',
-    avatar: '/placeholder.svg?height=32&width=32',
-  },
-];
-
-const initialMeetings: Meeting[] = [
-  {
-    title: 'Retrospective Data Research',
-    date: new Date(2024, 2, 8),
-    startTime: '10:30 AM',
-    endTime: '11:30 AM',
-    link: 'https://meet.google.com/jzr-uwem-rvm',
-    members: [sampleMembers[0], sampleMembers[1]],
-  },
-  {
-    title: 'Retrospective Data Research',
-    date: new Date(2024, 2, 8),
-    startTime: '10:30 AM',
-    endTime: '11:30 AM',
-    link: 'https://meet.google.com/jzr-uwem-rvm',
-    members: [sampleMembers[0], sampleMembers[2]],
-  },
-  {
-    title: 'Retrospective Data Research',
-    date: new Date(2024, 2, 8),
-    startTime: '10:30 AM',
-    endTime: '11:30 AM',
-    link: 'https://meet.google.com/jzr-uwem-rvm',
-    members: [sampleMembers[1], sampleMembers[3]],
-  },
-  {
-    title: 'Project Kickoff Meeting',
-    date: new Date(2024, 2, 10),
-    startTime: '9:00 AM',
-    endTime: '10:00 AM',
-    link: 'https://meet.google.com/abc-defg-hij',
-    members: [sampleMembers[0], sampleMembers[4]],
-  },
-  {
-    title: 'Weekly Team Sync',
-    date: new Date(2024, 2, 11),
-    startTime: '2:00 PM',
-    endTime: '3:00 PM',
-    link: 'https://meet.google.com/klm-nop-qrs',
-    members: [sampleMembers[2], sampleMembers[3], sampleMembers[4]],
-  },
-];
+interface AvailabilityStatus {
+  status: 'AVAILABLE' | 'PARTIAL' | 'UNAVAILABLE';
+  attendees: {
+    userId: string;
+    name: string;
+    email: string;
+    available: boolean;
+    reason: string;
+  }[];
+  suggestedTimes?: {
+    startDateTime: string;
+    endDateTime: string;
+  }[];
+}
 
 const timeOptions = [
   '9:00 AM',
@@ -165,12 +158,17 @@ const timeOptions = [
   '2:00 PM',
   '2:30 PM',
   '3:00 PM',
+  '3:30 PM',
+  '4:00 PM',
+  '4:30 PM',
+  '5:00 PM',
 ];
 
 const formSchema = z.object({
   title: z.string().min(1, {
     message: 'Please enter a meeting title.',
   }),
+  description: z.string().optional(),
   date: z.date(),
   startTime: z.string().min(1, {
     message: 'Please specify the start time.',
@@ -178,133 +176,320 @@ const formSchema = z.object({
   endTime: z.string().min(1, {
     message: 'Please specify the end time.',
   }),
-  members: z
-    .array(
-      z.object({
-        id: z.string(),
-        name: z.string(),
-        email: z.string(),
-        avatar: z.string().optional(),
-      })
-    )
+  attendeeIds: z
+    .array(z.string())
     .min(1, {
       message: 'Please add at least one member to the meeting.',
     })
     .default([]),
-  // link: z.string().min(1),
 });
 
-const generateMeetingLink = () => {
-  const characters = 'abcdefghijklmnopqrstuvwxyz';
-  let result = '';
-  for (let i = 0; i < 10; i++) {
-    result += characters.charAt(Math.floor(Math.random() * characters.length));
-  }
-  return `https://meet.google.com/${result}`;
-};
+type FormValues = z.infer<typeof formSchema>;
 
-const MeetingDialog = ({ children }: MeetingDialogProps) => {
+/**
+ * MeetingDialog component for creating and managing meetings
+ * @param children - React children to render as the dialog trigger
+ * @param workspaceId - ID of the current workspace
+ * @param members - Array of workspace members who can be invited to meetings
+ */
+const MeetingDialog = ({
+  children,
+  workspaceId,
+  members,
+}: MeetingDialogProps) => {
   const [view, setView] = useState<'list' | 'form'>('list');
-  const [meetings, setMeetings] = useState<Meeting[]>(initialMeetings);
+  const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [copied, setCopied] = useState<string | null>(null);
   const [selectedMeeting, setSelectedMeeting] = useState<Meeting | null>(null);
-  const [generatedLink, setGeneratedLink] = useState(generateMeetingLink());
-  const [availableMembers, setAvailableMembers] =
-    useState<Member[]>(sampleMembers);
+  const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [availability, setAvailability] = useState<AvailabilityStatus | null>(
+    null
+  );
+  const [checkingAvailability, setCheckingAvailability] = useState(false);
+  const { data: session } = useSession();
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
-  const form = useForm({
+  const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: selectedMeeting || {
+    defaultValues: {
       title: '',
+      description: '',
       date: new Date(),
-      startTime: '',
-      endTime: '',
-      link: 'meet.google.com/jzr-uwem-rvm',
-      members: [],
+      startTime: '10:00 AM',
+      endTime: '11:00 AM',
+      attendeeIds: [],
     },
   });
 
+  // Fetch current user
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      try {
+        const user = await getCurrentUser();
+        setCurrentUser(user);
+      } catch (error) {
+        console.error('Error fetching current user:', error);
+      }
+    };
+
+    fetchCurrentUser();
+  }, []);
+
+  // Fetch meetings when component mounts
+  useEffect(() => {
+    if (workspaceId) {
+      fetchMeetings();
+    }
+  }, [workspaceId]);
+
+  // Reset form when selected meeting changes
   useEffect(() => {
     if (selectedMeeting) {
       form.reset({
         title: selectedMeeting.title,
-        date: selectedMeeting.date,
-        startTime: selectedMeeting.startTime,
-        endTime: selectedMeeting.endTime,
-        members: selectedMeeting.members,
+        description: selectedMeeting.description || '',
+        date: new Date(selectedMeeting.startDateTime),
+        startTime: format(new Date(selectedMeeting.startDateTime), 'h:mm a'),
+        endTime: format(new Date(selectedMeeting.endDateTime), 'h:mm a'),
+        attendeeIds: selectedMeeting.attendees.map((a) => a.user.id),
       });
-      setGeneratedLink(selectedMeeting.link);
     } else {
       form.reset({
         title: '',
+        description: '',
         date: new Date(),
-        startTime: '',
-        endTime: '',
-        members: [],
+        startTime: '10:00 AM',
+        endTime: '11:00 AM',
+        attendeeIds: [],
       });
-      setGeneratedLink(generateMeetingLink());
     }
   }, [selectedMeeting, form]);
 
-  // Add this new useEffect to watch for changes to the members field
+  // Check availability when date, time, or attendees change
+  const checkAvailability = useCallback(
+    async (
+      date: Date,
+      startTime: string,
+      endTime: string,
+      attendeeIds: string[]
+    ) => {
+      if (!date || !startTime || !endTime || !attendeeIds.length) {
+        return;
+      }
+
+      try {
+        setCheckingAvailability(true);
+
+        // Convert form data to API format
+        const startDateTime = new Date(date);
+        const startMatch = startTime.match(/(\d+):(\d+) (\w+)/);
+        if (!startMatch) return;
+
+        const [, startHours, startMinutes, startPeriod] = startMatch;
+        startDateTime.setHours(
+          Number.parseInt(startHours) +
+            (startPeriod === 'PM' && Number.parseInt(startHours) !== 12
+              ? 12
+              : 0),
+          Number.parseInt(startMinutes)
+        );
+
+        const endDateTime = new Date(date);
+        const endMatch = endTime.match(/(\d+):(\d+) (\w+)/);
+        if (!endMatch) return;
+
+        const [, endHours, endMinutes, endPeriod] = endMatch;
+        endDateTime.setHours(
+          Number.parseInt(endHours) +
+            (endPeriod === 'PM' && Number.parseInt(endHours) !== 12 ? 12 : 0),
+          Number.parseInt(endMinutes)
+        );
+
+        const result = await meetingApi.checkAvailability(workspaceId, {
+          startDateTime: startDateTime.toISOString(),
+          endDateTime: endDateTime.toISOString(),
+          attendeeIds,
+        });
+
+        setAvailability(result);
+      } catch (error) {
+        console.error('Error checking availability:', error);
+        toast.error('Failed to check availability');
+      } finally {
+        setCheckingAvailability(false);
+      }
+    },
+    [workspaceId]
+  );
+
+  // Debounce the availability check to avoid too many API calls
+  const debouncedCheckAvailability = useMemo(
+    () => debounce(checkAvailability, 500),
+    [checkAvailability]
+  );
+
+  // Watch form fields for changes to trigger availability check
   useEffect(() => {
-    const currentMembers = form.getValues().members || [];
-    // This will force the component to re-evaluate which members are available
-    setAvailableMembers([...sampleMembers]);
-  }, [form.watch('members')]);
+    const subscription = form.watch((value, { name }) => {
+      if (
+        (name === 'date' ||
+          name === 'startTime' ||
+          name === 'endTime' ||
+          name === 'attendeeIds') &&
+        value.date &&
+        value.startTime &&
+        value.endTime &&
+        value.attendeeIds &&
+        value.attendeeIds.length > 0
+      ) {
+        debouncedCheckAvailability(
+          value.date as Date,
+          value.startTime as string,
+          value.endTime as string,
+          value.attendeeIds as string[]
+        );
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [form, debouncedCheckAvailability]);
 
-  const {
-    control,
-    handleSubmit,
-    formState: { errors },
-  } = form;
-
-  const onSubmit = (data: z.infer<typeof formSchema>) => {
-    const meetingData = { ...data, link: generatedLink };
-    if (selectedMeeting) {
-      const updatedMeetings = meetings.map((meeting) =>
-        meeting === selectedMeeting ? meetingData : meeting
-      );
-      setMeetings(updatedMeetings);
-    } else {
-      setMeetings([...meetings, meetingData]);
+  const fetchMeetings = async () => {
+    try {
+      setLoading(true);
+      const data = await meetingApi.getMeetings(workspaceId);
+      setMeetings(data);
+    } catch (error) {
+      console.error('Error fetching meetings:', error);
+      toast.error('Failed to load meetings');
+    } finally {
+      setLoading(false);
     }
-    handleCancel();
   };
 
-  const itemsPerPage = 3;
-  const totalPages = Math.ceil(meetings.length / itemsPerPage);
+  const onSubmit = async (data: FormValues) => {
+    try {
+      setLoading(true);
+
+      // Check availability one last time
+      if (
+        data.attendeeIds.length > 0 &&
+        availability?.status === 'UNAVAILABLE'
+      ) {
+        toast.error(
+          'All selected members are unavailable at this time. Consider choosing a different time.'
+        );
+        setLoading(false);
+        return;
+      }
+
+      // Convert form data to API format
+      const startDateTime = new Date(data.date);
+      const startMatch = data.startTime.match(/(\d+):(\d+) (\w+)/);
+      if (!startMatch) {
+        toast.error('Invalid start time format');
+        setLoading(false);
+        return;
+      }
+
+      const [, startHours, startMinutes, startPeriod] = startMatch;
+      startDateTime.setHours(
+        Number.parseInt(startHours) +
+          (startPeriod === 'PM' && Number.parseInt(startHours) !== 12 ? 12 : 0),
+        Number.parseInt(startMinutes)
+      );
+
+      const endDateTime = new Date(data.date);
+      const endMatch = data.endTime.match(/(\d+):(\d+) (\w+)/);
+      if (!endMatch) {
+        toast.error('Invalid end time format');
+        setLoading(false);
+        return;
+      }
+
+      const [, endHours, endMinutes, endPeriod] = endMatch;
+      endDateTime.setHours(
+        Number.parseInt(endHours) +
+          (endPeriod === 'PM' && Number.parseInt(endHours) !== 12 ? 12 : 0),
+        Number.parseInt(endMinutes)
+      );
+
+      const meetingData = {
+        title: data.title,
+        description: data.description,
+        startDateTime: startDateTime.toISOString(),
+        endDateTime: endDateTime.toISOString(),
+        attendeeIds: data.attendeeIds,
+      };
+
+      if (selectedMeeting) {
+        // Update existing meeting
+        await meetingApi.updateMeeting(
+          workspaceId,
+          selectedMeeting.id,
+          meetingData
+        );
+        toast.success('Your meeting has been updated successfully');
+      } else {
+        // Create new meeting
+        await meetingApi.createMeeting(workspaceId, meetingData);
+        toast.success(
+          'Your meeting has been created successfully with Google Meet link'
+        );
+      }
+
+      // Refresh meetings list
+      await fetchMeetings();
+      handleCancel();
+    } catch (error: any) {
+      console.error('Error saving meeting:', error);
+      toast.error(error.response?.data?.error || 'Failed to save meeting');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleCreateSchedule = () => {
     setSelectedMeeting(null);
-    setGeneratedLink(generateMeetingLink());
     form.reset({
       title: '',
+      description: '',
       date: new Date(),
-      startTime: '',
-      endTime: '',
-      members: [],
+      startTime: '10:00 AM',
+      endTime: '11:00 AM',
+      attendeeIds: [],
     });
+    setAvailability(null);
     setView('form');
   };
 
   const handleCancel = () => {
     setView('list');
-    form.reset();
+    setSelectedMeeting(null);
+    setAvailability(null);
   };
 
   const handleEdit = (meeting: Meeting) => {
     setSelectedMeeting(meeting);
-    setGeneratedLink(meeting.link);
-    form.reset({
-      title: meeting.title,
-      date: meeting.date,
-      startTime: meeting.startTime,
-      endTime: meeting.endTime,
-      members: meeting.members,
-    });
     setView('form');
+  };
+
+  const handleDelete = async (meetingId: string) => {
+    try {
+      setDeleting(meetingId);
+      await meetingApi.deleteMeeting(workspaceId, meetingId);
+
+      toast.success('The meeting has been deleted successfully');
+
+      // Update local state
+      setMeetings(meetings.filter((m) => m.id !== meetingId));
+    } catch (error: any) {
+      console.error('Error deleting meeting:', error);
+      toast.error(error.response?.data?.error || 'Failed to delete meeting');
+    } finally {
+      setDeleting(null);
+    }
   };
 
   const handleCopyLink = (link: string) => {
@@ -313,10 +498,72 @@ const MeetingDialog = ({ children }: MeetingDialogProps) => {
     setTimeout(() => setCopied(null), 1300);
   };
 
+  const handleUpdateAttendeeStatus = async (
+    meetingId: string,
+    status: 'ACCEPTED' | 'DECLINED' | 'TENTATIVE'
+  ) => {
+    try {
+      await meetingApi.updateAttendeeStatus(workspaceId, meetingId, status);
+
+      toast.success(`You have ${status.toLowerCase()} the meeting invitation`);
+
+      // Refresh meetings list
+      await fetchMeetings();
+    } catch (error: any) {
+      console.error('Error updating status:', error);
+      toast.error(error.response?.data?.error || 'Failed to update status');
+    }
+  };
+
+  const handleSelectSuggestedTime = (
+    startDateTime: string,
+    endDateTime: string
+  ) => {
+    const startDate = new Date(startDateTime);
+    const endDate = new Date(endDateTime);
+
+    form.setValue('date', startDate);
+    form.setValue('startTime', format(startDate, 'h:mm a'));
+    form.setValue('endTime', format(endDate, 'h:mm a'));
+
+    // Trigger availability check
+    checkAvailability(
+      startDate,
+      format(startDate, 'h:mm a'),
+      format(endDate, 'h:mm a'),
+      form.getValues('attendeeIds')
+    );
+  };
+
+  // Pagination
+  const itemsPerPage = 3;
+  const totalPages = Math.ceil(meetings.length / itemsPerPage);
   const paginatedMeetings = meetings.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
+
+  // Get current user's ID
+  const currentUserId = currentUser?.id || null;
+
+  // Availability status colors and icons
+  const availabilityUI = {
+    AVAILABLE: {
+      color: 'bg-green-100 text-green-800 border-green-200',
+      icon: <CheckCircle className="h-5 w-5 text-green-600" />,
+      text: 'All members are available',
+    },
+    PARTIAL: {
+      color: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+      icon: <AlertCircle className="h-5 w-5 text-yellow-600" />,
+      text: 'Some members are unavailable',
+    },
+    UNAVAILABLE: {
+      color: 'bg-red-100 text-red-800 border-red-200',
+      icon: <XCircle className="h-5 w-5 text-red-600" />,
+      text: 'All members are unavailable',
+    },
+  };
 
   return (
     <Dialog>
@@ -346,13 +593,17 @@ const MeetingDialog = ({ children }: MeetingDialogProps) => {
             )}
           </div>
 
-          {view === 'form' ? (
+          {loading && view === 'list' ? (
+            <div className="flex justify-center p-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+          ) : view === 'form' ? (
             <Form {...form}>
               <form
                 onSubmit={form.handleSubmit(onSubmit)}
                 className="p-4 border rounded-md space-y-4"
               >
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4">
                   <FormField
                     control={form.control}
                     name="title"
@@ -371,39 +622,63 @@ const MeetingDialog = ({ children }: MeetingDialogProps) => {
                   />
                   <FormField
                     control={form.control}
-                    name="link"
-                    render={() => (
+                    name="description"
+                    render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Link</FormLabel>
+                        <FormLabel>Description</FormLabel>
                         <FormControl>
-                          <div className="flex items-center gap-2">
-                            <div className="relative h-[40px] flex-1 flex items-center border border-gray-300 rounded-md py-2 px-3 bg-white">
-                              <SiGooglemeet className="mr-2 text-primary h-4 w-4" />
-                              <span className="text-sm break-all font-mono">
-                                {generatedLink.replace('https://', '')}
-                              </span>
-                            </div>
-                            <Tooltip open={copied === generatedLink}>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="icon"
-                                  onClick={() => handleCopyLink(generatedLink)}
-                                >
-                                  <Copy className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <span>Copied!</span>
-                              </TooltipContent>
-                            </Tooltip>
-                          </div>
+                          <Textarea
+                            {...field}
+                            placeholder="Meeting description (optional)"
+                            rows={3}
+                          />
                         </FormControl>
+                        <FormMessage />
                       </FormItem>
                     )}
                   />
                 </div>
+
+                {/* Meeting Link Info */}
+                {selectedMeeting ? (
+                  <div className="flex items-center gap-2 p-3 bg-secondary/50 rounded-md">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">Google Meet Link</p>
+                      <p className="text-xs text-muted-foreground font-mono">
+                        {selectedMeeting.meetingLink}
+                      </p>
+                    </div>
+                    <Tooltip open={copied === selectedMeeting.meetingLink}>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8"
+                          onClick={() =>
+                            handleCopyLink(selectedMeeting.meetingLink)
+                          }
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <span>Copied!</span>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 p-3 bg-secondary/50 rounded-md">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">Google Meet Link</p>
+                      <p className="text-xs text-muted-foreground">
+                        A Google Meet link will be automatically generated when
+                        the meeting is created
+                      </p>
+                    </div>
+                    <CalendarDays className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                )}
+
                 <div className="grid grid-cols-3 gap-4">
                   <FormField
                     control={form.control}
@@ -501,56 +776,63 @@ const MeetingDialog = ({ children }: MeetingDialogProps) => {
                 <div className="col-span-2 mt-2">
                   <FormField
                     control={form.control}
-                    name="members"
+                    name="attendeeIds"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Invite Members</FormLabel>
                         <FormControl>
                           <div className="space-y-4">
                             <div className="flex flex-wrap gap-2 mb-2">
-                              {field.value.map((member) => (
-                                <div
-                                  key={member.id}
-                                  className="flex items-center gap-2 bg-secondary px-3 py-1 rounded-full"
-                                >
-                                  <Avatar className="h-6 w-6">
-                                    <AvatarImage
-                                      src={member.avatar || '/placeholder.svg'}
-                                      alt={member.name}
-                                    />
-                                    <AvatarFallback>
-                                      {member.name.charAt(0)}
-                                    </AvatarFallback>
-                                  </Avatar>
-                                  <span className="text-sm">{member.name}</span>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-5 w-5 p-0 rounded-full"
-                                    onClick={() => {
-                                      const updatedMembers = field.value.filter(
-                                        (m) => m.id !== member.id
-                                      );
-                                      field.onChange(updatedMembers);
-                                    }}
+                              {field.value.map((memberId) => {
+                                const member = members.find(
+                                  (m) => m.id === memberId
+                                );
+                                if (!member) return null;
+
+                                return (
+                                  <div
+                                    key={member.id}
+                                    className="flex items-center gap-2 bg-secondary px-3 py-1 rounded-full"
                                   >
-                                    <span className="sr-only">Remove</span>
-                                    <Trash2 className="h-3 w-3" />
-                                  </Button>
-                                </div>
-                              ))}
+                                    <Avatar className="h-6 w-6">
+                                      <AvatarImage
+                                        src={
+                                          member.image ||
+                                          '/placeholder.svg?height=24&width=24'
+                                        }
+                                        alt={member.name}
+                                      />
+                                      <AvatarFallback>
+                                        {member.name.charAt(0)}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <span className="text-sm">
+                                      {member.name}
+                                    </span>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-5 w-5 p-0 rounded-full"
+                                      onClick={() => {
+                                        const updatedMembers =
+                                          field.value.filter(
+                                            (id) => id !== member.id
+                                          );
+                                        field.onChange(updatedMembers);
+                                      }}
+                                    >
+                                      <span className="sr-only">Remove</span>
+                                      <Trash2 className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                );
+                              })}
                             </div>
                             <Select
-                              onValueChange={(value) => {
-                                const member = availableMembers.find(
-                                  (m) => m.id === value
-                                );
-                                if (
-                                  member &&
-                                  !field.value.some((m) => m.id === member.id)
-                                ) {
-                                  field.onChange([...field.value, member]);
+                              onValueChange={(value: string) => {
+                                if (!field.value.includes(value)) {
+                                  field.onChange([...field.value, value]);
                                 }
                               }}
                               value=""
@@ -559,20 +841,17 @@ const MeetingDialog = ({ children }: MeetingDialogProps) => {
                                 <SelectValue placeholder="Add members to this meeting" />
                               </SelectTrigger>
                               <SelectContent className="max-h-[200px] overflow-y-auto">
-                                {availableMembers.filter(
-                                  (member) =>
-                                    !field.value.some((m) => m.id === member.id)
+                                {members.filter(
+                                  (member) => !field.value.includes(member.id)
                                 ).length === 0 ? (
                                   <div className="p-2 text-center text-sm text-muted-foreground">
                                     All members have been added
                                   </div>
                                 ) : (
-                                  availableMembers
+                                  members
                                     .filter(
                                       (member) =>
-                                        !field.value.some(
-                                          (m) => m.id === member.id
-                                        )
+                                        !field.value.includes(member.id)
                                     )
                                     .map((member) => (
                                       <SelectItem
@@ -583,8 +862,8 @@ const MeetingDialog = ({ children }: MeetingDialogProps) => {
                                           <Avatar className="h-6 w-6">
                                             <AvatarImage
                                               src={
-                                                member.avatar ||
-                                                '/placeholder.svg'
+                                                member.image ||
+                                                '/placeholder.svg?height=24&width=24'
                                               }
                                               alt={member.name}
                                             />
@@ -609,15 +888,124 @@ const MeetingDialog = ({ children }: MeetingDialogProps) => {
                     )}
                   />
                 </div>
+
+                {/* Availability Status */}
+                {checkingAvailability && (
+                  <div className="flex items-center justify-center p-4">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary mr-2"></div>
+                    <span className="text-sm">Checking availability...</span>
+                  </div>
+                )}
+
+                {availability && !checkingAvailability && (
+                  <div className="space-y-4">
+                    <Alert
+                      className={availabilityUI[availability.status].color}
+                    >
+                      <div className="flex items-center gap-2">
+                        {availabilityUI[availability.status].icon}
+                        <AlertTitle>
+                          {availability.status === 'AVAILABLE'
+                            ? 'All members are available'
+                            : availability.status === 'PARTIAL'
+                            ? 'Some members are unavailable'
+                            : 'All members are unavailable'}
+                        </AlertTitle>
+                      </div>
+                      <AlertDescription className="mt-2">
+                        {availability.attendees.map((attendee) => (
+                          <div
+                            key={attendee.userId}
+                            className="flex items-center gap-2 text-sm mt-1"
+                          >
+                            <Badge
+                              variant="outline"
+                              className={
+                                attendee.available
+                                  ? 'bg-green-100 text-green-800 border-green-200'
+                                  : 'bg-red-100 text-red-800 border-red-200'
+                              }
+                            >
+                              {attendee.available ? 'Available' : 'Unavailable'}
+                            </Badge>
+                            <span>{attendee.name}</span>
+                            <span className="text-xs text-muted-foreground">
+                              ({attendee.reason})
+                            </span>
+                          </div>
+                        ))}
+                      </AlertDescription>
+                    </Alert>
+
+                    {/* Suggested Times */}
+                    {availability.status !== 'AVAILABLE' &&
+                      availability.suggestedTimes &&
+                      availability.suggestedTimes.length > 0 && (
+                        <Card>
+                          <CardHeader className="pb-2">
+                            <CardTitle className="text-base">
+                              Suggested Times
+                            </CardTitle>
+                            <CardDescription>
+                              These times might work better for all participants
+                            </CardDescription>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="space-y-2">
+                              {availability.suggestedTimes.map(
+                                (time, index) => {
+                                  const start = new Date(time.startDateTime);
+                                  const end = new Date(time.endDateTime);
+                                  return (
+                                    <Button
+                                      key={index}
+                                      variant="outline"
+                                      className="w-full justify-start bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-800"
+                                      onClick={() =>
+                                        handleSelectSuggestedTime(
+                                          time.startDateTime,
+                                          time.endDateTime
+                                        )
+                                      }
+                                    >
+                                      <Clock className="mr-2 h-4 w-4 text-blue-600" />
+                                      <span>
+                                        {format(start, 'h:mm a')} -{' '}
+                                        {format(end, 'h:mm a')} on{' '}
+                                        {format(start, 'MMMM d, yyyy')}
+                                      </span>
+                                    </Button>
+                                  );
+                                }
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )}
+                  </div>
+                )}
+
                 <div className="flex justify-end gap-3">
                   <Button
                     type="button"
                     variant="outline"
                     onClick={handleCancel}
+                    disabled={loading}
                   >
                     Cancel
                   </Button>
-                  <Button type="submit">
+                  <Button
+                    type="submit"
+                    disabled={loading || availability?.status === 'UNAVAILABLE'}
+                    className={
+                      availability?.status === 'UNAVAILABLE'
+                        ? 'opacity-50 cursor-not-allowed'
+                        : ''
+                    }
+                  >
+                    {loading && (
+                      <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent"></div>
+                    )}
                     {selectedMeeting ? 'Update' : 'Create'}
                   </Button>
                 </div>
@@ -625,177 +1013,263 @@ const MeetingDialog = ({ children }: MeetingDialogProps) => {
             </Form>
           ) : (
             <>
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Meet title</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Start</TableHead>
-                      <TableHead>End</TableHead>
-                      <TableHead>Members</TableHead>
-                      <TableHead>Link</TableHead>
-                      <TableHead />
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {paginatedMeetings.map((meeting, i) => (
-                      <TableRow key={i}>
-                        <TableCell>{meeting.title}</TableCell>
-                        <TableCell>{format(meeting.date, 'PPP')}</TableCell>
-                        <TableCell>{meeting.startTime}</TableCell>
-                        <TableCell>{meeting.endTime}</TableCell>
-                        <TableCell>
-                          <div className="flex -space-x-2 overflow-hidden">
-                            {meeting.members.slice(0, 3).map((member, idx) => (
-                              <TooltipProvider key={idx}>
-                                <Tooltip>
-                                  <TooltipTrigger>
-                                    <Avatar className="h-8 w-8 border-2 border-background">
-                                      <AvatarImage
-                                        src={
-                                          member.avatar || '/placeholder.svg'
-                                        }
-                                        alt={member.name}
-                                      />
-                                      <AvatarFallback>
-                                        {member.name.charAt(0)}
-                                      </AvatarFallback>
-                                    </Avatar>
+              {meetings.length === 0 ? (
+                <div className="text-center p-8 border rounded-md">
+                  <h3 className="text-lg font-medium">No meetings scheduled</h3>
+                  <p className="text-muted-foreground mt-2">
+                    Create your first meeting by clicking the "Create schedule"
+                    button.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Meet title</TableHead>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Time</TableHead>
+                          <TableHead>Members</TableHead>
+                          <TableHead>Link</TableHead>
+                          <TableHead />
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {paginatedMeetings.map((meeting) => (
+                          <TableRow key={meeting.id}>
+                            <TableCell className="font-medium">
+                              {meeting.title}
+                            </TableCell>
+                            <TableCell>
+                              {format(new Date(meeting.startDateTime), 'PPP')}
+                            </TableCell>
+                            <TableCell>
+                              {format(
+                                new Date(meeting.startDateTime),
+                                'h:mm a'
+                              )}{' '}
+                              -{' '}
+                              {format(new Date(meeting.endDateTime), 'h:mm a')}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex -space-x-2 overflow-hidden">
+                                {meeting.attendees
+                                  .slice(0, 3)
+                                  .map((attendee) => (
+                                    <TooltipProvider key={attendee.id}>
+                                      <Tooltip>
+                                        <TooltipTrigger>
+                                          <Avatar className="h-8 w-8 border-2 border-background">
+                                            <AvatarImage
+                                              src={
+                                                attendee.user.image ||
+                                                '/placeholder.svg?height=32&width=32'
+                                              }
+                                              alt={attendee.user.name}
+                                            />
+                                            <AvatarFallback>
+                                              {attendee.user.name.charAt(0)}
+                                            </AvatarFallback>
+                                          </Avatar>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          <p>{attendee.user.name}</p>
+                                          <p className="text-xs text-muted-foreground">
+                                            {attendee.status === 'ACCEPTED'
+                                              ? 'Accepted'
+                                              : attendee.status === 'DECLINED'
+                                              ? 'Declined'
+                                              : attendee.status === 'TENTATIVE'
+                                              ? 'Maybe'
+                                              : 'Pending'}
+                                          </p>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  ))}
+                                {meeting.attendees.length > 3 && (
+                                  <div className="flex items-center justify-center h-8 w-8 rounded-full bg-muted text-xs font-medium">
+                                    +{meeting.attendees.length - 3}
+                                  </div>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="font-mono">
+                              <div className="flex items-center gap-2">
+                                <span>
+                                  {meeting.meetingLink.replace('https://', '')}
+                                </span>
+                                <Tooltip open={copied === meeting.meetingLink}>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-6 w-6"
+                                      onClick={() =>
+                                        handleCopyLink(meeting.meetingLink)
+                                      }
+                                    >
+                                      <Copy className="h-3 w-3" />
+                                    </Button>
                                   </TooltipTrigger>
                                   <TooltipContent>
-                                    <p>{member.name}</p>
+                                    <span>Copied!</span>
                                   </TooltipContent>
                                 </Tooltip>
-                              </TooltipProvider>
-                            ))}
-                            {meeting.members.length > 3 && (
-                              <div className="flex items-center justify-center h-8 w-8 rounded-full bg-muted text-xs font-medium">
-                                +{meeting.members.length - 3}
                               </div>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-mono">
-                          <div className="flex items-center gap-2">
-                            <span>{meeting.link.replace('https://', '')}</span>
-                            <Tooltip open={copied === meeting.link}>
-                              <TooltipTrigger asChild>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center justify-end gap-2">
+                                {currentUserId &&
+                                  meeting.attendees.some(
+                                    (a) => a.user.id === currentUserId
+                                  ) && (
+                                    <Select
+                                      defaultValue={
+                                        meeting.attendees.find(
+                                          (a) => a.user.id === currentUserId
+                                        )?.status || 'PENDING'
+                                      }
+                                      onValueChange={(value) =>
+                                        handleUpdateAttendeeStatus(
+                                          meeting.id,
+                                          value as
+                                            | 'ACCEPTED'
+                                            | 'DECLINED'
+                                            | 'TENTATIVE'
+                                        )
+                                      }
+                                    >
+                                      <SelectTrigger className="w-24 h-8">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="ACCEPTED">
+                                          Accept
+                                        </SelectItem>
+                                        <SelectItem value="TENTATIVE">
+                                          Maybe
+                                        </SelectItem>
+                                        <SelectItem value="DECLINED">
+                                          Decline
+                                        </SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  )}
                                 <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6"
-                                  onClick={() => handleCopyLink(meeting.link)}
+                                  size={'sm'}
+                                  className="h-[32px]"
+                                  onClick={() =>
+                                    window.open(meeting.meetingLink, '_blank')
+                                  }
                                 >
-                                  <Copy className="h-3 w-3" />
+                                  Join
                                 </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <span>Copied!</span>
-                              </TooltipContent>
-                            </Tooltip>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center justify-end gap-2">
-                            <Button
-                              size={'sm'}
-                              className="h-[32px]"
-                              onClick={() =>
-                                window.open(meeting.link, '_blank')
-                              }
-                            >
-                              Join
-                            </Button>
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger>
-                                  <span>
-                                    <Button
-                                      variant="outline"
-                                      size="icon"
-                                      className="h-8 w-8"
-                                      onClick={() => handleEdit(meeting)}
-                                    >
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger>
                                       <span>
-                                        <Edit className="h-4 w-4" />
+                                        <Button
+                                          variant="outline"
+                                          size="icon"
+                                          className="h-8 w-8"
+                                          onClick={() => handleEdit(meeting)}
+                                        >
+                                          <span>
+                                            <Edit className="h-4 w-4" />
+                                          </span>
+                                        </Button>
                                       </span>
-                                    </Button>
-                                  </span>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Edit Schedule</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger>
-                                  <span>
-                                    <Button
-                                      variant="outline"
-                                      size="icon"
-                                      className="h-8 w-8"
-                                    >
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>Edit Schedule</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger>
                                       <span>
-                                        <Trash2 className="h-4 w-4" />
+                                        <Button
+                                          variant="outline"
+                                          size="icon"
+                                          className="h-8 w-8"
+                                          onClick={() =>
+                                            handleDelete(meeting.id)
+                                          }
+                                          disabled={deleting === meeting.id}
+                                        >
+                                          <span>
+                                            {deleting === meeting.id ? (
+                                              <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent"></div>
+                                            ) : (
+                                              <Trash2 className="h-4 w-4" />
+                                            )}
+                                          </span>
+                                        </Button>
                                       </span>
-                                    </Button>
-                                  </span>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Delete Schedule</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-              <div className="mt-4 flex items-center justify-between">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() =>
-                    setCurrentPage((prev) => Math.max(prev - 1, 1))
-                  }
-                  disabled={currentPage === 1}
-                >
-                  Previous
-                </Button>
-                <div className="flex items-center gap-2">
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-                    (page) => (
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>Delete Schedule</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  {totalPages > 1 && (
+                    <div className="mt-4 flex items-center justify-between">
                       <Button
-                        key={page}
                         variant="outline"
                         size="sm"
-                        className={`h-8 w-8 p-0 ${
-                          currentPage === page
-                            ? 'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
-                            : ''
-                        }`}
-                        onClick={() => setCurrentPage(page)}
+                        onClick={() =>
+                          setCurrentPage((prev) => Math.max(prev - 1, 1))
+                        }
+                        disabled={currentPage === 1}
                       >
-                        {page}
+                        Previous
                       </Button>
-                    )
+                      <div className="flex items-center gap-2">
+                        {Array.from(
+                          { length: totalPages },
+                          (_, i) => i + 1
+                        ).map((page) => (
+                          <Button
+                            key={page}
+                            variant="outline"
+                            size="sm"
+                            className={`h-8 w-8 p-0 ${
+                              currentPage === page
+                                ? 'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
+                                : ''
+                            }`}
+                            onClick={() => setCurrentPage(page)}
+                          >
+                            {page}
+                          </Button>
+                        ))}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          setCurrentPage((prev) =>
+                            Math.min(prev + 1, totalPages)
+                          )
+                        }
+                        disabled={currentPage === totalPages}
+                      >
+                        Next
+                      </Button>
+                    </div>
                   )}
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() =>
-                    setCurrentPage((prev) => Math.min(prev + 1, totalPages))
-                  }
-                  disabled={currentPage === totalPages}
-                >
-                  Next
-                </Button>
-              </div>
+                </>
+              )}
             </>
           )}
         </div>
