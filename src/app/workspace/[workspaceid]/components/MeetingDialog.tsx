@@ -17,6 +17,7 @@ import {
   AlertCircle,
   CheckCircle,
   XCircle,
+  Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -70,7 +71,6 @@ import {
 } from '@/components/ui/form';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
-import { useSession } from 'next-auth/react';
 import { meetingApi } from '@/lib/api-client';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -83,7 +83,8 @@ import {
 } from '@/components/ui/card';
 import debounce from 'lodash/debounce';
 import toast from 'react-hot-toast';
-import { getCurrentUser } from '@/app/actions/getCurrentUser';
+import { User } from '@prisma/client';
+import { WorkspaceMember } from '@/types/types';
 
 interface Meeting {
   id: string;
@@ -116,17 +117,11 @@ interface MeetingAttendee {
   };
 }
 
-interface Member {
-  id: string;
-  name: string;
-  email: string;
-  image?: string;
-}
-
 interface MeetingDialogProps {
   children: ReactNode;
   workspaceId: string;
-  members: Member[]; // These should be workspace members
+  members: WorkspaceMember[]; // These should be workspace members
+  currentUser: User;
 }
 
 interface AvailabilityStatus {
@@ -196,6 +191,7 @@ const MeetingDialog = ({
   children,
   workspaceId,
   members,
+  currentUser,
 }: MeetingDialogProps) => {
   const [view, setView] = useState<'list' | 'form'>('list');
   const [meetings, setMeetings] = useState<Meeting[]>([]);
@@ -208,8 +204,6 @@ const MeetingDialog = ({
     null
   );
   const [checkingAvailability, setCheckingAvailability] = useState(false);
-  const { data: session } = useSession();
-  const [currentUser, setCurrentUser] = useState<any>(null);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -222,20 +216,6 @@ const MeetingDialog = ({
       attendeeIds: [],
     },
   });
-
-  // Fetch current user
-  useEffect(() => {
-    const fetchCurrentUser = async () => {
-      try {
-        const user = await getCurrentUser();
-        setCurrentUser(user);
-      } catch (error) {
-        console.error('Error fetching current user:', error);
-      }
-    };
-
-    fetchCurrentUser();
-  }, []);
 
   // Fetch meetings when component mounts
   useEffect(() => {
@@ -797,17 +777,17 @@ const MeetingDialog = ({
                                     <Avatar className="h-6 w-6">
                                       <AvatarImage
                                         src={
-                                          member.image ||
+                                          member.user.image ||
                                           '/placeholder.svg?height=24&width=24'
                                         }
-                                        alt={member.name}
+                                        alt={member.user.name || 'User'}
                                       />
                                       <AvatarFallback>
-                                        {member.name.charAt(0)}
+                                        {member.user.name?.charAt(0)}
                                       </AvatarFallback>
                                     </Avatar>
                                     <span className="text-sm">
-                                      {member.name}
+                                      {member.user.name}
                                     </span>
                                     <Button
                                       type="button"
@@ -862,18 +842,18 @@ const MeetingDialog = ({
                                           <Avatar className="h-6 w-6">
                                             <AvatarImage
                                               src={
-                                                member.image ||
+                                                member.user.image ||
                                                 '/placeholder.svg?height=24&width=24'
                                               }
-                                              alt={member.name}
+                                              alt={member.user.name || 'User'}
                                             />
                                             <AvatarFallback>
-                                              {member.name.charAt(0)}
+                                              {member.user.name?.charAt(0)}
                                             </AvatarFallback>
                                           </Avatar>
-                                          <span>{member.name}</span>
+                                          <span>{member.user.name}</span>
                                           <span className="text-muted-foreground text-xs">
-                                            ({member.email})
+                                            ({member.user.email})
                                           </span>
                                         </div>
                                       </SelectItem>
@@ -892,7 +872,7 @@ const MeetingDialog = ({
                 {/* Availability Status */}
                 {checkingAvailability && (
                   <div className="flex items-center justify-center p-4">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary mr-2"></div>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     <span className="text-sm">Checking availability...</span>
                   </div>
                 )}

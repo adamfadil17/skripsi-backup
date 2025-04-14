@@ -304,7 +304,11 @@ const SidebarNav = ({
           </SidebarMenuItem>
           <Separator />
           <SidebarMenuItem className="my-1">
-            <MeetingDialog>
+            <MeetingDialog
+              workspaceId={workspaceId}
+              members={members}
+              currentUser={currentUser}
+            >
               <SidebarMenuButton className="w-full justify-between text-md hover:bg-accent hover:text-accent-foreground py-5">
                 <div className="flex items-center gap-2">
                   <PiVideoConference className="h-5 w-5" />

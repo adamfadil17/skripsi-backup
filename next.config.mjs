@@ -8,6 +8,9 @@ const nextConfig = {
       'img.freepik.com',
     ],
   },
+  experimental: {
+    serverComponentsExternalPackages: ['bcrypt', '@mapbox/node-pre-gyp'],
+  },
 };
 
 export default nextConfig;
