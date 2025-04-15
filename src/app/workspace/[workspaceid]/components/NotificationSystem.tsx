@@ -16,14 +16,13 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import {
   type NotificationType,
   type Notification,
+  isWorkspaceFilterNotification,
+  isDocumentFilterNotification,
   isWorkspaceNotification,
-  isWorkspaceInvitationNotification,
   isDocumentNotification,
+  isMeetingNotification,
+  isInvitationNotification,
 } from '@/lib/notification';
-import {
-  formatWorkspaceActivity,
-  formatDocumentActivity,
-} from '@/lib/notification-formatter';
 import { useNotifications } from '@/hooks/use-notifications';
 
 interface NotificationSystemProps {
@@ -38,28 +37,20 @@ const NotificationSystem = ({
   const [filter, setFilter] = useState<NotificationType | 'all'>('all');
   const { notifications, markAllAsRead } = useNotifications(workspaceId);
 
-  const filteredNotifications = notifications.filter((notification) =>
-    filter === 'all' ? true : notification.type === filter
-  );
+  const filteredNotifications = notifications.filter((notification) => {
+    if (filter === 'all') return true;
+    if (filter === 'workspace')
+      return isWorkspaceFilterNotification(notification);
+    if (filter === 'document')
+      return isDocumentFilterNotification(notification);
+    return notification.type === filter;
+  });
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   const getNotificationMessage = (notification: Notification): string => {
-    if (isWorkspaceNotification(notification)) {
-      if (isWorkspaceInvitationNotification(notification)) {
-        return `${notification.user.name} invited ${notification.invitedEmail}`;
-      }
-      return formatWorkspaceActivity(
-        notification.activityType,
-        notification.user.name
-      );
-    } else if (isDocumentNotification(notification)) {
-      return formatDocumentActivity(
-        notification.activityType,
-        notification.user.name
-      );
-    }
-    throw new Error('Unknown notification type');
+    // Just use the message property directly, as it's already formatted in useNotifications
+    return notification.message;
   };
 
   const defaultTrigger = (
@@ -124,7 +115,9 @@ const NotificationSystem = ({
                   >
                     <Avatar className="h-8 w-8">
                       <AvatarImage
-                        src={notification.user.avatar || '/images/placeholder.svg'}
+                        src={
+                          notification.user.avatar || '/images/placeholder.svg'
+                        }
                         alt={notification.user.name}
                       />
                       <AvatarFallback>

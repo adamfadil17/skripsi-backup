@@ -1,28 +1,58 @@
-import type { WorkspaceActivityType, DocumentActivityType } from "@/lib/notification"
+import type { NotificationType } from '@prisma/client';
 
-export function formatWorkspaceActivity(type: WorkspaceActivityType, userName: string): string {
+/**
+ * Formats notification messages based on the notification type and user information
+ * @param type The notification type from Prisma schema
+ * @param userName The name of the user who triggered the notification
+ * @param documentTitle Optional document title for document-related notifications
+ * @param meetingTitle Optional meeting title for meeting-related notifications
+ */
+export function formatNotificationMessage(
+  type: NotificationType,
+  userName: string,
+  invitedEmail?: string,
+  documentTitle?: string,
+  meetingTitle?: string
+): string {
   switch (type) {
-    case "workspace_update":
-      return `${userName} updated the workspace settings`
-    case "invitation":
-      return `${userName} invited a new member to the workspace`
-    case "role_change":
-      return `${userName}'s role has been updated to Admin`
-    case "meeting":
-      return `${userName} modified the meeting schedule`
-    case "document_update":
-      return `${userName} made changes to a document`
+    // Workspace related notifications
+    case 'WORKSPACE_UPDATE':
+      return `${userName} updated the workspace profile`;
+
+    // Document related notifications
+    case 'DOCUMENT_CREATE':
+      return `${userName} created${
+        documentTitle ? ` document "${documentTitle}"` : ' a new document'
+      }`;
+    case 'DOCUMENT_UPDATE':
+      return `${userName} updated${
+        documentTitle ? ` document "${documentTitle}"` : ' a document'
+      }`;
+    case 'DOCUMENT_DELETE':
+      return `${userName} deleted${
+        documentTitle ? ` document "${documentTitle}"` : ' a document'
+      }`;
+    case 'DOCUMENT_CONTENT_UPDATE':
+      return `${userName} edited content in${
+        documentTitle ? ` document "${documentTitle}"` : ' a document'
+      }`;
+
+    // Meeting related notifications
+    case 'MEETING_CREATE':
+      return `${userName} scheduled${
+        meetingTitle ? ` a new meeting: "${meetingTitle}"` : ' a new meeting'
+      }`;
+    case 'MEETING_UPDATE':
+      return `${userName} updated${
+        meetingTitle ? ` meeting: "${meetingTitle}"` : ' a meeting'
+      }`;
+    case 'MEETING_DELETE':
+      return `${userName} canceled${
+        meetingTitle ? ` meeting: "${meetingTitle}"` : ' a meeting'
+      }`;
+
+    // Default case
     default:
-      return `${userName} performed an action in the workspace`
+      return `${userName} performed an action in the workspace`;
   }
 }
-
-export function formatDocumentActivity(type: DocumentActivityType, userName: string): string {
-  switch (type) {
-    case "content_update":
-      return `${userName} made changes to the document content`
-    default:
-      return `${userName} performed an action in the document`
-  }
-}
-

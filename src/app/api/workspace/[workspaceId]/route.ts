@@ -145,7 +145,7 @@ export async function PUT(
     await prisma.notification.create({
       data: {
         workspaceId,
-        message: `${currentUser.name} updated workspace settings`,
+        message: `${currentUser.name} updated workspace profile`,
         type: 'WORKSPACE_UPDATE',
         userId: currentUser.id,
       },

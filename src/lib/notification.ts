@@ -1,13 +1,22 @@
-export type NotificationType = 'workspace' | 'document';
-
+export type NotificationType =
+  | 'workspace'
+  | 'invitation'
+  | 'document'
+  | 'meeting';
 export type WorkspaceActivityType =
   | 'workspace_update'
   | 'invitation'
-  | 'role_change'
-  | 'meeting'
-  | 'document_update';
-
-export type DocumentActivityType = 'content_update';
+  | 'role_change';
+export type DocumentActivityType =
+  | 'document_create'
+  | 'document_update'
+  | 'document_delete'
+  | 'content_update';
+export type MeetingActivityType =
+  | 'meeting_create'
+  | 'meeting_update'
+  | 'meeting_delete';
+export type InvitationActivityType = 'invitation_added' | 'invitation_removed';
 
 interface BaseNotification {
   id: string;
@@ -16,6 +25,7 @@ interface BaseNotification {
     name: string;
     avatar: string;
   };
+  message: string;
   timestamp: string;
   read: boolean;
 }
@@ -25,21 +35,29 @@ export interface WorkspaceNotification extends BaseNotification {
   activityType: WorkspaceActivityType;
 }
 
-export interface WorkspaceInvitationNotification extends WorkspaceNotification {
-  activityType: 'invitation';
-  invitedEmail: string;
+export interface InvitationNotification extends BaseNotification {
+  type: 'invitation';
+  activityType: InvitationActivityType;
+  invitedEmail?: string;
 }
 
 export interface DocumentNotification extends BaseNotification {
   type: 'document';
   activityType: DocumentActivityType;
-  documentName: string;
+  documentName?: string;
+}
+
+export interface MeetingNotification extends BaseNotification {
+  type: 'meeting';
+  activityType: MeetingActivityType;
+  meetingTitle?: string;
 }
 
 export type Notification =
   | WorkspaceNotification
-  | WorkspaceInvitationNotification
-  | DocumentNotification;
+  | InvitationNotification
+  | DocumentNotification
+  | MeetingNotification;
 
 export function isWorkspaceNotification(
   notification: Notification
@@ -47,17 +65,34 @@ export function isWorkspaceNotification(
   return notification.type === 'workspace';
 }
 
-export function isWorkspaceInvitationNotification(
+export function isInvitationNotification(
   notification: Notification
-): notification is WorkspaceInvitationNotification {
-  return (
-    isWorkspaceNotification(notification) &&
-    notification.activityType === 'invitation'
-  );
+): notification is InvitationNotification {
+  return notification.type === 'invitation';
 }
 
 export function isDocumentNotification(
   notification: Notification
 ): notification is DocumentNotification {
+  return notification.type === 'document';
+}
+
+export function isMeetingNotification(
+  notification: Notification
+): notification is MeetingNotification {
+  return notification.type === 'meeting';
+}
+
+// Function to check if a notification should be shown in the workspace filter
+export function isWorkspaceFilterNotification(
+  notification: Notification
+): boolean {
+  return notification.type === 'workspace' || notification.type === 'invitation' || notification.type === 'meeting';
+}
+
+// Function to check if a notification should be shown in the document filter
+export function isDocumentFilterNotification(
+  notification: Notification
+): boolean {
   return notification.type === 'document';
 }

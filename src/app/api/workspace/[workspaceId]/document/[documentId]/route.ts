@@ -147,7 +147,7 @@ export async function PATCH(
     await prisma.notification.create({
       data: {
         workspaceId,
-        message: `${currentUser.name} updated document "${updatedDocument.title}"`,
+        message: `${currentUser.name} updated document information of "${updatedDocument.title}"`,
         type: 'DOCUMENT_UPDATE',
         userId: currentUser.id,
         documentId: documentId,
