@@ -11,7 +11,7 @@ interface EnhancedNotification {
   message: string;
   type: NotificationType;
   createdAt: Date;
-  read: boolean;
+  read: boolean; // This is now computed based on NotificationRead
   userId: string | null;
   documentId: string | null;
   userName?: string;
@@ -76,6 +76,13 @@ export async function GET(
       where: {
         workspaceId,
       },
+      include: {
+        readBy: {
+          where: {
+            userId: currentUser.id,
+          },
+        },
+      },
       orderBy: {
         createdAt: 'desc',
       },
@@ -112,11 +119,16 @@ export async function GET(
           }
         }
 
+        // Determine if notification is read by current user
+        const isRead = notification.readBy.length > 0;
+
         return {
           ...notification,
           userName,
           userAvatar,
           documentName,
+          read: isRead, // Set read status based on NotificationRead
+          readBy: undefined, // Remove readBy from response
         };
       })
     );
@@ -238,6 +250,7 @@ export async function POST(
       ...notification,
       userName: currentUser.name,
       userAvatar: currentUser.image,
+      read: false, // New notifications are unread by default
     };
 
     // If notification is related to a document, add document name
@@ -269,6 +282,180 @@ export async function POST(
     );
   } catch (error) {
     console.error('Error creating notification:', error);
+    return NextResponse.json(
+      {
+        status: 'error',
+        code: 500,
+        error_type: 'InternalServerError',
+        message: 'An unexpected error occurred. Please try again later.',
+      },
+      { status: 500 }
+    );
+  }
+}
+
+// New PATCH endpoint for marking notifications as read
+export async function PATCH(
+  req: Request,
+  { params }: { params: { workspaceId: string } }
+) {
+  try {
+    const currentUser = await getCurrentUser();
+
+    if (!currentUser?.id) {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 401,
+          error_type: 'Unauthorized',
+          message: 'Unauthorized access',
+        },
+        { status: 401 }
+      );
+    }
+
+    const { workspaceId } = params;
+    if (!workspaceId) {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 400,
+          error_type: 'BadRequest',
+          message: 'Workspace ID is required',
+        },
+        { status: 400 }
+      );
+    }
+
+    // Check if user is a member of the workspace
+    const isMember = await prisma.workspaceMember.findFirst({
+      where: {
+        userId: currentUser.id,
+        workspaceId,
+      },
+    });
+
+    if (!isMember) {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 403,
+          error_type: 'Forbidden',
+          message: 'You do not have access to this workspace',
+        },
+        { status: 403 }
+      );
+    }
+
+    const body = await req.json();
+
+    // For marking a specific notification as read
+    if (body.notificationId) {
+      // Check if notification exists and belongs to the workspace
+      const notification = await prisma.notification.findFirst({
+        where: {
+          id: body.notificationId,
+          workspaceId,
+        },
+      });
+
+      if (!notification) {
+        return NextResponse.json(
+          {
+            status: 'error',
+            code: 404,
+            error_type: 'NotFound',
+            message: 'Notification not found',
+          },
+          { status: 404 }
+        );
+      }
+
+      // Create or update read status for this notification
+      await prisma.notificationRead.upsert({
+        where: {
+          notificationId_userId: {
+            notificationId: body.notificationId,
+            userId: currentUser.id,
+          },
+        },
+        update: {}, // Nothing to update
+        create: {
+          notificationId: body.notificationId,
+          userId: currentUser.id,
+        },
+      });
+
+      return NextResponse.json(
+        {
+          status: 'success',
+          code: 200,
+          message: 'Notification marked as read',
+        },
+        { status: 200 }
+      );
+    }
+
+    // For marking all notifications as read
+    else if (body.markAllAsRead) {
+      // Get all unread notifications for this workspace
+      const unreadNotifications = await prisma.notification.findMany({
+        where: {
+          workspaceId,
+          readBy: {
+            none: {
+              userId: currentUser.id,
+            },
+          },
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      // Mark all as read using transactions with individual upserts
+      // This replaces the createMany with skipDuplicates which isn't supported in MongoDB
+      if (unreadNotifications.length > 0) {
+        await prisma.$transaction(
+          unreadNotifications.map((notification) =>
+            prisma.notificationRead.upsert({
+              where: {
+                notificationId_userId: {
+                  notificationId: notification.id,
+                  userId: currentUser.id,
+                },
+              },
+              update: {}, // Nothing to update
+              create: {
+                notificationId: notification.id,
+                userId: currentUser.id,
+              },
+            })
+          )
+        );
+      }
+
+      return NextResponse.json(
+        {
+          status: 'success',
+          code: 200,
+          message: 'All notifications marked as read',
+        },
+        { status: 200 }
+      );
+    }
+
+    return NextResponse.json(
+      {
+        status: 'error',
+        code: 400,
+        error_type: 'BadRequest',
+        message: 'Invalid request body',
+      },
+      { status: 400 }
+    );
+  } catch (error) {
+    console.error('Error marking notifications as read:', error);
     return NextResponse.json(
       {
         status: 'error',

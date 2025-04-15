@@ -22,15 +22,35 @@ export function useNotifications(
   };
 
   // Function to mark a notification as read
-  const markAsRead = (notificationId: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === notificationId ? { ...n, read: true } : n))
-    );
+  const markAsRead = async (notificationId: string) => {
+    try {
+      // Call API to mark the notification as read
+      await axios.patch(`/api/workspace/${workspaceId}/notification`, {
+        notificationId,
+      });
+
+      // Update local state
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === notificationId ? { ...n, read: true } : n))
+      );
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
   };
 
   // Function to mark all notifications as read
-  const markAllAsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  const markAllAsRead = async () => {
+    try {
+      // Call API to mark all notifications as read
+      await axios.patch(`/api/workspace/${workspaceId}/notification`, {
+        markAllAsRead: true,
+      });
+
+      // Update local state
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+    }
   };
 
   // Load initial notifications from the server
@@ -41,17 +61,28 @@ export function useNotifications(
           `/api/workspace/${workspaceId}/notification`
         );
         // const data = await response.json();
-        if (response.data.status === 'success' && response.data.data?.notifications) {
+        if (
+          response.data.status === 'success' &&
+          response.data.data?.notifications
+        ) {
           // Convert API notifications to our UI notification format
           const formattedNotifications = response.data.data.notifications.map(
             (n: any) => ({
               id: n.id,
               type: mapDbTypeToUiType(n.type),
               activityType: mapDbTypeToActivityType(n.type),
-              message: n.message || formatNotificationMessage(n.type, n.userName || 'A user', n.documentName, n.meetingTitle),
+              message:
+                n.message ||
+                formatNotificationMessage(
+                  n.type,
+                  n.userName || 'A user',
+                  n.documentName,
+                  n.meetingTitle
+                ),
               user: {
                 name: n.userName || 'A user',
-                avatar: n.userAvatar || '/images/placeholder.svg?height=32&width=32',
+                avatar:
+                  n.userAvatar || '/images/placeholder.svg?height=32&width=32',
               },
               ...(n.documentName && { documentName: n.documentName }),
               ...(n.meetingTitle && { meetingTitle: n.meetingTitle }),
@@ -80,11 +111,15 @@ export function useNotifications(
         id: `workspace-update-${Date.now()}`,
         type: 'workspace',
         activityType: 'workspace_update',
-        message: formatNotificationMessage('WORKSPACE_UPDATE', data.updatedBy?.name || 'A user'),
+        message: formatNotificationMessage(
+          'WORKSPACE_UPDATE',
+          data.updatedBy?.name || 'A user'
+        ),
         user: {
           name: data.updatedBy?.name || 'A user',
           avatar:
-            data.updatedBy?.image || '/images/placeholder.svg?height=32&width=32',
+            data.updatedBy?.image ||
+            '/images/placeholder.svg?height=32&width=32',
         },
         timestamp: 'Just now',
         read: false,
@@ -97,11 +132,16 @@ export function useNotifications(
         id: `document-added-${Date.now()}`,
         type: 'document',
         activityType: 'document_create',
-        message: formatNotificationMessage('DOCUMENT_CREATE', data.createdBy?.name || 'A user', data.title),
+        message: formatNotificationMessage(
+          'DOCUMENT_CREATE',
+          data.createdBy?.name || 'A user',
+          data.title
+        ),
         user: {
           name: data.createdBy?.name || 'A user',
           avatar:
-            data.createdBy?.image || '/images/placeholder.svg?height=32&width=32',
+            data.createdBy?.image ||
+            '/images/placeholder.svg?height=32&width=32',
         },
         ...(data.title && { documentName: data.title }),
         timestamp: 'Just now',
@@ -115,11 +155,16 @@ export function useNotifications(
         id: `document-updated-${Date.now()}`,
         type: 'document',
         activityType: 'document_update',
-        message: formatNotificationMessage('DOCUMENT_UPDATE', data.updatedBy?.name || 'A user', data.title),
+        message: formatNotificationMessage(
+          'DOCUMENT_UPDATE',
+          data.updatedBy?.name || 'A user',
+          data.title
+        ),
         user: {
           name: data.updatedBy?.name || 'A user',
           avatar:
-            data.updatedBy?.image || '/images/placeholder.svg?height=32&width=32',
+            data.updatedBy?.image ||
+            '/images/placeholder.svg?height=32&width=32',
         },
         ...(data.title && { documentName: data.title }),
         timestamp: 'Just now',
@@ -133,10 +178,16 @@ export function useNotifications(
         id: `document-removed-${Date.now()}`,
         type: 'document',
         activityType: 'document_delete',
-        message: formatNotificationMessage('DOCUMENT_DELETE', data.deletedBy?.name || 'A user', data.title),
+        message: formatNotificationMessage(
+          'DOCUMENT_DELETE',
+          data.deletedBy?.name || 'A user',
+          data.title
+        ),
         user: {
           name: data.deletedBy?.name || 'A user',
-          avatar: data.deletedBy?.image || '/images/placeholder.svg?height=32&width=32',
+          avatar:
+            data.deletedBy?.image ||
+            '/images/placeholder.svg?height=32&width=32',
         },
         ...(data.title && { documentName: data.title }),
         timestamp: 'Just now',
@@ -151,10 +202,15 @@ export function useNotifications(
         id: `document-content-${Date.now()}`,
         type: 'document',
         activityType: 'content_update',
-        message: formatNotificationMessage('DOCUMENT_CONTENT_UPDATE', data.editorName || 'A user', data.documentName),
+        message: formatNotificationMessage(
+          'DOCUMENT_CONTENT_UPDATE',
+          data.editorName || 'A user',
+          data.documentName
+        ),
         user: {
           name: data.editorName || 'A user',
-          avatar: data.editorAvatar || '/images/placeholder.svg?height=32&width=32',
+          avatar:
+            data.editorAvatar || '/images/placeholder.svg?height=32&width=32',
         },
         documentName: data.documentName || 'Document',
         timestamp: 'Just now',
@@ -169,10 +225,17 @@ export function useNotifications(
         id: `meeting-created-${Date.now()}`,
         type: 'meeting',
         activityType: 'meeting_create',
-        message: formatNotificationMessage('MEETING_CREATE', data.createdBy?.name || 'A user', undefined, data.title),
+        message: formatNotificationMessage(
+          'MEETING_CREATE',
+          data.createdBy?.name || 'A user',
+          undefined,
+          data.title
+        ),
         user: {
           name: data.createdBy?.name || 'A user',
-          avatar: data.createdBy?.image || '/images/placeholder.svg?height=32&width=32',
+          avatar:
+            data.createdBy?.image ||
+            '/images/placeholder.svg?height=32&width=32',
         },
         meetingTitle: data.title,
         timestamp: 'Just now',
@@ -186,10 +249,17 @@ export function useNotifications(
         id: `meeting-updated-${Date.now()}`,
         type: 'meeting',
         activityType: 'meeting_update',
-        message: formatNotificationMessage('MEETING_UPDATE', data.updatedBy?.name || 'A user', undefined, data.title),
+        message: formatNotificationMessage(
+          'MEETING_UPDATE',
+          data.updatedBy?.name || 'A user',
+          undefined,
+          data.title
+        ),
         user: {
           name: data.updatedBy?.name || 'A user',
-          avatar: data.updatedBy?.image || '/images/placeholder.svg?height=32&width=32',
+          avatar:
+            data.updatedBy?.image ||
+            '/images/placeholder.svg?height=32&width=32',
         },
         meetingTitle: data.title,
         timestamp: 'Just now',
@@ -203,10 +273,17 @@ export function useNotifications(
         id: `meeting-removed-${Date.now()}`,
         type: 'meeting',
         activityType: 'meeting_delete',
-        message: formatNotificationMessage('MEETING_DELETE', data.deletedBy?.name || 'A user', undefined, data.title),
+        message: formatNotificationMessage(
+          'MEETING_DELETE',
+          data.deletedBy?.name || 'A user',
+          undefined,
+          data.title
+        ),
         user: {
           name: data.deletedBy?.name || 'A user',
-          avatar: data.deletedBy?.image || '/images/placeholder.svg?height=32&width=32',
+          avatar:
+            data.deletedBy?.image ||
+            '/images/placeholder.svg?height=32&width=32',
         },
         meetingTitle: data.title,
         timestamp: 'Just now',
@@ -221,16 +298,19 @@ export function useNotifications(
         id: data.id,
         type: mapDbTypeToUiType(data.type),
         activityType: mapDbTypeToActivityType(data.type),
-        message: data.message || formatNotificationMessage(
-          data.type, 
-          data.userName || 'A user', 
-          data.documentName, 
-          data.invitedEmail,
-          data.meetingTitle
-        ),
+        message:
+          data.message ||
+          formatNotificationMessage(
+            data.type,
+            data.userName || 'A user',
+            data.documentName,
+            data.invitedEmail,
+            data.meetingTitle
+          ),
         user: {
           name: data.userName || 'A user',
-          avatar: data.userAvatar || '/images/placeholder.svg?height=32&width=32',
+          avatar:
+            data.userAvatar || '/images/placeholder.svg?height=32&width=32',
         },
         ...(data.documentName && { documentName: data.documentName }),
         ...(data.meetingTitle && { meetingTitle: data.meetingTitle }),
@@ -283,7 +363,9 @@ export function useNotifications(
 }
 
 // Helper function to map DB notification types to UI notification types
-function mapDbTypeToUiType(type: NotificationType): 'workspace' | 'document' | 'meeting' {
+function mapDbTypeToUiType(
+  type: NotificationType
+): 'workspace' | 'document' | 'meeting' {
   switch (type) {
     case 'WORKSPACE_UPDATE':
       return 'workspace';

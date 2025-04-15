@@ -24,13 +24,14 @@ model User {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  accounts         Account[]
-  workspaces       WorkspaceMember[]
-  invitations      Invitation[]
-  messages         Message[]
-  documentContents DocumentContent[]
-  meetings         Meeting[]        @relation("MeetingCreator")
-  meetingAttendees MeetingAttendee[]
+  accounts          Account[]
+  workspaces        WorkspaceMember[]
+  invitations       Invitation[]
+  messages          Message[]
+  documentContents  DocumentContent[]
+  meetings          Meeting[]          @relation("MeetingCreator")
+  meetingAttendees  MeetingAttendee[]
+  notificationReads NotificationRead[]
 
   createdDocuments Document[] @relation("DocumentCreator")
   updatedDocuments Document[] @relation("DocumentEditor")
@@ -96,12 +97,12 @@ enum Role {
 
 // Model Invitation
 model Invitation {
-  id          String           @id @default(auto()) @map("_id") @db.ObjectId
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
   email       String
   role        Role
-  workspaceId String           @db.ObjectId
-  invitedById String           @db.ObjectId
-  invitedAt   DateTime         @default(now())
+  workspaceId String   @db.ObjectId
+  invitedById String   @db.ObjectId
+  invitedAt   DateTime @default(now())
   expiredAt   DateTime
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -165,16 +166,34 @@ model Message {
 // Model Notification
 // Model Notification
 model Notification {
-  id          String           @id @default(auto()) @map("_id") @db.ObjectId
-  workspaceId String           @db.ObjectId
+  id          String             @id @default(auto()) @map("_id") @db.ObjectId
+  workspaceId String             @db.ObjectId
   message     String
   type        NotificationType
-  createdAt   DateTime         @default(now())
-  read        Boolean          @default(false)
-  userId      String?          @db.ObjectId // The user who triggered the notification
-  documentId  String?          @db.ObjectId // Optional reference to a document
-  
+  createdAt   DateTime           @default(now())
+  userId      String?            @db.ObjectId // The user who triggered the notification
+  documentId  String?            @db.ObjectId // Optional reference to a document
+  readBy      NotificationRead[]
+
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([userId])
+}
+
+//model NotificationRead
+model NotificationRead {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  notificationId String   @db.ObjectId
+  userId         String   @db.ObjectId
+  readAt         DateTime @default(now())
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([notificationId, userId])
+  @@index([userId])
+  @@index([notificationId])
 }
 
 enum NotificationType {
@@ -190,22 +209,22 @@ enum NotificationType {
 
 // Model Meeting
 model Meeting {
-  id                String   @id @default(auto()) @map("_id") @db.ObjectId
-  title             String
-  description       String?
-  startDateTime     DateTime
-  endDateTime       DateTime
-  meetingLink       String?
-  googleCalendarId  String?  @unique
-  googleEventId     String?  @unique
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  workspaceId       String   @db.ObjectId
-  createdById       String   @db.ObjectId
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  title            String
+  description      String?
+  startDateTime    DateTime
+  endDateTime      DateTime
+  meetingLink      String?
+  googleCalendarId String?  @unique
+  googleEventId    String?  @unique
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  workspaceId      String   @db.ObjectId
+  createdById      String   @db.ObjectId
 
-  workspace   Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  createdBy   User              @relation("MeetingCreator", fields: [createdById], references: [id])
-  attendees   MeetingAttendee[]
+  workspace Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy User              @relation("MeetingCreator", fields: [createdById], references: [id])
+  attendees MeetingAttendee[]
 
   @@index([workspaceId])
   @@index([createdById])
@@ -213,11 +232,11 @@ model Meeting {
 
 // Model MeetingAttendee
 model MeetingAttendee {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  meetingId String   @db.ObjectId
-  userId    String   @db.ObjectId
+  id        String         @id @default(auto()) @map("_id") @db.ObjectId
+  meetingId String         @db.ObjectId
+  userId    String         @db.ObjectId
   status    AttendeeStatus @default(PENDING)
-  addedAt   DateTime @default(now())
+  addedAt   DateTime       @default(now())
 
   meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
