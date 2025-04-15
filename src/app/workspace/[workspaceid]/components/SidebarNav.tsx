@@ -300,6 +300,7 @@ const SidebarNav = ({
                   </Badge>
                 </SidebarMenuButton>
               }
+              workspaceId={workspaceId}
             />
           </SidebarMenuItem>
           <Separator />

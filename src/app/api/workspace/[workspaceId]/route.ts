@@ -100,7 +100,7 @@ export async function PUT(
       );
     }
 
-    // Ambil data dari body
+    // Get data from body
     const { name, emoji, coverImage } = await req.json();
     if (!name || !emoji || !coverImage) {
       return NextResponse.json(
@@ -114,7 +114,7 @@ export async function PUT(
       );
     }
 
-    // Validasi: Cek apakah user adalah SUPER_ADMIN di workspace ini
+    // Validate: Check if user is SUPER_ADMIN in this workspace
     const userWorkspace = await prisma.workspaceMember.findFirst({
       where: {
         userId: currentUser.id,
@@ -141,11 +141,29 @@ export async function PUT(
       data: { name, emoji, coverImage },
     });
 
+    // Create notification for workspace update
+    await prisma.notification.create({
+      data: {
+        workspaceId,
+        message: `${currentUser.name} updated workspace settings`,
+        type: 'WORKSPACE_UPDATE',
+        userId: currentUser.id,
+      },
+    });
+
     // Trigger Pusher event for real-time updates
     await pusherServer.trigger(
       `workspace-${workspaceId}`,
       'workspace-updated',
-      updatedWorkspace
+      {
+        ...updatedWorkspace,
+        updatedBy: {
+          id: currentUser.id,
+          name: currentUser.name,
+          email: currentUser.email,
+          image: currentUser.image,
+        },
+      }
     );
 
     return NextResponse.json(
@@ -176,7 +194,7 @@ export async function DELETE(
   { params }: { params: { workspaceId: string } }
 ) {
   try {
-    // Ambil user saat ini
+    // Get current user
     const currentUser = await getCurrentUser();
     if (!currentUser?.id || !currentUser?.email) {
       return NextResponse.json(
@@ -203,7 +221,7 @@ export async function DELETE(
       );
     }
 
-    // Temukan workspace berdasarkan id, sertakan member untuk validasi peran
+    // Find workspace by id, include members for role validation
     const workspace = await prisma.workspace.findUnique({
       where: { id: workspaceId },
       include: { members: true },
@@ -221,7 +239,7 @@ export async function DELETE(
       );
     }
 
-    // Validasi apakah currentUser adalah SUPER_ADMIN di workspace tersebut
+    // Validate if currentUser is SUPER_ADMIN in the workspace
     const isOwner = workspace.members.some(
       (member) =>
         member.userId === currentUser.id && member.role === 'SUPER_ADMIN'
@@ -239,7 +257,7 @@ export async function DELETE(
       );
     }
 
-    // Hapus workspace
+    // Delete workspace
     const deletedWorkspace = await prisma.workspace.delete({
       where: { id: workspaceId },
     });

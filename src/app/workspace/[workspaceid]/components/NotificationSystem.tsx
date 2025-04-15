@@ -1,9 +1,11 @@
 'use client';
 
+import type React from 'react';
+
 import { useState } from 'react';
 import { Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Popover,
   PopoverContent,
@@ -22,63 +24,25 @@ import {
   formatWorkspaceActivity,
   formatDocumentActivity,
 } from '@/lib/notification-formatter';
-
-const MOCK_NOTIFICATIONS: Notification[] = [
-  {
-    id: '1',
-    type: 'workspace',
-    activityType: 'workspace_update',
-    user: {
-      name: 'John Doe',
-      avatar: '/placeholder.svg?height=32&width=32',
-    },
-    timestamp: '2h ago',
-    read: false,
-  },
-  {
-    id: '2',
-    type: 'workspace',
-    activityType: 'invitation',
-    user: {
-      name: 'Emily Chan',
-      avatar: '/placeholder.svg?height=32&width=32',
-    },
-    invitedEmail: 'adam.fadilah17@gmail.com',
-    timestamp: '3h ago',
-    read: false,
-  },
-  {
-    id: '3',
-    type: 'document',
-    activityType: 'content_update',
-    user: {
-      name: 'Alex Turner',
-      avatar: '/placeholder.svg?height=32&width=32',
-    },
-    documentName: 'Q2 Report',
-    timestamp: '5h ago',
-    read: true,
-  },
-];
+import { useNotifications } from '@/hooks/use-notifications';
 
 interface NotificationSystemProps {
   trigger?: React.ReactNode;
+  workspaceId: string;
 }
 
-const NotificationSystem = ({ trigger }: NotificationSystemProps) => {
-  const [notifications, setNotifications] =
-    useState<Notification[]>(MOCK_NOTIFICATIONS);
+const NotificationSystem = ({
+  trigger,
+  workspaceId,
+}: NotificationSystemProps) => {
   const [filter, setFilter] = useState<NotificationType | 'all'>('all');
+  const { notifications, markAllAsRead } = useNotifications(workspaceId);
 
   const filteredNotifications = notifications.filter((notification) =>
     filter === 'all' ? true : notification.type === filter
   );
 
   const unreadCount = notifications.filter((n) => !n.read).length;
-
-  const markAllAsRead = () => {
-    setNotifications(notifications.map((n) => ({ ...n, read: true })));
-  };
 
   const getNotificationMessage = (notification: Notification): string => {
     if (isWorkspaceNotification(notification)) {
@@ -90,7 +54,10 @@ const NotificationSystem = ({ trigger }: NotificationSystemProps) => {
         notification.user.name
       );
     } else if (isDocumentNotification(notification)) {
-      return `${notification.user.name} updated "${notification.documentName}"`;
+      return formatDocumentActivity(
+        notification.activityType,
+        notification.user.name
+      );
     }
     throw new Error('Unknown notification type');
   };
@@ -147,30 +114,40 @@ const NotificationSystem = ({ trigger }: NotificationSystemProps) => {
           </TabsList>
           <ScrollArea className="h-[300px]">
             <div className="divide-y">
-              {filteredNotifications.map((notification) => (
-                <div
-                  key={notification.id}
-                  className={`flex items-start gap-4 p-4 ${
-                    !notification.read ? 'bg-muted/50' : ''
-                  }`}
-                >
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage
-                      src={notification.user.avatar}
-                      alt={notification.user.name}
-                    />
-                    <AvatarFallback>{notification.user.name[0]}</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 space-y-1">
-                    <p className="text-sm font-medium leading-none">
-                      {getNotificationMessage(notification)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {notification.timestamp}
-                    </p>
+              {filteredNotifications.length > 0 ? (
+                filteredNotifications.map((notification) => (
+                  <div
+                    key={notification.id}
+                    className={`flex items-start gap-4 p-4 ${
+                      !notification.read ? 'bg-muted/50' : ''
+                    }`}
+                  >
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage
+                        src={notification.user.avatar || '/images/placeholder.svg'}
+                        alt={notification.user.name}
+                      />
+                      <AvatarFallback>
+                        {notification.user.name[0]}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 space-y-1">
+                      <p className="text-sm font-medium leading-none">
+                        {getNotificationMessage(notification)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {notification.timestamp}
+                      </p>
+                    </div>
                   </div>
+                ))
+              ) : (
+                <div className="flex items-center justify-center p-6">
+                  <p className="text-sm text-muted-foreground">
+                    No notifications
+                  </p>
                 </div>
-              ))}
+              )}
             </div>
           </ScrollArea>
         </Tabs>

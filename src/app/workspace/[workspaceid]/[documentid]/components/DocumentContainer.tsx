@@ -110,7 +110,7 @@ const DocumentContainer = ({
           <div className="group-hover:opacity-40">
             <Image
               priority
-              src={coverImage || '/placeholder.svg'}
+              src={coverImage || '/images/placeholder.svg'}
               alt="cover"
               width={400}
               height={400}

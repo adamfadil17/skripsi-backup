@@ -187,7 +187,7 @@ export function WorkspaceGeneralSettings() {
                           <p className="text-sm font-medium mb-2">Cover</p>
                           <div className="mb-4">
                             <Image
-                              src={field.value || '/placeholder.svg'}
+                              src={field.value || '/images/placeholder.svg'}
                               alt="cover"
                               width={200}
                               height={200}
@@ -217,7 +217,7 @@ export function WorkspaceGeneralSettings() {
                                       >
                                         <Image
                                           src={
-                                            cover.imageUrl || '/placeholder.svg'
+                                            cover.imageUrl || '/images/placeholder.svg'
                                           }
                                           alt={`Cover option ${index + 1}`}
                                           fill

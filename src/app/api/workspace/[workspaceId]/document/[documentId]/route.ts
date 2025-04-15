@@ -1,4 +1,3 @@
-// src/app/api/workspaces/[id]/documents/[id]/route.ts
 import { type NextRequest, NextResponse } from 'next/server';
 import { getDocumentInfo } from '@/app/actions/getDocumentInfo';
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
@@ -124,6 +123,7 @@ export async function PATCH(
         title,
         emoji,
         coverImage,
+        updatedById: currentUser.id,
       },
       include: {
         createdBy: {
@@ -140,6 +140,17 @@ export async function PATCH(
             email: true,
           },
         },
+      },
+    });
+
+    // Create notification for document update
+    await prisma.notification.create({
+      data: {
+        workspaceId,
+        message: `${currentUser.name} updated document "${updatedDocument.title}"`,
+        type: 'DOCUMENT_UPDATE',
+        userId: currentUser.id,
+        documentId: documentId,
       },
     });
 
@@ -223,8 +234,21 @@ export async function DELETE(
       );
     }
 
+    // Store document title before deletion for notification
+    const documentTitle = document.title;
+
     const deletedDocument = await prisma.document.delete({
       where: { id: documentId },
+    });
+
+    // Create notification for document deletion
+    await prisma.notification.create({
+      data: {
+        workspaceId,
+        message: `${currentUser.name} deleted document "${documentTitle}"`,
+        type: 'DOCUMENT_DELETE',
+        userId: currentUser.id,
+      },
     });
 
     // Trigger Pusher event for real-time updates

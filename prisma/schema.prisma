@@ -163,13 +163,17 @@ model Message {
 }
 
 // Model Notification
+// Model Notification
 model Notification {
   id          String           @id @default(auto()) @map("_id") @db.ObjectId
   workspaceId String           @db.ObjectId
   message     String
   type        NotificationType
   createdAt   DateTime         @default(now())
-
+  read        Boolean          @default(false)
+  userId      String?          @db.ObjectId // The user who triggered the notification
+  documentId  String?          @db.ObjectId // Optional reference to a document
+  
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
@@ -178,6 +182,7 @@ enum NotificationType {
   DOCUMENT_CREATE
   DOCUMENT_UPDATE
   DOCUMENT_DELETE
+  DOCUMENT_CONTENT_UPDATE
   MEETING_CREATE
   MEETING_UPDATE
   MEETING_DELETE

@@ -778,7 +778,7 @@ const MeetingDialog = ({
                                       <AvatarImage
                                         src={
                                           member.user.image ||
-                                          '/placeholder.svg?height=24&width=24'
+                                          '/images/placeholder.svg?height=24&width=24'
                                         }
                                         alt={member.user.name || 'User'}
                                       />
@@ -843,7 +843,7 @@ const MeetingDialog = ({
                                             <AvatarImage
                                               src={
                                                 member.user.image ||
-                                                '/placeholder.svg?height=24&width=24'
+                                                '/images/placeholder.svg?height=24&width=24'
                                               }
                                               alt={member.user.name || 'User'}
                                             />
@@ -1044,7 +1044,7 @@ const MeetingDialog = ({
                                             <AvatarImage
                                               src={
                                                 attendee.user.image ||
-                                                '/placeholder.svg?height=32&width=32'
+                                                '/images/placeholder.svg?height=32&width=32'
                                               }
                                               alt={attendee.user.name}
                                             />
