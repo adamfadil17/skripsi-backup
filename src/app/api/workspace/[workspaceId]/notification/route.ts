@@ -17,6 +17,7 @@ interface EnhancedNotification {
   userName?: string;
   userAvatar?: string;
   documentName?: string;
+  meetingTitle?: string;
 }
 
 export async function GET(
@@ -95,6 +96,7 @@ export async function GET(
         let userName = 'A user';
         let userAvatar = '/images/placeholder.svg?height=32&width=32';
         let documentName = null;
+        const meetingTitle = null;
 
         // If notification has userId, get user info
         if (notification.userId) {
@@ -127,6 +129,7 @@ export async function GET(
           userName,
           userAvatar,
           documentName,
+          meetingTitle,
           read: isRead, // Set read status based on NotificationRead
           readBy: undefined, // Remove readBy from response
         };
@@ -472,6 +475,12 @@ export async function PATCH(
 function isValidNotificationType(type: string): boolean {
   const validTypes = [
     'WORKSPACE_UPDATE',
+    'MEMBER_CREATE',
+    'MEMBER_UPDATE',
+    'MEMBER_DELETE',
+    'MEMBER_LEAVE',
+    'INVITATION_CREATE',
+    'INVITATION_REVOKE',
     'DOCUMENT_CREATE',
     'DOCUMENT_UPDATE',
     'DOCUMENT_DELETE',

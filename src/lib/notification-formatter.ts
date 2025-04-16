@@ -6,18 +6,39 @@ import type { NotificationType } from '@prisma/client';
  * @param userName The name of the user who triggered the notification
  * @param documentTitle Optional document title for document-related notifications
  * @param meetingTitle Optional meeting title for meeting-related notifications
+ * @param invitedEmail Optional email for invitation-related notifications
  */
 export function formatNotificationMessage(
   type: NotificationType,
   userName: string,
-  invitedEmail?: string,
   documentTitle?: string,
-  meetingTitle?: string
+  meetingTitle?: string,
+  invitedEmail?: string
 ): string {
   switch (type) {
     // Workspace related notifications
     case 'WORKSPACE_UPDATE':
       return `${userName} updated the workspace profile`;
+
+    // Member related notifications
+    case 'MEMBER_CREATE':
+      return `${userName} has joined the workspace. Welcome aboard!`;
+    case 'MEMBER_UPDATE':
+      return `${userName} role was updated in the workspace`;
+    case 'MEMBER_DELETE':
+      return `${userName} removed a member from the workspace`;
+    case 'MEMBER_LEAVE':
+      return `${userName} left the workspace`;
+
+    // Invitation related notifications
+    case 'INVITATION_CREATE':
+      return `${userName} invited ${
+        invitedEmail || 'someone'
+      } to join this workspace`;
+    case 'INVITATION_REVOKE':
+      return `The invitation sent to ${
+        invitedEmail || 'someone'
+      } has been revoked by ${userName}`;
 
     // Document related notifications
     case 'DOCUMENT_CREATE':

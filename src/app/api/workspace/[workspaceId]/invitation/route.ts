@@ -210,6 +210,15 @@ export async function POST(
       role
     );
 
+    await prisma.notification.create({
+      data: {
+        workspaceId,
+        userId: currentUser.id,
+        type: 'INVITATION_CREATE',
+        message: `${currentUser.name} invited ${normalizedEmail} to join this workspace.`,
+      },
+    });
+
     // Trigger Pusher event for real-time updates
     await pusherServer.trigger(
       `workspace-${workspaceId}`,

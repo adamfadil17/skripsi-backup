@@ -87,19 +87,29 @@ export async function DELETE(
     }
 
     // Delete the member
-    await prisma.workspaceMember.delete({
-      where: {
-        userId_workspaceId: {
-          userId: currentUser.id,
-          workspaceId,
+    await prisma.$transaction([
+      prisma.workspaceMember.delete({
+        where: {
+          userId_workspaceId: {
+            userId: currentUser.id,
+            workspaceId,
+          },
         },
-      },
-    });
+      }),
+      prisma.notification.create({
+        data: {
+          workspaceId,
+          userId: currentUser.id,
+          type: 'MEMBER_LEAVE',
+          message: `${currentUser.name} left the workspace`,
+        },
+      }),
+    ]);
 
     // Trigger Pusher event for real-time updates
     await pusherServer.trigger(
       `workspace-${workspaceId}`,
-      'member-removed',
+      'member-leaved',
       currentUser.id
     );
 

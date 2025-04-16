@@ -77,7 +77,8 @@ export function useNotifications(
                   n.type,
                   n.userName || 'A user',
                   n.documentName,
-                  n.meetingTitle
+                  n.meetingTitle,
+                  n.invitedEmail
                 ),
               user: {
                 name: n.userName || 'A user',
@@ -86,6 +87,7 @@ export function useNotifications(
               },
               ...(n.documentName && { documentName: n.documentName }),
               ...(n.meetingTitle && { meetingTitle: n.meetingTitle }),
+              ...(n.invitedEmail && { invitedEmail: n.invitedEmail }),
               timestamp: formatTimestamp(n.createdAt),
               read: n.read || false,
             })
@@ -121,6 +123,118 @@ export function useNotifications(
             data.updatedBy?.image ||
             '/images/placeholder.svg?height=32&width=32',
         },
+        timestamp: 'Just now',
+        read: false,
+      };
+      addNotification(notification);
+    };
+
+    // Member notifications
+    const handleMemberAdded = (data: any) => {
+      const notification: UINotification = {
+        id: `member-added-${Date.now()}`,
+        type: 'member',
+        activityType: 'member_create',
+        message: formatNotificationMessage(
+          'MEMBER_CREATE',
+          data.member?.name || 'A user'
+        ),
+        user: {
+          name: data.member?.name || 'A user',
+          avatar:
+            data.member?.image || '/images/placeholder.svg?height=32&width=32',
+        },
+        timestamp: 'Just now',
+        read: false,
+      };
+      addNotification(notification);
+    };
+
+    const handleMemberUpdated = (data: any) => {
+      const notification: UINotification = {
+        id: `member-updated-${Date.now()}`,
+        type: 'member',
+        activityType: 'member_update',
+        message: formatNotificationMessage(
+          'MEMBER_UPDATE',
+          data.member?.name || 'A user'
+        ),
+        user: {
+          name: data.member?.name || 'A user',
+          avatar:
+            data.member?.image || '/images/placeholder.svg?height=32&width=32',
+        },
+        timestamp: 'Just now',
+        read: false,
+      };
+      addNotification(notification);
+    };
+
+    const handleMemberRemoved = (data: any) => {
+      const notification: UINotification = {
+        id: `member-removed-${Date.now()}`,
+        type: 'member',
+        activityType: 'member_delete',
+        message: formatNotificationMessage(
+          'MEMBER_DELETE',
+          data.member?.name || 'A user'
+        ),
+        user: {
+          name: data.member?.name || 'A user',
+          avatar:
+            data.member?.image || '/images/placeholder.svg?height=32&width=32',
+        },
+        timestamp: 'Just now',
+        read: false,
+      };
+      addNotification(notification);
+    };
+
+    // Invitation notifications
+    const handleInvitationCreated = (data: any) => {
+      const notification: UINotification = {
+        id: `invitation-created-${Date.now()}`,
+        type: 'invitation',
+        activityType: 'invitation_create',
+        message: formatNotificationMessage(
+          'INVITATION_CREATE',
+          data.invitedBy?.name || 'A user',
+          undefined,
+          undefined,
+          data.email
+        ),
+        user: {
+          name: data.invitedBy?.name || 'A user',
+          avatar:
+            data.invitedBy?.image ||
+            '/images/placeholder.svg?height=32&width=32',
+        },
+        invitedEmail: data.email,
+        timestamp: 'Just now',
+        read: false,
+      };
+      addNotification(notification);
+    };
+
+    const handleInvitationRevoked = (data: any) => {
+      const notification: UINotification = {
+        id: `invitation-revoked-${Date.now()}`,
+        type: 'invitation',
+        activityType: 'invitation_delete',
+        message: formatNotificationMessage(
+          'INVITATION_REVOKE',
+          data.revokedBy?.name || 'A user',
+          undefined,
+          undefined,
+          data.email
+        ),
+        user: {
+          name: data.revokedBy?.name || 'A user',
+          avatar:
+            data.revokedBy?.image ||
+            '/images/placeholder.svg?height=32&width=32',
+        },
+        invitedEmail: data.email,
         timestamp: 'Just now',
         read: false,
       };
@@ -304,8 +418,8 @@ export function useNotifications(
             data.type,
             data.userName || 'A user',
             data.documentName,
-            data.invitedEmail,
-            data.meetingTitle
+            data.meetingTitle,
+            data.invitedEmail
           ),
         user: {
           name: data.userName || 'A user',
@@ -314,6 +428,7 @@ export function useNotifications(
         },
         ...(data.documentName && { documentName: data.documentName }),
         ...(data.meetingTitle && { meetingTitle: data.meetingTitle }),
+        ...(data.invitedEmail && { invitedEmail: data.invitedEmail }),
         timestamp: 'Just now',
         read: false,
       };
@@ -322,6 +437,11 @@ export function useNotifications(
 
     // Subscribe to workspace events
     workspaceChannel.bind('workspace-updated', handleWorkspaceUpdate);
+    workspaceChannel.bind('member-added', handleMemberAdded);
+    workspaceChannel.bind('member-updated', handleMemberUpdated);
+    workspaceChannel.bind('member-removed', handleMemberRemoved);
+    workspaceChannel.bind('invitation-created', handleInvitationCreated);
+    workspaceChannel.bind('invitation-revoked', handleInvitationRevoked);
     workspaceChannel.bind('document-added', handleDocumentAdded);
     workspaceChannel.bind('document-updated', handleDocumentUpdated);
     workspaceChannel.bind('document-removed', handleDocumentRemoved);
@@ -329,14 +449,19 @@ export function useNotifications(
       'document-content-updated',
       handleDocumentContentUpdated
     );
-    // workspaceChannel.bind('meeting-created', handleMeetingCreated);
-    // workspaceChannel.bind('meeting-updated', handleMeetingUpdated);
-    // workspaceChannel.bind('meeting-removed', handleMeetingRemoved);
+    workspaceChannel.bind('meeting-created', handleMeetingCreated);
+    workspaceChannel.bind('meeting-updated', handleMeetingUpdated);
+    workspaceChannel.bind('meeting-removed', handleMeetingRemoved);
     workspaceChannel.bind('notification-created', handleNotificationCreated);
 
     // Cleanup function
     return () => {
       workspaceChannel.unbind('workspace-updated', handleWorkspaceUpdate);
+      workspaceChannel.unbind('member-added', handleMemberAdded);
+      workspaceChannel.unbind('member-updated', handleMemberUpdated);
+      workspaceChannel.unbind('member-removed', handleMemberRemoved);
+      workspaceChannel.unbind('invitation-created', handleInvitationCreated);
+      workspaceChannel.unbind('invitation-revoked', handleInvitationRevoked);
       workspaceChannel.unbind('document-added', handleDocumentAdded);
       workspaceChannel.unbind('document-updated', handleDocumentUpdated);
       workspaceChannel.unbind('document-removed', handleDocumentRemoved);
@@ -344,9 +469,9 @@ export function useNotifications(
         'document-content-updated',
         handleDocumentContentUpdated
       );
-      // workspaceChannel.unbind('meeting-created', handleMeetingCreated);
-      // workspaceChannel.unbind('meeting-updated', handleMeetingUpdated);
-      // workspaceChannel.unbind('meeting-removed', handleMeetingRemoved);
+      workspaceChannel.unbind('meeting-created', handleMeetingCreated);
+      workspaceChannel.unbind('meeting-updated', handleMeetingUpdated);
+      workspaceChannel.unbind('meeting-removed', handleMeetingRemoved);
       workspaceChannel.unbind(
         'notification-created',
         handleNotificationCreated
@@ -365,7 +490,7 @@ export function useNotifications(
 // Helper function to map DB notification types to UI notification types
 function mapDbTypeToUiType(
   type: NotificationType
-): 'workspace' | 'document' | 'meeting' {
+): 'workspace' | 'document' | 'meeting' | 'invitation' | 'member' {
   switch (type) {
     case 'WORKSPACE_UPDATE':
       return 'workspace';
@@ -378,6 +503,14 @@ function mapDbTypeToUiType(
     case 'MEETING_UPDATE':
     case 'MEETING_DELETE':
       return 'meeting';
+    case 'INVITATION_CREATE':
+    case 'INVITATION_REVOKE':
+      return 'invitation';
+    case 'MEMBER_CREATE':
+    case 'MEMBER_UPDATE':
+    case 'MEMBER_DELETE':
+    case 'MEMBER_LEAVE':
+      return 'member';
     default:
       return 'workspace';
   }
@@ -402,6 +535,18 @@ function mapDbTypeToActivityType(type: NotificationType): string {
       return 'meeting_update';
     case 'MEETING_DELETE':
       return 'meeting_delete';
+    case 'INVITATION_CREATE':
+      return 'invitation_create';
+    case 'INVITATION_REVOKE':
+      return 'invitation_delete';
+    case 'MEMBER_CREATE':
+      return 'member_create';
+    case 'MEMBER_UPDATE':
+      return 'member_update';
+    case 'MEMBER_DELETE':
+      return 'member_delete';
+    case 'MEMBER_LEAVE':
+      return 'member_leave';
     default:
       return 'workspace_update';
   }

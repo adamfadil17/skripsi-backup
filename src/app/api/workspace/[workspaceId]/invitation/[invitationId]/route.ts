@@ -55,12 +55,24 @@ export async function DELETE(
       );
     }
 
+    const invitedEmail = invitation.email;
+
     // Validasi hak akses untuk mencabut undangan
     if (
       isSuperAdmin ||
       (isAdmin && invitation.invitedById === currentUser.id)
-    ) {
-      await prisma.invitation.delete({ where: { id: invitationId } });
+  ) {
+      const [deletedInvitation] = await prisma.$transaction([
+        prisma.invitation.delete({ where: { id: invitationId } }),
+        prisma.notification.create({
+          data: {
+            workspaceId: invitation.workspaceId,
+            userId: invitation.invitedById,
+            type: 'INVITATION_REVOKE',
+            message: `The invitation sent to ${invitedEmail} has been revoked by ${currentUser.name}.`,
+          },
+        }),
+      ]);
 
       // Trigger Pusher event for real-time updates
       await pusherServer.trigger(
@@ -70,7 +82,12 @@ export async function DELETE(
       );
 
       return NextResponse.json(
-        { message: 'Invitation revoked successfully' },
+        {
+          status: 'success',
+          code: 200,
+          message: 'Invitation revoked successfully',
+          data: { deletedInvitation },
+        },
         { status: 200 }
       );
     }

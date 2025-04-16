@@ -18,10 +18,6 @@ import {
   type Notification,
   isWorkspaceFilterNotification,
   isDocumentFilterNotification,
-  isWorkspaceNotification,
-  isDocumentNotification,
-  isMeetingNotification,
-  isInvitationNotification,
 } from '@/lib/notification';
 import { useNotifications } from '@/hooks/use-notifications';
 

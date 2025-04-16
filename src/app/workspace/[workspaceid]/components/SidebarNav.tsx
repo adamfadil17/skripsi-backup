@@ -131,18 +131,19 @@ const SidebarNav = ({
         if (exists) return prev;
         return [...prev, member];
       });
-      toast.success(
-        `${member.user.name || member.user.email} joined the workspace`
-      );
     };
 
     const handleMemberRemoved = (userId: string) => {
       console.log('Pusher event received: member-removed', userId);
       setMembers((prev) => prev.filter((member) => member.user.id !== userId));
+    };
+
+    const handleMemberLeaved = (userId: string) => {
+      console.log('Pusher event received: member-leaved', userId);
+      setMembers((prev) => prev.filter((member) => member.user.id !== userId));
 
       // If current user is removed, redirect to dashboard
       if (userId === currentUser.id) {
-        toast.success('You have been removed from the workspace');
         router.push('/dashboard');
       }
     };
@@ -191,6 +192,7 @@ const SidebarNav = ({
     workspaceChannel.bind('workspace-updated', handleWorkspaceUpdated);
     workspaceChannel.bind('member-added', handleMemberAdded);
     workspaceChannel.bind('member-removed', handleMemberRemoved);
+    workspaceChannel.bind('member-leaved', handleMemberLeaved);
     workspaceChannel.bind('member-updated', handleMemberUpdated);
     workspaceChannel.bind('document-added', handleDocumentAdded);
     workspaceChannel.bind('document-removed', handleDocumentRemoved);
@@ -202,6 +204,7 @@ const SidebarNav = ({
       workspaceChannel.unbind('workspace-updated', handleWorkspaceUpdated);
       workspaceChannel.unbind('member-added', handleMemberAdded);
       workspaceChannel.unbind('member-removed', handleMemberRemoved);
+      workspaceChannel.unbind('member-leaved', handleMemberLeaved);
       workspaceChannel.unbind('member-updated', handleMemberUpdated);
       workspaceChannel.unbind('document-added', handleDocumentAdded);
       workspaceChannel.unbind('document-removed', handleDocumentRemoved);

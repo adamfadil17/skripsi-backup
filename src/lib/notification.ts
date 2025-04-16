@@ -1,12 +1,10 @@
 export type NotificationType =
   | 'workspace'
   | 'invitation'
+  | 'member'
   | 'document'
   | 'meeting';
-export type WorkspaceActivityType =
-  | 'workspace_update'
-  | 'invitation'
-  | 'role_change';
+export type WorkspaceActivityType = 'workspace_update';
 export type DocumentActivityType =
   | 'document_create'
   | 'document_update'
@@ -16,7 +14,12 @@ export type MeetingActivityType =
   | 'meeting_create'
   | 'meeting_update'
   | 'meeting_delete';
-export type InvitationActivityType = 'invitation_added' | 'invitation_removed';
+export type InvitationActivityType = 'invitation_create' | 'invitation_delete';
+export type MemberActivityType =
+  | 'member_create'
+  | 'member_update'
+  | 'member_delete'
+  | 'member_leave';
 
 interface BaseNotification {
   id: string;
@@ -41,6 +44,11 @@ export interface InvitationNotification extends BaseNotification {
   invitedEmail?: string;
 }
 
+export interface MemberNotification extends BaseNotification {
+  type: 'member';
+  activityType: MemberActivityType;
+}
+
 export interface DocumentNotification extends BaseNotification {
   type: 'document';
   activityType: DocumentActivityType;
@@ -56,6 +64,7 @@ export interface MeetingNotification extends BaseNotification {
 export type Notification =
   | WorkspaceNotification
   | InvitationNotification
+  | MemberNotification
   | DocumentNotification
   | MeetingNotification;
 
@@ -69,6 +78,12 @@ export function isInvitationNotification(
   notification: Notification
 ): notification is InvitationNotification {
   return notification.type === 'invitation';
+}
+
+export function isMemberNotification(
+  notification: Notification
+): notification is MemberNotification {
+  return notification.type === 'member';
 }
 
 export function isDocumentNotification(
@@ -87,7 +102,12 @@ export function isMeetingNotification(
 export function isWorkspaceFilterNotification(
   notification: Notification
 ): boolean {
-  return notification.type === 'workspace' || notification.type === 'invitation' || notification.type === 'meeting';
+  return (
+    notification.type === 'workspace' ||
+    notification.type === 'invitation' ||
+    notification.type === 'member' ||
+    notification.type === 'meeting'
+  );
 }
 
 // Function to check if a notification should be shown in the document filter

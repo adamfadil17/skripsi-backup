@@ -237,19 +237,17 @@ export async function DELETE(
     // Store document title before deletion for notification
     const documentTitle = document.title;
 
-    const deletedDocument = await prisma.document.delete({
-      where: { id: documentId },
-    });
-
-    // Create notification for document deletion
-    await prisma.notification.create({
-      data: {
-        workspaceId,
-        message: `${currentUser.name} deleted document "${documentTitle}"`,
-        type: 'DOCUMENT_DELETE',
-        userId: currentUser.id,
-      },
-    });
+    const [deletedDocument] = await prisma.$transaction([
+      prisma.document.delete({ where: { id: documentId } }),
+      prisma.notification.create({
+        data: {
+          workspaceId,
+          userId: currentUser.id,
+          type: 'DOCUMENT_DELETE',
+          message: `${currentUser.name} deleted document "${documentTitle}"`,
+        },
+      }),
+    ]);
 
     // Trigger Pusher event for real-time updates
     await pusherServer.trigger(

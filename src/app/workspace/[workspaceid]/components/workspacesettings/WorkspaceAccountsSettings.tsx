@@ -103,16 +103,22 @@ export function WorkspaceAccountsSettings() {
     // Listen for member updates
     const handleMemberAdded = (member: WorkspaceMember) => {
       setFetchedMembers((prev) => [...prev, member]);
-      toast.success(
-        `${member.user.name || member.user.email} joined the workspace`
-      );
     };
 
     const handleMemberRemoved = (userId: string) => {
       setFetchedMembers((prev) =>
         prev.filter((member) => member.user.id !== userId)
       );
-      toast.success('User removed successfully.');
+    };
+
+    const handleMemberLeaved = (userId: string) => {
+      setFetchedMembers((prev) =>
+        prev.filter((member) => member.user.id !== userId)
+      );
+
+      if (userId === currentUser.id) {
+        router.push('/dashboard');
+      }
     };
 
     const handleMemberUpdated = (updatedMember: WorkspaceMember) => {
@@ -121,29 +127,23 @@ export function WorkspaceAccountsSettings() {
           member.user.id === updatedMember.user.id ? updatedMember : member
         )
       );
-      toast.success(
-        `${
-          updatedMember.user.name || updatedMember.user.email
-        }'s role was updated`
-      );
     };
 
     // Listen for invitation updates
     const handleInvitationAdded = (invitation: WorkspaceInvitation) => {
       setFetchedInvitations((prev) => [...prev, invitation]);
-      toast.success(`Invitation sent to ${invitation.email}`);
     };
 
     const handleInvitationRemoved = (invitationId: string) => {
       setFetchedInvitations((prev) =>
         prev.filter((invitation) => invitation.id !== invitationId)
       );
-      toast.success('Invitation revoked successfully.');
     };
 
     // Subscribe to events
     workspaceChannel.bind('member-added', handleMemberAdded);
     workspaceChannel.bind('member-removed', handleMemberRemoved);
+    workspaceChannel.bind('member-leaved', handleMemberLeaved);
     workspaceChannel.bind('member-updated', handleMemberUpdated);
     workspaceChannel.bind('invitation-added', handleInvitationAdded);
     workspaceChannel.bind('invitation-removed', handleInvitationRemoved);
@@ -152,6 +152,7 @@ export function WorkspaceAccountsSettings() {
     return () => {
       workspaceChannel.unbind('member-added', handleMemberAdded);
       workspaceChannel.unbind('member-removed', handleMemberRemoved);
+      workspaceChannel.unbind('member-leaved', handleMemberLeaved);
       workspaceChannel.unbind('member-updated', handleMemberUpdated);
       workspaceChannel.unbind('invitation-added', handleInvitationAdded);
       workspaceChannel.unbind('invitation-removed', handleInvitationRemoved);
