@@ -165,6 +165,7 @@ export async function POST(
             id: true,
             name: true,
             email: true,
+            image: true,
           },
         },
       },
@@ -190,6 +191,22 @@ export async function POST(
       createdAt: newDocument.createdAt,
       createdBy: newDocument.createdBy,
     });
+
+    await pusherServer.trigger(
+      `notification-${workspaceId}`,
+      'document-added',
+      {
+        id: newDocument.id,
+        title: newDocument.title,
+        emoji: newDocument.emoji,
+        coverImage: newDocument.coverImage,
+        createdBy: {
+          id: newDocument.createdBy?.id,
+          name: newDocument.createdBy?.name,
+          image: newDocument.createdBy?.image,
+        },
+      }
+    );
 
     return NextResponse.json(
       {

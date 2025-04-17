@@ -282,31 +282,7 @@ const SidebarNav = ({
 
       <SidebarContent className="px-4 hidden-scrollbar">
         <SidebarMenu>
-          <SidebarMenuItem className="my-1">
-            <NotificationSystem
-              trigger={
-                <SidebarMenuButton className="w-full justify-between text-md hover:bg-accent hover:text-accent-foreground py-5">
-                  <div className="flex items-center gap-2">
-                    <Bell className="h-5 w-5" />
-                    <span>Notification</span>
-                  </div>
-                  <Badge
-                    style={{
-                      width: '38px',
-                      height: '28px',
-                      alignItems: 'center',
-                    }}
-                    variant="default"
-                    className="justify-center bg-red-50 text-red-500 border-red-500 rounded-lg hover:bg-red-100 "
-                  >
-                    24
-                  </Badge>
-                </SidebarMenuButton>
-              }
-              workspaceId={workspaceId}
-            />
-          </SidebarMenuItem>
-          <Separator />
+          
           <SidebarMenuItem className="my-1">
             <MeetingDialog
               workspaceId={workspaceId}

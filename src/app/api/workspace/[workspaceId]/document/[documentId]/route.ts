@@ -131,6 +131,7 @@ export async function PATCH(
             id: true,
             name: true,
             email: true,
+            image: true,
           },
         },
         updatedBy: {
@@ -138,6 +139,7 @@ export async function PATCH(
             id: true,
             name: true,
             email: true,
+            image: true,
           },
         },
       },
@@ -164,6 +166,22 @@ export async function PATCH(
       createdBy: updatedDocument.createdBy,
       updatedBy: updatedDocument.updatedBy,
     });
+
+    await pusherServer.trigger(
+      `notification-${workspaceId}`,
+      'document-updated',
+      {
+        id: updatedDocument.id,
+        title: updatedDocument.title,
+        emoji: updatedDocument.emoji,
+        coverImage: updatedDocument.coverImage,
+        updatedBy: {
+          id: updatedDocument.updatedBy?.id,
+          name: updatedDocument.updatedBy?.name,
+          image: updatedDocument.updatedBy?.image,
+        },
+      }
+    );
 
     return NextResponse.json(
       {
@@ -254,6 +272,20 @@ export async function DELETE(
       `workspace-${workspaceId}`,
       'document-removed',
       documentId
+    );
+
+    await pusherServer.trigger(
+      `notification-${workspaceId}`,
+      'document-removed',
+      {
+        id: documentId,
+        title: documentTitle,
+        deletedBy: {
+          id: currentUser.id,
+          name: currentUser.name,
+          image: currentUser.image || null,
+        },
+      }
     );
 
     return NextResponse.json(

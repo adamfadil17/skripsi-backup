@@ -96,7 +96,6 @@ export async function POST(
       }),
     ]);
 
-    // Trigger Pusher events
     await pusherServer.trigger(
       `workspace-${invitation.workspaceId}`,
       'member-added',
@@ -107,6 +106,39 @@ export async function POST(
       `workspace-${invitation.workspaceId}`,
       'invitation-removed',
       invitation.id
+    );
+
+    // Trigger Pusher events
+    await pusherServer.trigger(
+      `notification-${invitation.workspaceId}`,
+      'member-added',
+      {
+        member: {
+          id: currentUser.id,
+          name: currentUser.name,
+          email: currentUser.email,
+          image: currentUser.image,
+        },
+        addedBy: invitation.invitedById || {
+          id: 'system',
+          name: 'System',
+          image: null,
+        },
+      }
+    );
+
+    await pusherServer.trigger(
+      `notification-${invitation.workspaceId}`,
+      'invitation-removed',
+      {
+        id: invitation.id,
+        email: invitation.email,
+        revokedBy: {
+          id: currentUser.id,
+          name: currentUser.name,
+          image: currentUser.image,
+        },
+      }
     );
 
     return NextResponse.json({

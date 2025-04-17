@@ -249,7 +249,7 @@ export function WorkspaceAccountsSettings() {
         await axios.delete(
           `/api/workspace/${workspaceInfo.id}/invitation/${invitationId}`
         );
-        // toast.success('Invitation revoked successfully.');
+        toast.success('Invitation revoked successfully.');
         // No need to manually refresh since Pusher will handle it
       } catch (error: any) {
         toast.error(

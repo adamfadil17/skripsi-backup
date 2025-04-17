@@ -107,6 +107,11 @@ export async function PUT(
       );
     }
 
+    const document = await prisma.document.findUnique({
+      where: { id: documentId },
+      select: { title: true },
+    });
+
     const body = await req.json();
     if (!body?.content) {
       return NextResponse.json(
@@ -178,17 +183,40 @@ export async function PUT(
       },
     });
 
-    // Trigger Pusher event for real-time updates
-    // Use the workspace channel for broadcasting
-    const channelName = `workspace-${workspaceId}`;
+    await pusherServer.trigger(
+      `workspace-${workspaceId}`,
+      'document-content-updated',
+      {
+        documentId,
+        content: safeContent,
+        editorEmail, // Include the editor's email to prevent update loops
+        timestamp: new Date().toISOString(),
+        documentName: document?.title,
+        // editorName: currentUser.name,
+        editedBy: {
+          id: currentUser.id,
+          name: currentUser.name,
+          image: currentUser.image,
+        }, // Optional: include editor name for UI display
+      }
+    );
 
-    await pusherServer.trigger(channelName, 'document-content-updated', {
-      documentId,
-      content: safeContent,
-      editorEmail, // Include the editor's email to prevent update loops
-      timestamp: new Date().toISOString(),
-      editorName: currentUser.name, // Optional: include editor name for UI display
-    });
+    await pusherServer.trigger(
+      `notification-${workspaceId}`,
+      'document-content-updated',
+      {
+        documentId,
+        content: safeContent,
+        editorEmail, // Include the editor's email to prevent update loops
+        timestamp: new Date().toISOString(),
+        documentName: document?.title,
+        editedBy: {
+          id: currentUser.id,
+          name: currentUser.name,
+          image: currentUser.image,
+        }, // Optional: include editor name for UI display
+      }
+    );
 
     return NextResponse.json(
       {

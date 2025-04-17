@@ -155,6 +155,12 @@ export async function PUT(
     await pusherServer.trigger(
       `workspace-${workspaceId}`,
       'workspace-updated',
+      updatedWorkspace
+    );
+
+    await pusherServer.trigger(
+      `notification-${workspaceId}`,
+      'workspace-updated',
       {
         ...updatedWorkspace,
         updatedBy: {

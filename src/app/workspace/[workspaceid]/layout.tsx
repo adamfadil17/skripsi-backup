@@ -39,18 +39,25 @@ export default async function WorkspaceLayout({
 
   return (
     <SidebarProvider>
-      <PusherChannelProvider channelName={`workspace-${workspaceId}`}>
-        <div className="flex w-full min-h-screen overflow-hidden">
+      <div className="flex w-full min-h-screen overflow-hidden">
+        <PusherChannelProvider channelName={`workspace-${workspaceId}`}>
           <WorkspaceSidebar
             workspaceId={workspaceId}
             currentUser={currentUser}
           />
-          <div className="flex flex-col flex-1 min-w-0">
-            <TopbarWorkspace currentUser={currentUser} />
+        </PusherChannelProvider>
+        <div className="flex flex-col flex-1 min-w-0">
+          <PusherChannelProvider channelName={`notification-${workspaceId}`}>
+            <TopbarWorkspace
+              currentUser={currentUser}
+              workspaceId={workspaceId}
+            />
+          </PusherChannelProvider>
+          <PusherChannelProvider channelName={`workspace-${workspaceId}`}>
             <main className="flex-1 p-6 overflow-auto">{children}</main>
-          </div>
+          </PusherChannelProvider>
         </div>
-      </PusherChannelProvider>
+      </div>
     </SidebarProvider>
   );
 }

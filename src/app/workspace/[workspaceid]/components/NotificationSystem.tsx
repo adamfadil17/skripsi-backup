@@ -2,7 +2,7 @@
 
 import type React from 'react';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -24,14 +24,17 @@ import { useNotifications } from '@/hooks/use-notifications';
 interface NotificationSystemProps {
   trigger?: React.ReactNode;
   workspaceId: string;
+  onMarkAllAsRead?: () => void; // Add this prop to communicate with parent
 }
 
 const NotificationSystem = ({
   trigger,
   workspaceId,
+  onMarkAllAsRead,
 }: NotificationSystemProps) => {
   const [filter, setFilter] = useState<NotificationType | 'all'>('all');
   const { notifications, markAllAsRead } = useNotifications(workspaceId);
+  const [isOpen, setIsOpen] = useState(false);
 
   const filteredNotifications = notifications.filter((notification) => {
     if (filter === 'all') return true;
@@ -43,16 +46,26 @@ const NotificationSystem = ({
   });
 
   const unreadCount = notifications.filter((n) => !n.read).length;
+  const hasUnread = unreadCount > 0;
 
   const getNotificationMessage = (notification: Notification): string => {
     // Just use the message property directly, as it's already formatted in useNotifications
     return notification.message;
   };
 
+  // Handle marking all as read
+  const handleMarkAllAsRead = async () => {
+    await markAllAsRead();
+    // Notify parent component that notifications have been marked as read
+    if (onMarkAllAsRead) {
+      onMarkAllAsRead();
+    }
+  };
+
   const defaultTrigger = (
     <Button variant="outline" size="icon" className="relative">
       <Bell className="h-5 w-5" />
-      {unreadCount > 0 && (
+      {hasUnread && (
         <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 text-[10px] font-medium text-white flex items-center justify-center">
           {unreadCount}
         </span>
@@ -61,22 +74,32 @@ const NotificationSystem = ({
   );
 
   return (
-    <Popover>
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>{trigger || defaultTrigger}</PopoverTrigger>
       <PopoverContent
         className="w-[420px] p-0"
-        align="start"
-        side="right"
+        align="end"
+        side="bottom"
         sideOffset={24}
       >
         <div className="flex items-center justify-between border-b px-4 py-2">
           <h4 className="text-sm font-semibold">Notifications</h4>
-          <Button variant="ghost" size="sm" onClick={markAllAsRead}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleMarkAllAsRead}
+            className={
+              !hasUnread
+                ? 'text-muted-foreground hover:text-muted-foreground'
+                : ''
+            }
+            disabled={!hasUnread}
+          >
             Mark all as read
           </Button>
         </div>
         <Tabs defaultValue="all" className="w-full">
-          <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0">
+          <TabsList className="grid grid-cols-3 w-full rounded-none border-b bg-transparent p-0">
             <TabsTrigger
               value="all"
               className="rounded-none border-b-2 border-transparent px-4 py-2 data-[state=active]:border-primary"
@@ -99,7 +122,7 @@ const NotificationSystem = ({
               Document
             </TabsTrigger>
           </TabsList>
-          <ScrollArea className="h-[300px]">
+          <ScrollArea className="h-[400px]">
             <div className="divide-y">
               {filteredNotifications.length > 0 ? (
                 filteredNotifications.map((notification) => (

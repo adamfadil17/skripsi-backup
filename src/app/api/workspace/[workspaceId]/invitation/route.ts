@@ -226,6 +226,20 @@ export async function POST(
       invitation
     );
 
+    await pusherServer.trigger(
+      `notification-${workspaceId}`,
+      'invitation-added',
+      {
+        id: invitation.id,
+        email: invitation.email,
+        invitedBy: {
+          id: currentUser.id,
+          name: currentUser.name,
+          image: currentUser.image,
+        },
+      }
+    );
+
     return NextResponse.json(
       {
         status: 'success',

@@ -61,7 +61,7 @@ export async function DELETE(
     if (
       isSuperAdmin ||
       (isAdmin && invitation.invitedById === currentUser.id)
-  ) {
+    ) {
       const [deletedInvitation] = await prisma.$transaction([
         prisma.invitation.delete({ where: { id: invitationId } }),
         prisma.notification.create({
@@ -79,6 +79,20 @@ export async function DELETE(
         `workspace-${workspaceId}`,
         'invitation-removed',
         invitationId
+      );
+
+      await pusherServer.trigger(
+        `notification-${workspaceId}`,
+        'invitation-removed',
+        {
+          id: invitationId,
+          email: invitedEmail,
+          revokedBy: {
+            id: currentUser.id,
+            name: currentUser.name,
+            image: currentUser.image,
+          },
+        }
       );
 
       return NextResponse.json(

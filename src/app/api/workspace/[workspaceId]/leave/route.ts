@@ -113,6 +113,14 @@ export async function DELETE(
       currentUser.id
     );
 
+    await pusherServer.trigger(`notification-${workspaceId}`, 'member-leaved', {
+      member: {
+        id: currentUser.id,
+        name: currentUser.name,
+        image: currentUser.image,
+      },
+    });
+
     return NextResponse.json(
       {
         status: 'success',

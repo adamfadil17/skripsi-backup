@@ -125,6 +125,19 @@ export async function PUT(
           updatedMember
         );
 
+        await pusherServer.trigger(
+          `notification-${workspaceId}`,
+          'member-updated',
+          {
+            member: updatedMember.user,
+            updatedBy: {
+              id: currentUser.id,
+              name: currentUser.name,
+              image: currentUser.image,
+            },
+          }
+        );
+
         return NextResponse.json({
           message: 'Role updated successfully',
           data: { member: updatedMember },
@@ -166,6 +179,19 @@ export async function PUT(
         `workspace-${workspaceId}`,
         'member-updated',
         updatedMember
+      );
+
+      await pusherServer.trigger(
+        `notification-${workspaceId}`,
+        'member-updated',
+        {
+          member: updatedMember.user,
+          updatedBy: {
+            id: currentUser.id,
+            name: currentUser.name,
+            image: currentUser.image,
+          },
+        }
       );
 
       return NextResponse.json({
@@ -245,6 +271,16 @@ export async function DELETE(
     // Cek role user yang akan dihapus
     const targetUserRole = await prisma.workspaceMember.findFirst({
       where: { workspaceId, userId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            image: true,
+          },
+        },
+      },
     });
 
     // Admin tidak bisa menghapus Super Admin atau Admin
@@ -290,6 +326,24 @@ export async function DELETE(
         userId
       );
 
+      await pusherServer.trigger(
+        `notification-${workspaceId}`,
+        'member-removed',
+        {
+          userId,
+          member: {
+            id: targetUserRole?.user.id,
+            name: targetUserRole?.user.name || 'A member',
+            image: targetUserRole?.user.image,
+          },
+          deletedBy: {
+            id: currentUser.id,
+            name: currentUser.name,
+            image: currentUser.image,
+          },
+        }
+      );
+
       return NextResponse.json(
         {
           status: 'success',
@@ -321,6 +375,23 @@ export async function DELETE(
         `workspace-${workspaceId}`,
         'member-removed',
         userId
+      );
+
+      await pusherServer.trigger(
+        `notification-${workspaceId}`,
+        'member-removed',
+        {
+          userId,
+          member: {
+            name: targetUserRole?.user.name || 'A member',
+            image: targetUserRole?.user.image,
+          },
+          deletedBy: {
+            id: currentUser.id,
+            name: currentUser.name,
+            image: currentUser.image,
+          },
+        }
       );
 
       return NextResponse.json(

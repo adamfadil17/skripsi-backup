@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 import type { Notification as UINotification } from '@/lib/notification';
 import type { NotificationType } from '@prisma/client';
@@ -14,7 +14,8 @@ export function useNotifications(
 ) {
   const [notifications, setNotifications] =
     useState<UINotification[]>(initialNotifications);
-  const { channel: workspaceChannel } = usePusherChannelContext();
+
+  const { channel: workspaceNotificationChannel } = usePusherChannelContext();
 
   // Function to add a new notification
   const addNotification = (notification: UINotification) => {
@@ -39,19 +40,19 @@ export function useNotifications(
   };
 
   // Function to mark all notifications as read
-  const markAllAsRead = async () => {
+  const markAllAsRead = useCallback(async () => {
     try {
       // Call API to mark all notifications as read
       await axios.patch(`/api/workspace/${workspaceId}/notification`, {
         markAllAsRead: true,
       });
 
-      // Update local state
+      // Update local state immediately
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     } catch (error) {
       console.error('Error marking all notifications as read:', error);
     }
-  };
+  }, [workspaceId]);
 
   // Load initial notifications from the server
   useEffect(() => {
@@ -105,7 +106,7 @@ export function useNotifications(
   }, [workspaceId]);
 
   useEffect(() => {
-    if (!workspaceChannel) return;
+    if (!workspaceNotificationChannel) return;
 
     // Workspace notifications
     const handleWorkspaceUpdate = (data: any) => {
@@ -183,6 +184,26 @@ export function useNotifications(
           name: data.member?.name || 'A user',
           avatar:
             data.member?.image || '/images/placeholder.svg?height=32&width=32',
+        },
+        timestamp: 'Just now',
+        read: false,
+      };
+      addNotification(notification);
+    };
+
+    // New handler for member-leaved event
+    const handleMemberLeaved = (userId: string) => {
+      const notification: UINotification = {
+        id: `member-leaved-${Date.now()}`,
+        type: 'member',
+        activityType: 'member_leave',
+        message: formatNotificationMessage(
+          'MEMBER_LEAVE',
+          'A user' // We don't have the name in the payload
+        ),
+        user: {
+          name: 'A user',
+          avatar: '/images/placeholder.svg?height=32&width=32',
         },
         timestamp: 'Just now',
         read: false,
@@ -318,13 +339,14 @@ export function useNotifications(
         activityType: 'content_update',
         message: formatNotificationMessage(
           'DOCUMENT_CONTENT_UPDATE',
-          data.editorName || 'A user',
+          data.editedBy?.name || 'A user',
           data.documentName
         ),
         user: {
-          name: data.editorName || 'A user',
+          name: data.editedBy?.name || 'A user',
           avatar:
-            data.editorAvatar || '/images/placeholder.svg?height=32&width=32',
+            data.editedBy?.image ||
+            '/images/placeholder.svg?height=32&width=32',
         },
         documentName: data.documentName || 'Document',
         timestamp: 'Just now',
@@ -436,48 +458,101 @@ export function useNotifications(
     };
 
     // Subscribe to workspace events
-    workspaceChannel.bind('workspace-updated', handleWorkspaceUpdate);
-    workspaceChannel.bind('member-added', handleMemberAdded);
-    workspaceChannel.bind('member-updated', handleMemberUpdated);
-    workspaceChannel.bind('member-removed', handleMemberRemoved);
-    workspaceChannel.bind('invitation-created', handleInvitationCreated);
-    workspaceChannel.bind('invitation-revoked', handleInvitationRevoked);
-    workspaceChannel.bind('document-added', handleDocumentAdded);
-    workspaceChannel.bind('document-updated', handleDocumentUpdated);
-    workspaceChannel.bind('document-removed', handleDocumentRemoved);
-    workspaceChannel.bind(
+    workspaceNotificationChannel.bind(
+      'workspace-updated',
+      handleWorkspaceUpdate
+    );
+    workspaceNotificationChannel.bind('member-added', handleMemberAdded);
+    workspaceNotificationChannel.bind('member-updated', handleMemberUpdated);
+    workspaceNotificationChannel.bind('member-removed', handleMemberRemoved);
+    workspaceNotificationChannel.bind('member-leaved', handleMemberLeaved);
+    workspaceNotificationChannel.bind(
+      'invitation-added',
+      handleInvitationCreated
+    );
+    workspaceNotificationChannel.bind(
+      'invitation-removed',
+      handleInvitationRevoked
+    );
+    workspaceNotificationChannel.bind('document-added', handleDocumentAdded);
+    workspaceNotificationChannel.bind(
+      'document-updated',
+      handleDocumentUpdated
+    );
+    workspaceNotificationChannel.bind(
+      'document-removed',
+      handleDocumentRemoved
+    );
+    workspaceNotificationChannel.bind(
       'document-content-updated',
       handleDocumentContentUpdated
     );
-    workspaceChannel.bind('meeting-created', handleMeetingCreated);
-    workspaceChannel.bind('meeting-updated', handleMeetingUpdated);
-    workspaceChannel.bind('meeting-removed', handleMeetingRemoved);
-    workspaceChannel.bind('notification-created', handleNotificationCreated);
+    workspaceNotificationChannel.bind('meeting-created', handleMeetingCreated);
+    workspaceNotificationChannel.bind('meeting-updated', handleMeetingUpdated);
+    workspaceNotificationChannel.bind('meeting-removed', handleMeetingRemoved);
+    workspaceNotificationChannel.bind(
+      'notification-created',
+      handleNotificationCreated
+    );
 
     // Cleanup function
     return () => {
-      workspaceChannel.unbind('workspace-updated', handleWorkspaceUpdate);
-      workspaceChannel.unbind('member-added', handleMemberAdded);
-      workspaceChannel.unbind('member-updated', handleMemberUpdated);
-      workspaceChannel.unbind('member-removed', handleMemberRemoved);
-      workspaceChannel.unbind('invitation-created', handleInvitationCreated);
-      workspaceChannel.unbind('invitation-revoked', handleInvitationRevoked);
-      workspaceChannel.unbind('document-added', handleDocumentAdded);
-      workspaceChannel.unbind('document-updated', handleDocumentUpdated);
-      workspaceChannel.unbind('document-removed', handleDocumentRemoved);
-      workspaceChannel.unbind(
+      workspaceNotificationChannel.unbind(
+        'workspace-updated',
+        handleWorkspaceUpdate
+      );
+      workspaceNotificationChannel.unbind('member-added', handleMemberAdded);
+      workspaceNotificationChannel.unbind(
+        'member-updated',
+        handleMemberUpdated
+      );
+      workspaceNotificationChannel.unbind(
+        'member-removed',
+        handleMemberRemoved
+      );
+      workspaceNotificationChannel.unbind('member-leaved', handleMemberLeaved);
+      workspaceNotificationChannel.unbind(
+        'invitation-added',
+        handleInvitationCreated
+      );
+      workspaceNotificationChannel.unbind(
+        'invitation-removed',
+        handleInvitationRevoked
+      );
+      workspaceNotificationChannel.unbind(
+        'document-added',
+        handleDocumentAdded
+      );
+      workspaceNotificationChannel.unbind(
+        'document-updated',
+        handleDocumentUpdated
+      );
+      workspaceNotificationChannel.unbind(
+        'document-removed',
+        handleDocumentRemoved
+      );
+      workspaceNotificationChannel.unbind(
         'document-content-updated',
         handleDocumentContentUpdated
       );
-      workspaceChannel.unbind('meeting-created', handleMeetingCreated);
-      workspaceChannel.unbind('meeting-updated', handleMeetingUpdated);
-      workspaceChannel.unbind('meeting-removed', handleMeetingRemoved);
-      workspaceChannel.unbind(
+      workspaceNotificationChannel.unbind(
+        'meeting-created',
+        handleMeetingCreated
+      );
+      workspaceNotificationChannel.unbind(
+        'meeting-updated',
+        handleMeetingUpdated
+      );
+      workspaceNotificationChannel.unbind(
+        'meeting-removed',
+        handleMeetingRemoved
+      );
+      workspaceNotificationChannel.unbind(
         'notification-created',
         handleNotificationCreated
       );
     };
-  }, [workspaceChannel]);
+  }, [workspaceNotificationChannel]);
 
   return {
     notifications,

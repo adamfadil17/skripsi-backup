@@ -269,7 +269,7 @@ export async function POST(
 
     // Trigger Pusher event on the workspace channel
     await pusherServer.trigger(
-      `workspace-${workspaceId}`,
+      `notification-${workspaceId}`,
       'notification-created',
       notificationData
     );
