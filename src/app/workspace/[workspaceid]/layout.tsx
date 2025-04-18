@@ -1,11 +1,10 @@
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
-import { SidebarProvider } from '@/components/ui/sidebar';
-import { PusherChannelProvider } from './components/PusherChannelProvider';
 import type { ReactNode } from 'react';
 import { notFound } from 'next/navigation';
 import prisma from '@/lib/prismadb';
-import TopbarWorkspace from './components/TopbarWorkspace';
-import WorkspaceSidebar from './components/WorkspaceSidebar';
+import WorkspaceWrapper from './components/WorkspaceWrapper';
+import { getUserWorkspaces } from '@/app/actions/getUserWorkspaces';
+import { UserWorkspace } from '@/types/types';
 
 interface WorkspaceLayoutProps {
   children: ReactNode;
@@ -37,27 +36,14 @@ export default async function WorkspaceLayout({
     return notFound();
   }
 
+  const workspaces: UserWorkspace[] = await getUserWorkspaces(currentUser!);
+
   return (
-    <SidebarProvider>
-      <div className="flex w-full min-h-screen overflow-hidden">
-        <PusherChannelProvider channelName={`workspace-${workspaceId}`}>
-          <WorkspaceSidebar
-            workspaceId={workspaceId}
-            currentUser={currentUser}
-          />
-        </PusherChannelProvider>
-        <div className="flex flex-col flex-1 min-w-0">
-          <PusherChannelProvider channelName={`notification-${workspaceId}`}>
-            <TopbarWorkspace
-              currentUser={currentUser}
-              workspaceId={workspaceId}
-            />
-          </PusherChannelProvider>
-          <PusherChannelProvider channelName={`workspace-${workspaceId}`}>
-            <main className="flex-1 p-6 overflow-auto">{children}</main>
-          </PusherChannelProvider>
-        </div>
-      </div>
-    </SidebarProvider>
+    <WorkspaceWrapper
+      currentUser={currentUser}
+      workspaceId={workspaceId}
+      workspaces={workspaces}
+      children={children}
+    />
   );
 }

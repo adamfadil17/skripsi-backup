@@ -4,8 +4,6 @@ import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
-import SidebarNav from './SidebarNav';
-import LoadingScreen from './LoadingScreen';
 import type { User } from '@prisma/client';
 import type {
   WorkspaceInfo,
@@ -13,17 +11,8 @@ import type {
   WorkspaceDocument,
   WorkspaceInvitation,
 } from '@/types/types';
-import { notFound } from 'next/navigation';
 
-interface WorkspaceSidebarProps {
-  workspaceId: string;
-  currentUser: User;
-}
-
-export default function WorkspaceSidebar({
-  workspaceId,
-  currentUser,
-}: WorkspaceSidebarProps) {
+export function useWorkspaceData(workspaceId: string, currentUser: User) {
   const [isLoading, setIsLoading] = useState(true);
   const [workspaceInfo, setWorkspaceInfo] = useState<WorkspaceInfo | null>(
     null
@@ -35,16 +24,12 @@ export default function WorkspaceSidebar({
   const [isAdmin, setIsAdmin] = useState(false);
   const router = useRouter();
 
-  // Fetch members
   const fetchMembers = useCallback(async () => {
-    if (!workspaceId) return;
-
     try {
       const response = await axios.get(`/api/workspace/${workspaceId}/member`);
       if (response.data.status === 'success') {
         setMembers(response.data.data.members);
 
-        // Determine user role from members list
         const currentMember = response.data.data.members.find(
           (member: WorkspaceMember) => member.user.id === currentUser.id
         );
@@ -59,10 +44,7 @@ export default function WorkspaceSidebar({
     }
   }, [workspaceId, currentUser.id]);
 
-  // Fetch documents
   const fetchDocuments = useCallback(async () => {
-    if (!workspaceId) return;
-
     try {
       const response = await axios.get(
         `/api/workspace/${workspaceId}/document`
@@ -76,13 +58,10 @@ export default function WorkspaceSidebar({
   }, [workspaceId]);
 
   const fetchInvitations = useCallback(async () => {
-    if (!workspaceId) return;
-
     try {
       const response = await axios.get(
         `/api/workspace/${workspaceId}/invitation`
       );
-
       if (response.data.status === 'success') {
         setInvitations(response.data.data.invitations);
       }
@@ -116,7 +95,7 @@ export default function WorkspaceSidebar({
         await fetchDocuments();
         await fetchInvitations();
       } catch (error) {
-        console.error('Error fetching data:', error);
+        console.error('Error fetching workspace data:', error);
       } finally {
         setIsLoading(false);
       }
@@ -125,24 +104,13 @@ export default function WorkspaceSidebar({
     fetchAllData();
   }, [fetchWorkspaceInfo, fetchMembers, fetchDocuments, fetchInvitations]);
 
-  if (isLoading) {
-    return <LoadingScreen />;
-  }
-
-  if (!workspaceInfo) {
-    return notFound(); // This should not happen as we redirect on error, but just in case
-  }
-
-  return (
-    <SidebarNav
-      workspaceId={workspaceId}
-      currentUser={currentUser}
-      initialWorkspaceInfo={workspaceInfo}
-      initialMembers={members}
-      initialDocuments={documents}
-      initialInvitations={invitations}
-      isSuperAdmin={isSuperAdmin}
-      isAdmin={isAdmin}
-    />
-  );
+  return {
+    isLoading,
+    workspaceInfo,
+    members,
+    documents,
+    invitations,
+    isSuperAdmin,
+    isAdmin,
+  };
 }

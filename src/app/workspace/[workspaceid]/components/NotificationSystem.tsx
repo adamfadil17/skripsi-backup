@@ -20,6 +20,7 @@ import {
   isDocumentFilterNotification,
 } from '@/lib/notification';
 import { useNotifications } from '@/hooks/use-notifications';
+import { Badge } from '@/components/ui/badge';
 
 interface NotificationSystemProps {
   trigger?: React.ReactNode;
@@ -33,8 +34,8 @@ const NotificationSystem = ({
   onMarkAllAsRead,
 }: NotificationSystemProps) => {
   const [filter, setFilter] = useState<NotificationType | 'all'>('all');
-  const { notifications, markAllAsRead } = useNotifications(workspaceId);
   const [isOpen, setIsOpen] = useState(false);
+  const { notifications, markAllAsRead } = useNotifications(workspaceId);
 
   const filteredNotifications = notifications.filter((notification) => {
     if (filter === 'all') return true;
@@ -63,12 +64,12 @@ const NotificationSystem = ({
   };
 
   const defaultTrigger = (
-    <Button variant="outline" size="icon" className="relative">
+    <Button variant="ghost" size="icon" className="relative">
       <Bell className="h-5 w-5" />
       {hasUnread && (
-        <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 text-[10px] font-medium text-white flex items-center justify-center">
-          {unreadCount}
-        </span>
+        <Badge className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center">
+          {unreadCount > 99 ? '99+' : unreadCount}
+        </Badge>
       )}
     </Button>
   );

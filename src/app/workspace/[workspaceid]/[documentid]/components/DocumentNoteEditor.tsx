@@ -399,7 +399,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     return newData;
   }
 
-  return <div id="editorjs" className="flex w-full flex-1"></div>;
+  return <div id="editorjs" className="prose max-w-none w-full"></div>;
 };
 
 export default DocumentNoteEditor;

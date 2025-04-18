@@ -23,7 +23,8 @@ h6.ce-header {
 
 .ce-block__content,
 .ce-toolbar__content {
-  max-width: 1050px; /* example value, adjust for your own use case */
+  /* max-width: 1050px; example value, adjust for your own use case */
+  max-width: 100%; /* example value, adjust for your own use case */
 }
 
 @layer base {
@@ -109,15 +110,6 @@ body {
   font-family: var(--font-inter);
 }
 
-/* @layer base {
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
-} */
-
 .overflow-hidden {
   overflow: hidden !important;
 }
@@ -171,5 +163,15 @@ body {
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@media (max-width: 640px) {
+  .prose {
+    font-size: 0.9rem;
+  }
+
+  .ce-header {
+    font-size: 1.3rem;
   }
 }

@@ -1,20 +1,34 @@
+import { getCurrentUser } from '@/app/actions/getCurrentUser';
+import prisma from '@/lib/prismadb';
+import { notFound } from 'next/navigation';
 import DocumentWrapper from './components/DocumentWrapper';
 
 interface DocumentPageProps {
-  params: {
-    workspaceid: string;
-    documentid: string;
-  };
+  params: { workspaceid: string; documentid: string };
 }
 
-const DocumentPage = ({ params }: DocumentPageProps) => {
-  const { workspaceid, documentid } = params;
+export default async function DocumentPage({ params }: DocumentPageProps) {
+  const workspaceId = params.workspaceid;
+  const documentId = params.documentid;
 
-  return (
-    <div className="h-full">
-      <DocumentWrapper workspaceId={workspaceid} documentId={documentid} />
-    </div>
-  );
-};
+  const currentUser = await getCurrentUser();
 
-export default DocumentPage;
+  if (!currentUser) {
+    return notFound();
+  }
+
+  const currentMember = await prisma.workspaceMember.findUnique({
+    where: {
+      userId_workspaceId: {
+        userId: currentUser.id,
+        workspaceId,
+      },
+    },
+  });
+
+  if (!currentMember) {
+    return notFound();
+  }
+
+  return <DocumentWrapper workspaceId={workspaceId} documentId={documentId} />;
+}

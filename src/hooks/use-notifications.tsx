@@ -17,6 +17,20 @@ export function useNotifications(
 
   const { channel: workspaceNotificationChannel } = usePusherChannelContext();
 
+  const markAllAsRead = useCallback(async () => {
+    try {
+      // Call API to mark all notifications as read
+      await axios.patch(`/api/workspace/${workspaceId}/notification`, {
+        markAllAsRead: true,
+      });
+
+      // Update local state immediately
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+    }
+  }, [workspaceId]);
+
   // Function to add a new notification
   const addNotification = (notification: UINotification) => {
     setNotifications((prev) => [notification, ...prev]);
@@ -38,22 +52,7 @@ export function useNotifications(
       console.error('Error marking notification as read:', error);
     }
   };
-
-  // Function to mark all notifications as read
-  const markAllAsRead = useCallback(async () => {
-    try {
-      // Call API to mark all notifications as read
-      await axios.patch(`/api/workspace/${workspaceId}/notification`, {
-        markAllAsRead: true,
-      });
-
-      // Update local state immediately
-      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-    } catch (error) {
-      console.error('Error marking all notifications as read:', error);
-    }
-  }, [workspaceId]);
-
+  
   // Load initial notifications from the server
   useEffect(() => {
     const fetchNotifications = async () => {
