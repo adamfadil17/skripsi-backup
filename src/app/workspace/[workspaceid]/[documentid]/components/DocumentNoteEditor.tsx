@@ -14,9 +14,12 @@ import Table from '@editorjs/table';
 import List from '@editorjs/list';
 import Checklist from '@editorjs/checklist';
 import CodeTool from '@editorjs/code';
+import Undo from 'editorjs-undo';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { usePusherChannelContext } from '../../components/PusherChannelProvider';
+import { UndoIcon, RedoIcon } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface DocumentNoteEditorProps {
   workspaceId: string;
@@ -33,6 +36,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
   const userEmail = session?.user?.email; // Use email instead of ID
 
   const editorRef = useRef<EditorJS | null>(null);
+  const undoRef = useRef<any>(null);
   const isFetchedRef = useRef(false);
   const hasInitialized = useRef(false);
   const prevModelResponseRef = useRef<any>(null);
@@ -136,6 +140,20 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     }
   }, [workspaceId, documentId]);
 
+  // Handle undo action
+  const handleUndo = useCallback(() => {
+    if (undoRef.current) {
+      undoRef.current.undo();
+    }
+  }, []);
+
+  // Handle redo action
+  const handleRedo = useCallback(() => {
+    if (undoRef.current) {
+      undoRef.current.redo();
+    }
+  }, []);
+
   const initEditor = useCallback(() => {
     if (!hasInitialized.current) {
       hasInitialized.current = true;
@@ -145,6 +163,23 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
           debouncedSave();
         },
         onReady: () => {
+          // Initialize Undo plugin after editor is ready
+          if (editorRef.current) {
+            undoRef.current = new Undo({ editor: editorRef.current });
+
+            // Add keyboard shortcuts for undo/redo
+            document.addEventListener('keydown', (e) => {
+              if (e.ctrlKey || e.metaKey) {
+                if (e.key === 'z') {
+                  e.preventDefault();
+                  undoRef.current.undo();
+                } else if (e.key === 'y' || (e.shiftKey && e.key === 'z')) {
+                  e.preventDefault();
+                  undoRef.current.redo();
+                }
+              }
+            });
+          }
           getDocumentOutput();
         },
         holder: 'editorjs',
@@ -213,6 +248,11 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
             // Apply content update
             await editorRef.current.render(data.content);
             lastSavedContentRef.current = JSON.stringify(data.content);
+
+            // When receiving collaborative updates, we need to update the undo/redo history
+            if (undoRef.current) {
+              undoRef.current.updateStack();
+            }
 
             // Delay scroll or caret focus update to ensure smooth rendering
             setTimeout(() => {
@@ -328,6 +368,11 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
 
         await editorRef.current.render(updatedContent);
 
+        // Update undo stack after appending model response
+        if (undoRef.current) {
+          undoRef.current.updateStack();
+        }
+
         setTimeout(() => {
           if (editorRef.current) {
             const lastBlockIndex = updatedContent.blocks.length - 1;
@@ -347,6 +392,15 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     if (session) {
       initEditor();
     }
+
+    // Cleanup function to remove event listeners
+    return () => {
+      document.removeEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'y')) {
+          e.preventDefault();
+        }
+      });
+    };
   }, [session, initEditor]);
 
   useEffect(() => {

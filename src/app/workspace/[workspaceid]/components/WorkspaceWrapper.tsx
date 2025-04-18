@@ -10,10 +10,7 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar';
 import { AppSidebar } from './AppSidebar';
-import { Separator } from '@/components/ui/separator';
-import { Button } from '@/components/ui/button';
-import { Bell, ChevronDown, LogOut } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { ChevronDown, LogOut } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,17 +19,15 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { PusherChannelProvider } from './PusherChannelProvider';
-import { useNotifications } from '@/hooks/use-notifications';
-import { useEffect, useState } from 'react';
-import NotificationSystem from './NotificationSystem';
 import { signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { UserWorkspace } from '@/types/types';
+import NotificationWrapper from './workspacesettings/NotificationWrapper';
 
 interface WorkspaceWrapperProps {
   workspaceId: string;
   currentUser: User;
-  workspaces: UserWorkspace[]
+  workspaces: UserWorkspace[];
   children: React.ReactNode;
 }
 
@@ -54,39 +49,13 @@ export default function WorkspaceWrapper({
     isAdmin,
   } = useWorkspaceData(workspaceId, currentUser);
 
-  const { notifications, markAllAsRead } = useNotifications(workspaceId);
-  const [unreadCount, setUnreadCount] = useState(0);
-
-  // Update unread count whenever notifications change
-  useEffect(() => {
-    const count = notifications.filter(
-      (notification) => !notification.read
-    ).length;
-    setUnreadCount(count);
-  }, [notifications]);
-
   const handleSignOut = async () => {
     await signOut({ redirect: false });
     route.push('/');
   };
-  // Handler for when notifications are marked as read
-  const handleNotificationsRead = () => {
-    setUnreadCount(0);
-  };
 
   if (isLoading) return <LoadingScreen />;
   if (!workspaceInfo) return notFound();
-
-  const notificationTrigger = (
-    <Button variant="ghost" size="icon" className="relative">
-      <Bell className="h-5 w-5" />
-      {unreadCount > 0 && (
-        <Badge className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center">
-          {unreadCount > 99 ? '99+' : unreadCount}
-        </Badge>
-      )}
-    </Button>
-  );
 
   return (
     <SidebarProvider className="flex h-screen w-full overflow-hidden">
@@ -113,10 +82,9 @@ export default function WorkspaceWrapper({
           <div className="flex items-center gap-4">
             {/* Notifications */}
             <PusherChannelProvider channelName={`notification-${workspaceId}`}>
-              <NotificationSystem
+              <NotificationWrapper
                 workspaceId={workspaceId}
-                trigger={notificationTrigger}
-                onMarkAllAsRead={handleNotificationsRead}
+                currentUser={currentUser}
               />
             </PusherChannelProvider>
 

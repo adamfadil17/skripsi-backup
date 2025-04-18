@@ -1,67 +1,68 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import type React from 'react';
+
+import { useState, useEffect, useCallback } from 'react';
+import { Bell, Settings, MoreVertical, Loader2 } from 'lucide-react';
+import axios from 'axios';
+import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
+import Image from 'next/image';
+import toast from 'react-hot-toast';
+
+// UI Components
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
-  Check,
-  ChevronsUpDown,
-  Settings,
-  MoreVertical,
-  Loader2,
-} from 'lucide-react';
+  Sidebar,
+  SidebarHeader,
+  SidebarContent,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarFooter,
+  SidebarRail,
+} from '@/components/ui/sidebar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
-import { ScrollArea } from '@/components/ui/scroll-area';
-
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarRail,
-  SidebarGroup,
-  SidebarGroupContent,
-} from '@/components/ui/sidebar';
 
 // Icons
+import { FaPlus } from 'react-icons/fa6';
 import { PiVideoConference } from 'react-icons/pi';
 import { GrGroup } from 'react-icons/gr';
 import { MdManageAccounts } from 'react-icons/md';
 import { LuNotebookPen, LuNotebookTabs } from 'react-icons/lu';
-import { FaPlus } from 'react-icons/fa';
 
+// Components
+import MeetingDialog from './MeetingDialog';
+import NotificationSystem from './NotificationSystem';
+import { DeleteDocument } from '@/app/workspace/[workspaceid]/[documentid]/components/DeleteDocument';
+import WorkspaceSettingsDialog from './workspacesettings/WorkspaceSettingsDialog';
+
+// Types
 import type {
   WorkspaceInfo,
   WorkspaceMember,
   WorkspaceDocument,
   WorkspaceInvitation,
-  UserWorkspace,
 } from '@/types/types';
 import type { User } from '@prisma/client';
-import Image from 'next/image';
-import toast from 'react-hot-toast';
-import axios from 'axios';
-import { useParams, useRouter } from 'next/navigation';
-import { usePusherChannelContext } from './PusherChannelProvider';
-import MeetingDialog from './MeetingDialog';
-import WorkspaceSettingsDialog from './workspacesettings/WorkspaceSettingsDialog';
-import { DeleteDocument } from '../[documentid]/components/DeleteDocument';
-import Link from 'next/link';
 
-interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
+// Pusher
+import { usePusherChannelContext } from './PusherChannelProvider';
+
+interface SidebarNavProps {
   workspaceId: string;
   currentUser: User;
-  workspaces: UserWorkspace[];
   initialWorkspaceInfo?: WorkspaceInfo;
   initialMembers: WorkspaceMember[];
   initialDocuments: WorkspaceDocument[];
@@ -70,22 +71,18 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   isAdmin: boolean;
 }
 
-export function AppSidebar({
+const SidebarNav = ({
   workspaceId,
   currentUser,
-  workspaces,
   initialWorkspaceInfo,
   initialMembers,
   initialDocuments,
   initialInvitations,
   isSuperAdmin,
   isAdmin,
-  ...props
-}: AppSidebarProps) {
+}: SidebarNavProps) => {
   const router = useRouter();
   const params = useParams<{ documentid: string }>();
-  const [selectedWorkspace, setSelectedWorkspace] =
-    useState<UserWorkspace | null>(null);
   const [loading, setLoading] = useState(false);
   const [members, setMembers] = useState<WorkspaceMember[]>(initialMembers);
   const [documents, setDocuments] =
@@ -97,35 +94,6 @@ export function AppSidebar({
   );
 
   const { channel: workspaceChannel } = usePusherChannelContext();
-
-  useEffect(() => {
-    if (workspaces.length > 0) {
-      const currentWorkspace = workspaces.find(
-        (w) => w.id === workspaceInfo?.id
-      );
-
-      if (currentWorkspace) {
-        // If we find the current workspace in the list, use it but update with live workspaceInfo
-        setSelectedWorkspace({
-          ...currentWorkspace,
-          name: workspaceInfo?.name || currentWorkspace.name,
-          emoji: workspaceInfo?.emoji || currentWorkspace.emoji,
-        });
-      } else {
-        setSelectedWorkspace(workspaces[0]);
-      }
-    } else if (workspaceInfo) {
-      // Fallback to the provided workspaceInfo if no workspaces are available
-      setSelectedWorkspace({
-        id: workspaceInfo.id || '',
-        name: workspaceInfo.name || '',
-        emoji: workspaceInfo.emoji || '',
-        coverImage: '',
-        documentCount: 0,
-        members: [],
-      });
-    }
-  }, [workspaces, workspaceInfo]); // Depend on both workspaces and workspaceInfo
 
   // Set up Pusher event listeners
   useEffect(() => {
@@ -282,93 +250,37 @@ export function AppSidebar({
     return null;
   }
 
-  const handleWorkspaceChange = (workspace: UserWorkspace) => {
-    setSelectedWorkspace(workspace);
-    // Navigate to the selected workspace with the current document
-    router.push(`/workspace/${workspace.id}`);
-  };
-
   return (
     <Sidebar
-      {...props}
-      className="border-r border-gray-100 z-50 shrink-0 md:flex"
-      collapsible="offcanvas"
       variant="sidebar"
+      collapsible="offcanvas"
+      className="border-r border-gray-200 z-20 shrink-0"
+      style={
+        {
+          '--sidebar-width': '260px',
+          '--sidebar-width-mobile': '260px',
+        } as React.CSSProperties
+      }
     >
       <SidebarHeader className="px-4 mt-2">
-        {/* Logo and App Name */}
         <Link
-          href="/dashboard"
-          className="flex items-center gap-2 px-2 cursor-pointer mb-4"
+          href={`/dashboard`}
+          className="flex items-center gap-2 px-2 cursor-pointer"
         >
           <Image src={'/images/logo.png'} alt="logo" width={32} height={32} />
           <div>
             <h2 className="text-lg font-semibold">Catatan Cerdas</h2>
           </div>
         </Link>
-
-        {/* Version Switcher */}
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <SidebarMenuButton
-                  size="lg"
-                  className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-                >
-                  <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                    <span className="font-bold">
-                      {selectedWorkspace?.emoji || workspaceInfo.emoji}
-                    </span>
-                  </div>
-                  <div className="flex flex-col gap-0.5 leading-none">
-                    <span className="font-semibold truncate">
-                      {selectedWorkspace?.name || workspaceInfo.name}
-                    </span>
-                    <span className="text-xs text-sidebar-foreground/70">
-                      {documents.length || 0} documents
-                    </span>
-                  </div>
-                  <ChevronsUpDown className="ml-auto size-4" />
-                </SidebarMenuButton>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                className="w-[--radix-dropdown-menu-trigger-width]"
-                align="start"
-              >
-                {workspaces.length > 0 ? (
-                  workspaces.map((workspace) => (
-                    <DropdownMenuItem
-                      key={workspace.id}
-                      onSelect={() => handleWorkspaceChange(workspace)}
-                      className="cursor-pointer"
-                    >
-                      <div className="flex items-center gap-2 w-full">
-                        <span>{workspace.emoji}</span>
-                        <span className="truncate">
-                          {workspace.id === workspaceId
-                            ? selectedWorkspace?.name
-                            : workspace.name}
-                        </span>
-                        {workspace.id === selectedWorkspace?.id && (
-                          <Check className="ml-auto size-4" />
-                        )}
-                      </div>
-                    </DropdownMenuItem>
-                  ))
-                ) : (
-                  <DropdownMenuItem disabled>
-                    No workspaces available
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </SidebarMenuItem>
-        </SidebarMenu>
+        <div className="mt-4 px-2">
+          <h3 className="text-sm text-muted-foreground mb-1">Workspace</h3>
+          <p className="font-semibold line-clamp-2 text-ellipsis overflow-hidden">
+            {workspaceInfo?.emoji} {workspaceInfo?.name}
+          </p>
+        </div>
       </SidebarHeader>
 
-      <SidebarContent className="px-4 flex flex-col flex-1">
-        {/* Meeting Section */}
+      <SidebarContent className="px-4 hidden-scrollbar">
         <SidebarMenu>
           <SidebarMenuItem className="my-1">
             <MeetingDialog
@@ -387,7 +299,7 @@ export function AppSidebar({
                     height: '28px',
                     alignItems: 'center',
                   }}
-                  variant="secondary"
+                  variant="default"
                   className="justify-center bg-gray-50 text-gray-500 border-gray-300 rounded-lg hover:bg-gray-50"
                 >
                   10
@@ -398,11 +310,12 @@ export function AppSidebar({
           <Separator />
         </SidebarMenu>
 
-        {/* Accounts Section */}
         <SidebarGroup className="py-0 px-0 my-0 mx-0">
           <SidebarMenuItem className="flex w-full justify-between py-2 px-2 mb-1">
             <div className="flex items-center gap-2">
-              <GrGroup className="h-5 w-5" />
+              <span>
+                <GrGroup className="h-5 w-5" />
+              </span>
               <span>Accounts</span>
             </div>
             <WorkspaceSettingsDialog
@@ -414,7 +327,7 @@ export function AppSidebar({
               initialMembers={members}
               initialInvitations={invitations}
             >
-              <Button size="sm" className="w-6 h-6">
+              <Button size={'sm'} className="w-6 h-6 ">
                 <MdManageAccounts className="h-3 w-3" />
               </Button>
             </WorkspaceSettingsDialog>
@@ -431,7 +344,9 @@ export function AppSidebar({
                     <div className="flex items-center gap-2 max-w-[120px]">
                       <Avatar className="h-6 w-6 flex-shrink-0">
                         <AvatarImage
-                          src={member.user.image || '/placeholder.svg'}
+                          src={
+                            member.user.image || '/images/avatarplaceholder.png'
+                          }
                           alt={member.user.name || 'avatar'}
                         />
                         <AvatarFallback>
@@ -464,8 +379,7 @@ export function AppSidebar({
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Documents Section */}
-        <SidebarGroup className="py-0 px-0 my-0 mx-0 flex flex-col flex-1">
+        <SidebarGroup className="py-0 px-0 my-0 mx-0">
           <SidebarMenuItem className="flex w-full justify-between py-2 px-2 mb-1">
             <div className="flex items-center gap-2">
               <LuNotebookTabs className="h-5 w-5" />
@@ -485,59 +399,59 @@ export function AppSidebar({
             </Button>
           </SidebarMenuItem>
           <Separator />
-          <SidebarGroupContent className="py-2 px-0 flex flex-1">
-            <ScrollArea className="flex-1 h-full">
+          <SidebarGroupContent className="py-2 px-0">
+            <ScrollArea className="h-[220px]">
               <SidebarMenu>
                 {documents.map((document) => (
-                  <SidebarMenuItem key={document.id}>
-                    <Link
-                      href={`/workspace/${workspaceId}/${document.id}`}
-                      className="w-full"
+                  <SidebarMenuItem
+                    key={document.id}
+                    onClick={() =>
+                      router.push(`/workspace/${workspaceId}/${document.id}`)
+                    }
+                  >
+                    <SidebarMenuButton
+                      className={`w-full justify-between group hover:bg-accent hover:text-accent-foreground py-5 ${
+                        document.id === params?.documentid &&
+                        'w-full bg-gray-200 hover:bg-gray-200'
+                      }`}
                     >
-                      <SidebarMenuButton
-                        className={`w-full justify-between group hover:bg-accent hover:text-accent-foreground py-5 ${
-                          document.id === params?.documentid &&
-                          'w-full bg-gray-200 hover:bg-gray-200'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 max-w-[160px]">
-                          {document.emoji ? (
-                            <span>{document.emoji}</span>
-                          ) : (
-                            <LuNotebookPen className="h-5 w-5 flex-shrink-0" />
-                          )}
-                          <span className="truncate">{document.title}</span>
-                        </div>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <div
-                              className="h-7 w-7 rounded-md p-1"
-                              onClick={(e) => e.stopPropagation()}
+                      <div className="flex items-center gap-2 max-w-[160px]">
+                        {document.emoji ? (
+                          document.emoji
+                        ) : (
+                          <LuNotebookPen className="h-5 w-5 flex-shrink-0" />
+                        )}
+                        <span className="truncate">{document.title}</span>
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <div
+                            className="h-7 w-7 rounded-md p-1"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <MoreVertical className="h-full w-full" />
+                          </div>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" side="right">
+                          <DropdownMenuItem className="cursor-pointer">
+                            Rename
+                          </DropdownMenuItem>
+                          <DeleteDocument
+                            workspaceId={workspaceId}
+                            document={document}
+                          >
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive focus:bg-red-50 cursor-pointer"
+                              onSelect={(e) => {
+                                e.preventDefault();
+                              }}
                             >
-                              <MoreVertical className="h-full w-full" />
-                            </div>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="start" side="right">
-                            <DropdownMenuItem className="cursor-pointer">
-                              Share
+                              Delete
                             </DropdownMenuItem>
-                            <DeleteDocument
-                              workspaceId={workspaceId}
-                              document={document}
-                            >
-                              <DropdownMenuItem
-                                className="text-destructive focus:text-destructive focus:bg-red-50 cursor-pointer"
-                                onSelect={(e) => {
-                                  e.preventDefault();
-                                }}
-                              >
-                                Delete
-                              </DropdownMenuItem>
-                            </DeleteDocument>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </SidebarMenuButton>
-                    </Link>
+                          </DeleteDocument>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))}
               </SidebarMenu>
@@ -568,4 +482,6 @@ export function AppSidebar({
       <SidebarRail />
     </Sidebar>
   );
-}
+};
+
+export default SidebarNav;
