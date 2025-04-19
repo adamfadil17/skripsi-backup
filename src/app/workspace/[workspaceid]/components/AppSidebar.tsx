@@ -291,7 +291,7 @@ export function AppSidebar({
   return (
     <Sidebar
       {...props}
-      className="border-r border-gray-100 z-50 shrink-0 md:flex"
+      className="border-r border-gray-100 z-99 shrink-0 md:flex"
       collapsible="offcanvas"
       variant="sidebar"
     >

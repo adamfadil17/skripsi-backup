@@ -208,7 +208,7 @@ export function WorkspaceAccountsSettings() {
         await axios.delete(
           `/api/workspace/${workspaceInfo.id}/member/${userId}`
         );
-        // toast.success('User removed successfully.');
+        toast.success('User removed successfully.');
         // No need to manually refresh since Pusher will handle it
       } catch (error: any) {
         toast.error(error.response?.data?.message || 'Failed to remove user.');
@@ -269,7 +269,7 @@ export function WorkspaceAccountsSettings() {
           userId,
           newRole,
         });
-        // toast.success('User role updated successfully');
+        toast.success('User role updated successfully');
         // No need to manually refresh since Pusher will handle it
       } catch (error: any) {
         toast.error(error.response?.data?.message || 'Failed to update role');

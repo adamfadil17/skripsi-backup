@@ -181,7 +181,7 @@ const DocumentWrapper = ({ workspaceId, documentId }: DocumentWrapperProps) => {
       </CoverPickerDialog>
 
       {/* Emoji */}
-      <div className="absolute left-4 md:left-8 lg:left-12 mt-[160px] cursor-pointer">
+      <div className="relative z-10 -mt-14 ml-4 md:ml-8 lg:ml-12 cursor-pointer">
         <EmojiPickerPopover setEmoji={handleEmojiChange} type="document">
           <div className="w-24 flex items-center justify-center bg-[#ffffffb0] p-4 rounded-md shadow-md">
             {emoji ? (
@@ -220,7 +220,7 @@ const DocumentWrapper = ({ workspaceId, documentId }: DocumentWrapperProps) => {
       </div>
 
       {/* Editor Content */}
-      <div className="flex justify-center items-center ml-4 px-4 md:px-8 lg:px-12 w-full">
+      <div className="flex justify-center items-center px-6 md:px-12 lg:px-16 w-full">
         <DocumentNoteEditor
           workspaceId={workspaceId}
           documentId={documentId}

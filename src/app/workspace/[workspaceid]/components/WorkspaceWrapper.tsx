@@ -22,7 +22,7 @@ import { PusherChannelProvider } from './PusherChannelProvider';
 import { signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { UserWorkspace } from '@/types/types';
-import NotificationWrapper from './workspacesettings/NotificationWrapper';
+import NotificationWrapper from './NotificationWrapper';
 
 interface WorkspaceWrapperProps {
   workspaceId: string;
