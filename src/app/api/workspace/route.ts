@@ -123,12 +123,13 @@ export async function POST(req: NextRequest) {
             role: 'SUPER_ADMIN',
           },
         },
-        chat: {
+        conversation: {
           create: {
             messages: {
               create: {
                 body: `Welcome to the ${name} workspace! Start collaborating here.`,
                 senderId: currentUser.id,
+                seenIds: [currentUser.id]
               },
             },
           },
@@ -165,7 +166,11 @@ export async function POST(req: NextRequest) {
       },
       include: {
         members: true,
-        chat: true,
+        conversation: {
+          include: {
+            messages: true
+          }
+        },
         documents: true,
       },
     });

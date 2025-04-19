@@ -23,6 +23,8 @@ import { signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { UserWorkspace } from '@/types/types';
 import NotificationWrapper from './NotificationWrapper';
+import ChatWidget from './ChatWidget';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface WorkspaceWrapperProps {
   workspaceId: string;
@@ -38,6 +40,7 @@ export default function WorkspaceWrapper({
   children,
 }: WorkspaceWrapperProps) {
   const route = useRouter();
+  const isMobile = useIsMobile()
 
   const {
     isLoading,
@@ -129,6 +132,7 @@ export default function WorkspaceWrapper({
           </main>
         </PusherChannelProvider>
       </SidebarInset>
+      <ChatWidget />
     </SidebarProvider>
   );
 }

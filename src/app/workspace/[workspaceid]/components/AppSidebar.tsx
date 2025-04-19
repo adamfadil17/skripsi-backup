@@ -291,7 +291,7 @@ export function AppSidebar({
   return (
     <Sidebar
       {...props}
-      className="border-r border-gray-100 z-99 shrink-0 md:flex"
+      className="border-r border-gray-100 shrink-0 md:flex"
       collapsible="offcanvas"
       variant="sidebar"
     >
@@ -497,7 +497,7 @@ export function AppSidebar({
                       <SidebarMenuButton
                         className={`w-full justify-between group hover:bg-accent hover:text-accent-foreground py-5 ${
                           document.id === params?.documentid &&
-                          'w-full bg-gray-200 hover:bg-gray-200'
+                          'w-full bg-primary text-white hover:bg-primary hover:text-white'
                         }`}
                       >
                         <div className="flex items-center gap-2 max-w-[160px]">

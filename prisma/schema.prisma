@@ -33,6 +33,9 @@ model User {
   meetingAttendees  MeetingAttendee[]
   notificationReads NotificationRead[]
 
+  seenMessageIds String[]  @db.ObjectId
+  seenMessages   Message[] @relation("MessageSeen", fields: [seenMessageIds], references: [id])
+
   createdDocuments Document[] @relation("DocumentCreator")
   updatedDocuments Document[] @relation("DocumentEditor")
 }
@@ -67,7 +70,7 @@ model Workspace {
 
   members       WorkspaceMember[]
   documents     Document[]
-  chat          Conversation?
+  conversation  Conversation?
   invitations   Invitation[]
   notifications Notification[]
   meetings      Meeting[]
@@ -142,25 +145,28 @@ model DocumentContent {
   editedBy User     @relation(fields: [editedById], references: [id], onDelete: Cascade)
 }
 
-// Model Conversation (Group Chat per Workspace)
+// Model Conversation (One group chat per Workspace)
 model Conversation {
-  id          String    @id @default(auto()) @map("_id") @db.ObjectId
-  workspaceId String    @unique @db.ObjectId
-  messages    Message[]
-
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  workspaceId   String    @unique @db.ObjectId // Maintains one-to-one relationship with workspace
+  lastMessageAt DateTime  @default(now()) // For sorting and displaying last activity
+  messages      Message[]
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
-// Model Message
+// Modified Model Message
 model Message {
-  id             String   @id @default(auto()) @map("_id") @db.ObjectId
-  body           String
-  senderId       String   @db.ObjectId
-  conversationId String   @db.ObjectId
-  createdAt      DateTime @default(now())
-
-  sender       User         @relation(fields: [senderId], references: [id])
-  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  body           String? // Optional to allow image-only messages
+  image          String? // Allow images in messages
+  conversationId String       @db.ObjectId
+  senderId       String       @db.ObjectId
+  createdAt      DateTime     @default(now())
+  // Users who have seen this message
+  seenIds        String[]     @db.ObjectId
+  seenBy         User[]       @relation("MessageSeen", fields: [seenIds], references: [id])
+  sender         User         @relation(fields: [senderId], references: [id])
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 }
 
 // Model Notification
@@ -211,6 +217,7 @@ enum NotificationType {
   MEETING_CREATE
   MEETING_UPDATE
   MEETING_DELETE
+  MESSAGE_RECEIVED
 }
 
 // Model Meeting

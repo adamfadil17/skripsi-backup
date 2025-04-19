@@ -1,3 +1,4 @@
+// NotificationSystem.tsx
 'use client';
 
 import type React from 'react';
@@ -19,22 +20,20 @@ import {
   isWorkspaceFilterNotification,
   isDocumentFilterNotification,
 } from '@/lib/notification';
-import { useNotifications } from '@/hooks/use-notifications';
 
 interface NotificationSystemProps {
   trigger?: React.ReactNode;
-  workspaceId: string;
-  onMarkAllAsRead: () => void; // Fungsi ini sekarang akan dipanggil oleh parent
+  notifications: Notification[];
+  onMarkAllAsRead: () => void;
 }
 
 const NotificationSystem = ({
   trigger,
-  workspaceId,
+  notifications,
   onMarkAllAsRead,
 }: NotificationSystemProps) => {
   const [filter, setFilter] = useState<NotificationType | 'all'>('all');
   const [isOpen, setIsOpen] = useState(false);
-  const { notifications } = useNotifications(workspaceId);
 
   const filteredNotifications = notifications.filter((notification) => {
     if (filter === 'all') return true;

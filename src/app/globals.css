@@ -175,3 +175,16 @@ body {
     font-size: 1.3rem;
   }
 }
+
+/* Mobile sidebar styles */
+@media (max-width: 767px) {
+  [data-sidebar='sidebar'][data-mobile='true'] {
+    width: var(--sidebar-width-mobile, 18rem) !important;
+    min-width: var(--sidebar-width-mobile, 18rem) !important;
+  }
+
+  /* Ensure the sheet content is visible */
+  .fixed.inset-0 {
+    z-index: 50;
+  }
+}
