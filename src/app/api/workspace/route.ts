@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prismadb';
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
 import { getUserWorkspaces } from '@/app/actions/getUserWorkspaces';
@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    // Ambil data pengguna saat ini
+    // Get current user
     const currentUser = await getCurrentUser();
 
     if (!currentUser?.id || !currentUser?.email) {
@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Ambil input dari request
+    // Get input from request
     const { name, emoji, coverImage } = await req.json();
 
     if (!name) {
@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Buat Workspace baru beserta dokumen, chat, dan anggota
+    // Create new workspace with document, chat, and member
     const newWorkspace = await prisma.workspace.create({
       data: {
         name,
@@ -129,20 +129,25 @@ export async function POST(req: NextRequest) {
               create: {
                 body: `Welcome to the ${name} workspace! Start collaborating here.`,
                 senderId: currentUser.id,
-                seenIds: [currentUser.id]
+                seenIds: [currentUser.id],
+                seenBy: {
+                  connect: {
+                    id: currentUser.id,
+                  },
+                },
               },
             },
           },
         },
         documents: {
           create: {
-            // Dokumen default dengan judul 'Untitled Document'
+            // Default document with title 'Untitled Document'
             title: 'Untitled Document',
             emoji: '📝',
             coverImage: '/images/cover.png',
-            // Menandai siapa yang membuat dokumen
+            // Mark who created the document
             createdById: currentUser.id,
-            // Karena dokumen baru, updatedBy belum ada (boleh null)
+            // Since it's a new document, updatedBy can be null
             documentContents: {
               create: {
                 content: {
@@ -157,7 +162,7 @@ export async function POST(req: NextRequest) {
                   ],
                   version: '2.30.8',
                 },
-                // Menggunakan currentUser sebagai editor awal (atau bisa disesuaikan)
+                // Use currentUser as initial editor
                 editedById: currentUser.id,
               },
             },
@@ -168,8 +173,26 @@ export async function POST(req: NextRequest) {
         members: true,
         conversation: {
           include: {
-            messages: true
-          }
+            messages: {
+              include: {
+                sender: {
+                  select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    image: true,
+                  },
+                },
+                seenBy: {
+                  select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                  },
+                },
+              },
+            },
+          },
         },
         documents: true,
       },

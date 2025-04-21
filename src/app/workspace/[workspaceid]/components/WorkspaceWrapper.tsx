@@ -40,7 +40,7 @@ export default function WorkspaceWrapper({
   children,
 }: WorkspaceWrapperProps) {
   const route = useRouter();
-  const isMobile = useIsMobile()
+  const isMobile = useIsMobile();
 
   const {
     isLoading,
@@ -132,7 +132,12 @@ export default function WorkspaceWrapper({
           </main>
         </PusherChannelProvider>
       </SidebarInset>
-      <ChatWidget />
+      <ChatWidget
+        workspaceId={workspaceId}
+        currentUser={currentUser}
+        workspaceInfo={workspaceInfo}
+        members={members}
+      />
     </SidebarProvider>
   );
 }

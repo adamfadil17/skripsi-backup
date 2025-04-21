@@ -41,6 +41,36 @@ export type WorkspaceDocument = {
   } | null;
 };
 
+// Updated to ConversationMessage
+export type ConversationMessage = {
+  id: string;
+  body: string | null;
+  image: string | null;
+  conversationId: string;
+  senderId: string;
+  createdAt: Date;
+  seenIds: string[];
+  seenBy: {
+    id: string;
+    name: string | null;
+    email: string;
+  }[];
+  sender: {
+    id: string;
+    name: string | null;
+    email: string;
+    image: string | null;
+  };
+};
+
+// Added WorkspaceConversation type
+export type WorkspaceConversation = {
+  id: string;
+  workspaceId: string;
+  lastMessageAt: Date;
+  messages: ConversationMessage[];
+};
+
 export type ChatMessage = {
   id: string;
   body: string;
@@ -82,9 +112,4 @@ export type WorkspaceInfo = {
   name: string;
   emoji: string | null;
   coverImage: string | null;
-  // members: WorkspaceMember[];
-  // documents: WorkspaceDocument[];
-  // chat: WorkspaceChat | null;
-  // notifications: WorkspaceNotification[];
-  // invitations: WorkspaceInvitation[];
 };

@@ -369,7 +369,7 @@ export function AppSidebar({
 
       <SidebarContent className="px-4 flex flex-col flex-1">
         {/* Meeting Section */}
-        <SidebarMenu>
+        {/* <SidebarMenu>
           <SidebarMenuItem className="my-1">
             <MeetingDialog
               workspaceId={workspaceId}
@@ -396,7 +396,7 @@ export function AppSidebar({
             </MeetingDialog>
           </SidebarMenuItem>
           <Separator />
-        </SidebarMenu>
+        </SidebarMenu> */}
 
         {/* Accounts Section */}
         <SidebarGroup className="py-0 px-0 my-0 mx-0">
