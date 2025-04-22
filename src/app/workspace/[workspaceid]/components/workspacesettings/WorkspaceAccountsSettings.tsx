@@ -30,7 +30,6 @@ import toast from 'react-hot-toast';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { usePusherChannel } from '@/hooks/use-pusher-channel';
 import type { WorkspaceInvitation, WorkspaceMember } from '@/types/types';
 import { usePusherChannelContext } from '../PusherChannelProvider';
 

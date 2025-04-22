@@ -74,12 +74,18 @@ export async function POST(
       return new NextResponse('Message not found', { status: 404 });
     }
 
-    // Mark the message as seen by the current user
+    // FIX: Update seenIds to include the user's email (not just ID)
+    // This is the most critical fix - ensuring consistency between what's stored and what's checked
     const updatedMessage = await prisma.message.update({
       where: {
         id: messageId,
       },
       data: {
+        // Add email to seenIds array
+        seenIds: {
+          push: currentUser.id,
+        },
+        // Also maintain the seenBy relationship
         seenBy: {
           connect: {
             id: currentUser.id,

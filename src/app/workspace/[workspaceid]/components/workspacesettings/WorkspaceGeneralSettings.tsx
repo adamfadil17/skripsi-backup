@@ -24,7 +24,6 @@ import {
   useWorkspaceSettings,
   type WorkspaceFormValues,
 } from './WorkspaceSettingsProvider';
-import { usePusherChannel } from '@/hooks/use-pusher-channel';
 import type { WorkspaceMember } from '@/types/types';
 import { usePusherChannelContext } from '../PusherChannelProvider';
 
