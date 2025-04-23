@@ -16,7 +16,6 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useMessages } from '@/hooks/use-messages';
-import { useActiveList } from '@/hooks/use-active-list';
 import type {
   WorkspaceMember,
   WorkspaceInfo,
@@ -26,6 +25,7 @@ import {
   PusherChannelProvider,
   usePusherChannelContext,
 } from './PusherChannelProvider';
+import useActiveList from '@/hooks/use-active-list';
 
 interface ChatWidgetProps {
   workspaceId: string;
@@ -43,7 +43,7 @@ function ChatWidgetContent({
   const [isExpanded, setIsExpanded] = useState(true);
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { activeMembers } = useActiveList();
+  const { members: activeMembers } = useActiveList();
   const { channel } = usePusherChannelContext();
 
   // Get messages
@@ -140,6 +140,10 @@ function ChatWidgetContent({
     return members.every((member) => seenIds.includes(member.user.id));
   };
 
+  const isUserActive = (email: string) => {
+    return activeMembers.includes(email);
+  };
+
   // Count unread messages
   const unreadCount = messages.filter(
     (message) =>
@@ -172,14 +176,10 @@ function ChatWidgetContent({
             {members?.slice(0, 4).map((member) => (
               <Avatar
                 key={member.user.id}
-                className={cn(
-                  'border-2 border-black w-8 h-8',
-                  activeMembers.includes(member.user.email) &&
-                    'ring-2 ring-green-500'
-                )}
+                className="border-2 border-black w-8 h-8"
               >
                 <AvatarImage
-                  src={member.user.image || '/placeholder.svg'}
+                  src={member.user.image || '/images/placeholder.svg'}
                   alt={member.user.name || ''}
                 />
                 <AvatarFallback>
@@ -224,12 +224,19 @@ function ChatWidgetContent({
                       isCurrentUser ? 'justify-end' : 'justify-start'
                     )}
                   >
-                    <Avatar className="w-8 h-8 mr-2">
-                      <AvatarImage src={sender?.image || '/placeholder.svg'} />
-                      <AvatarFallback>
-                        {sender?.name?.charAt(0) || '?'}
-                      </AvatarFallback>
-                    </Avatar>
+                    <div className="relative">
+                      <Avatar className="w-8 h-8 mr-2">
+                        <AvatarImage
+                          src={sender?.image || '/images/placeholder.svg'}
+                        />
+                        <AvatarFallback>
+                          {sender?.name?.charAt(0) || '?'}
+                        </AvatarFallback>
+                      </Avatar>
+                      {isUserActive(sender?.email) && (
+                        <span className="absolute top-0 right-0 block rounded-full bg-green-500 ring-2 ring-white h-2 w-2 -mt-0.5 mr-2" />
+                      )}
+                    </div>
                     <span className="text-sm text-gray-600">
                       {sender?.name}
                     </span>
