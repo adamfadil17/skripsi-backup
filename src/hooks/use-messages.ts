@@ -31,7 +31,7 @@ export const useMessages = (workspaceId: string) => {
 
   // Send message function
   const sendMessage = useCallback(
-    async (body: string) => {
+    async (body: string, image?: string | null) => {
       try {
         const response = await fetch(
           `/api/workspace/${workspaceId}/conversation/messages`,
@@ -40,7 +40,7 @@ export const useMessages = (workspaceId: string) => {
             headers: {
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ body }),
+            body: JSON.stringify({ body, image }),
           }
         );
 

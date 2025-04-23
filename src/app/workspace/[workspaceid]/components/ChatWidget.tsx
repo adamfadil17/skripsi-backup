@@ -13,6 +13,7 @@ import {
   ImageIcon,
   Send,
   CheckCheck,
+  X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useMessages } from '@/hooks/use-messages';
@@ -26,6 +27,7 @@ import {
   usePusherChannelContext,
 } from './PusherChannelProvider';
 import useActiveList from '@/hooks/use-active-list';
+import { CldUploadButton } from 'next-cloudinary';
 
 interface ChatWidgetProps {
   workspaceId: string;
@@ -42,6 +44,7 @@ function ChatWidgetContent({
 }: ChatWidgetProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [input, setInput] = useState('');
+  const [imageToSend, setImageToSend] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { members: activeMembers } = useActiveList();
   const { channel } = usePusherChannelContext();
@@ -60,10 +63,23 @@ function ChatWidgetContent({
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || !workspaceId) return;
+    if ((!input.trim() && !imageToSend) || !workspaceId) return;
 
-    sendMessage(input);
+    sendMessage(input, imageToSend);
     setInput('');
+    setImageToSend(null);
+  };
+
+  // Handle image upload
+  const handleUpload = (result: any, options: any) => {
+    if (result?.info?.secure_url) {
+      setImageToSend(result.info.secure_url);
+    }
+  };
+
+  // Cancel image upload
+  const cancelImageUpload = () => {
+    setImageToSend(null);
   };
 
   // Mark a message as seen
@@ -126,7 +142,7 @@ function ChatWidgetContent({
         }
       });
     }
-  }, [isExpanded, messages, currentUser.email, workspaceId]);
+  }, [isExpanded, messages, currentUser.email, workspaceId, currentUser.id]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -220,35 +236,42 @@ function ChatWidgetContent({
                 <div key={message.id} className="mb-4">
                   <div
                     className={cn(
-                      'flex items-center mb-1',
-                      isCurrentUser ? 'justify-end' : 'justify-start'
+                      'flex flex-col mb-2',
+                      isCurrentUser ? 'items-end' : 'items-start'
                     )}
                   >
-                    <div className="relative">
-                      <Avatar className="w-8 h-8 mr-2">
-                        <AvatarImage
-                          src={sender?.image || '/images/placeholder.svg'}
-                        />
-                        <AvatarFallback>
-                          {sender?.name?.charAt(0) || '?'}
-                        </AvatarFallback>
-                      </Avatar>
-                      {isUserActive(sender?.email) && (
-                        <span className="absolute top-0 right-0 block rounded-full bg-green-500 ring-2 ring-white h-2 w-2 -mt-0.5 mr-2" />
+                    {/* Info Pengirim */}
+                    <div
+                      className={cn(
+                        'flex items-center space-x-2 mb-1',
+                        isCurrentUser && 'flex-row-reverse space-x-reverse'
                       )}
-                    </div>
-                    <span className="text-sm text-gray-600">
-                      {sender?.name}
-                    </span>
-                    <span className="text-xs text-gray-400 ml-2">{time}</span>
-                  </div>
+                    >
+                      {/* Avatar */}
+                      <div className="relative">
+                        <Avatar className="w-8 h-8">
+                          <AvatarImage
+                            src={sender?.image || '/images/placeholder.svg'}
+                          />
+                          <AvatarFallback>
+                            {sender?.name?.charAt(0) || '?'}
+                          </AvatarFallback>
+                        </Avatar>
+                        {isUserActive(sender?.email) && (
+                          <span className="absolute top-0 right-0 block rounded-full bg-green-500 ring-2 ring-white h-2 w-2 -mt-0.5 mr-0.5" />
+                        )}
+                      </div>
 
-                  <div
-                    className={cn(
-                      'flex',
-                      isCurrentUser ? 'justify-end' : 'justify-start'
-                    )}
-                  >
+                      {/* Nama */}
+                      <span className="text-sm text-gray-600">
+                        {sender?.name}
+                      </span>
+
+                      {/* Time */}
+                      <span className="text-xs text-gray-400">{time}</span>
+                    </div>
+
+                    {/* Bubble message */}
                     <div
                       className={cn(
                         'max-w-[70%] rounded-lg p-3',
@@ -258,6 +281,20 @@ function ChatWidgetContent({
                       )}
                     >
                       {message.body}
+                      {message.image && (
+                        <div className="mt-2">
+                          <img
+                            src={message.image}
+                            alt="Shared Image"
+                            className="max-w-full rounded-md"
+                            onClick={() =>
+                              message.image &&
+                              window.open(message.image, '_blank')
+                            }
+                            style={{ cursor: 'pointer' }}
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -281,17 +318,45 @@ function ChatWidgetContent({
             <div ref={messagesEndRef} />
           </div>
 
+          {/* Image Preview */}
+          {imageToSend && (
+            <div className="p-2 bg-gray-50 border-t flex items-center">
+              <div className="relative">
+                <img
+                  src={imageToSend}
+                  alt="Image Preview"
+                  className="h-16 w-16 object-cover rounded-md"
+                />
+                <button
+                  onClick={cancelImageUpload}
+                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+              <span className="ml-2 text-sm text-gray-600">
+                Image ready to send
+              </span>
+            </div>
+          )}
+
           {/* Input Area */}
           <div className="border-t p-3 bg-white">
             <form onSubmit={handleSendMessage} className="flex items-center">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="text-gray-500"
+              <CldUploadButton
+                options={{ maxFiles: 1 }}
+                onSuccess={handleUpload}
+                uploadPreset="catatan_cerdas"
               >
-                <ImageIcon size={20} />
-              </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="text-gray-500"
+                >
+                  <ImageIcon size={20} />
+                </Button>
+              </CldUploadButton>
               <Input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
