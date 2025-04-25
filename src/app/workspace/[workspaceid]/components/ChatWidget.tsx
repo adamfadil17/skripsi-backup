@@ -597,7 +597,7 @@ function ChatWidgetContent({
                   >
                     {/* For Current User's Messages - Dropdown on the left */}
                     {isCurrentUser && !message.isDeleted && (
-                      <div className="self-start mr-2">
+                      <div className="self-center mr-2">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button
@@ -723,7 +723,7 @@ function ChatWidgetContent({
 
                     {/* For Other Users' Messages - Dropdown on the right */}
                     {!isCurrentUser && !message.isDeleted && (
-                      <div className="self-start ml-2">
+                      <div className="self-center ml-2">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button
