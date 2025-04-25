@@ -61,6 +61,10 @@ export type ConversationMessage = {
     email: string;
     image: string | null;
   };
+  isEdited?: boolean;
+  editedAt?: Date | null;
+  isDeleted?: boolean;
+  deletedAt?: Date | null;
 };
 
 // Added WorkspaceConversation type

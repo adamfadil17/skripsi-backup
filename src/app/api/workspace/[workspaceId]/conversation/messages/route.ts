@@ -91,7 +91,10 @@ export async function GET(
     const conversationMessages: ConversationMessage[] = messages.map(
       (message) => ({
         id: message.id,
-        body: message.body,
+        // Replace body text for deleted messages
+        body: message.isDeleted
+          ? 'This message has been deleted'
+          : message.body,
         image: message.image,
         conversationId: message.conversationId,
         senderId: message.senderId,
@@ -99,6 +102,11 @@ export async function GET(
         seenIds: message.seenIds,
         seenBy: message.seenBy,
         sender: message.sender,
+        // Include these important properties
+        isDeleted: message.isDeleted || false,
+        deletedAt: message.deletedAt || null,
+        isEdited: message.isEdited || false,
+        editedAt: message.editedAt || null,
       })
     );
 
@@ -233,6 +241,10 @@ export async function POST(
       seenIds: message.seenIds,
       seenBy: message.seenBy,
       sender: message.sender,
+      isDeleted: false, // New message is not deleted
+      deletedAt: null, // New message has no delete date
+      isEdited: false, // New message is not edited
+      editedAt: null, // New message has no edit date
     };
 
     // Trigger Pusher event for new message

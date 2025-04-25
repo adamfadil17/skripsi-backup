@@ -119,7 +119,10 @@ export async function GET(
       lastMessageAt: conversation.lastMessageAt,
       messages: conversation.messages.map((message) => ({
         id: message.id,
-        body: message.body,
+        // Replace body for deleted messages
+        body: message.isDeleted
+          ? 'This message has been deleted'
+          : message.body,
         image: message.image,
         conversationId: message.conversationId,
         senderId: message.senderId,
@@ -127,6 +130,11 @@ export async function GET(
         seenIds: message.seenIds,
         seenBy: message.seenBy,
         sender: message.sender,
+        // Include these important properties
+        isDeleted: message.isDeleted || false,
+        deletedAt: message.deletedAt || null,
+        isEdited: message.isEdited || false,
+        editedAt: message.editedAt || null,
       })),
     };
 

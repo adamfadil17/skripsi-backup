@@ -156,17 +156,22 @@ model Conversation {
 
 // Modified Model Message
 model Message {
-  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
   body           String? // Optional to allow image-only messages
   image          String? // Allow images in messages
-  conversationId String       @db.ObjectId
-  senderId       String       @db.ObjectId
-  createdAt      DateTime     @default(now())
+  conversationId String   @db.ObjectId
+  senderId       String   @db.ObjectId
+  createdAt      DateTime @default(now())
+
+  isEdited     Boolean      @default(false)
+  editedAt     DateTime?
+  isDeleted    Boolean      @default(false)
+  deletedAt    DateTime?
   // Users who have seen this message
-  seenIds        String[]     @db.ObjectId
-  seenBy         User[]       @relation("MessageSeen", fields: [seenIds], references: [id])
-  sender         User         @relation(fields: [senderId], references: [id])
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  seenIds      String[]     @db.ObjectId
+  seenBy       User[]       @relation("MessageSeen", fields: [seenIds], references: [id])
+  sender       User         @relation(fields: [senderId], references: [id])
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 }
 
 // Model Notification
