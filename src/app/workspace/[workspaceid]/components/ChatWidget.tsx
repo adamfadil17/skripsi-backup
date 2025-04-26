@@ -202,13 +202,17 @@ function ChatWidgetContent({
     setEditText('');
   };
 
-  // Save edited message
   const saveEditedMessage = async () => {
-    if (!editingMessageId || !editText.trim()) return;
+    if (!editingMessageId || !editText.trim()) {
+      // Reset state even when conditions aren't met
+      setEditingMessageId(null);
+      setEditText('');
+      return;
+    }
 
     const now = new Date();
 
-    // Optimistically update the message in the UI
+    // Optimistically update UI
     setLocalMessages((prev) =>
       prev.map((msg) =>
         msg.id === editingMessageId
@@ -227,10 +231,9 @@ function ChatWidgetContent({
       await editMessage(editingMessageId, editText);
     } catch (error) {
       console.error('Failed to edit message:', error);
-      // Revert optimistic update on error
       alert('Failed to edit message');
 
-      // Revert changes if it fails
+      // Revert optimistic update on error
       setLocalMessages((prev) =>
         prev.map((msg) =>
           msg.id === editingMessageId
@@ -243,10 +246,11 @@ function ChatWidgetContent({
             : msg
         )
       );
+    } finally {
+      // Ensure these are always called, even after successful update or error
+      setEditingMessageId(null);
+      setEditText('');
     }
-
-    setEditingMessageId(null);
-    setEditText('');
   };
 
   // Handle delete message
@@ -661,6 +665,7 @@ function ChatWidgetContent({
                             </Button>
                             <Button
                               onClick={(e) => {
+                                e.preventDefault();
                                 e.stopPropagation();
                                 saveEditedMessage();
                               }}
