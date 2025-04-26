@@ -32,12 +32,6 @@ import {
 } from './PusherChannelProvider';
 import useActiveList from '@/hooks/use-active-list';
 import { CldUploadButton } from 'next-cloudinary';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { format } from 'date-fns';
 
 interface ChatWidgetProps {
@@ -427,8 +421,10 @@ function ChatWidgetContent({
 
   // Scroll to bottom when messages change
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [localMessages]);
+    if (isExpanded) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [localMessages, isExpanded]);
 
   // Function to check if all members have seen the message
   const allMembersSeen = (seenIds: string[]) => {
@@ -465,10 +461,15 @@ function ChatWidgetContent({
   }
 
   return (
-    <div className="fixed bottom-4 right-4 w-[380px] shadow-lg rounded-lg overflow-hidden bg-white border border-gray-200">
+    <div
+      className="fixed bottom-4 right-4 w-[380px] shadow-lg rounded-lg bg-white border border-gray-200"
+      style={{ zIndex: 999 }}
+    >
       {/* Header */}
       <div
-        className="bg-black text-white p-3 flex justify-between items-center cursor-pointer"
+        className={`bg-black text-white p-3 flex justify-between items-center cursor-pointer ${
+          isExpanded ? 'rounded-t-lg' : 'rounded-lg'
+        }`}
         onClick={toggleExpanded}
       >
         <div>
@@ -595,37 +596,27 @@ function ChatWidgetContent({
                       isCurrentUser ? 'justify-end' : 'justify-start'
                     )}
                   >
-                    {/* For Current User's Messages - Dropdown on the left */}
+                    {/* For Current User's Messages - Edit/Delete icons on the left */}
                     {isCurrentUser && !message.isDeleted && (
-                      <div className="self-center mr-2">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0"
-                            >
-                              <ChevronDown size={12} />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="start">
-                            {editable && (
-                              <DropdownMenuItem
-                                onClick={() => startEditMessage(message)}
-                              >
-                                <Edit2 className="mr-2" size={14} />
-                                Edit
-                              </DropdownMenuItem>
-                            )}
-                            <DropdownMenuItem
-                              onClick={() => handleDeleteMessage(message.id)}
-                              className="text-red-600"
-                            >
-                              <Trash2 className="mr-2" size={14} />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                      <div className="self-center mr-2 flex space-x-1">
+                        {editable && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 text-gray-500 hover:text-blue-600"
+                            onClick={() => startEditMessage(message)}
+                          >
+                            <Edit2 size={14} />
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0 text-gray-500 hover:text-red-600"
+                          onClick={() => handleDeleteMessage(message.id)}
+                        >
+                          <Trash2 size={14} />
+                        </Button>
                       </div>
                     )}
 
@@ -633,13 +624,11 @@ function ChatWidgetContent({
                     <div
                       className={cn(
                         'rounded-lg p-3 inline-block',
-                        // Ganti max-w-[75%] dengan 'inline-block' agar bubble mengikuti teks
                         isCurrentUser
                           ? 'bg-black text-white'
                           : 'bg-gray-100 text-black',
-                        // Tambahkan styling tambahan untuk bubble chat WhatsApp-like
-                        'max-w-[75%]', // Tetap batasi lebar maksimum
-                        'break-words' // Pastikan kata-kata panjang dipotong dengan baik
+                        'max-w-[75%]',
+                        'break-words'
                       )}
                     >
                       {editingMessageId === message.id ? (
@@ -697,7 +686,6 @@ function ChatWidgetContent({
                           ) : (
                             // Regular message content
                             <>
-                              {/* Wrap text in span untuk text wrapping yang lebih baik */}
                               <span className="whitespace-pre-wrap">
                                 {message.body}
                               </span>
@@ -721,74 +709,53 @@ function ChatWidgetContent({
                       )}
                     </div>
 
-                    {/* For Other Users' Messages - Dropdown on the right */}
-                    {!isCurrentUser && !message.isDeleted && (
-                      <div className="self-center ml-2">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0"
-                            >
-                              <ChevronDown size={12} />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => handleDeleteMessage(message.id)}
-                              className="text-red-600"
-                            >
-                              <Trash2 className="mr-2" size={14} />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    )}
+                    {/* Removed dropdown for other users */}
                   </div>
 
-                  {/* Status Indicators for Current User */}
-                  {showStatusIndicator && (
-                    <div className="flex justify-end mt-1">
-                      {/* Edited indicator - show if isEdited=true and not deleted */}
-                      {message.isEdited && !message.isDeleted && (
-                        <span className="text-xs text-gray-400 mr-2">
-                          (edited{' '}
-                          {message.editedAt
-                            ? format(new Date(message.editedAt), 'p')
-                            : ''}
-                          )
-                        </span>
-                      )}
+                  {/* Message Status Indicators */}
+                  <div
+                    className={cn(
+                      'flex mt-1',
+                      isCurrentUser ? 'justify-end' : 'justify-start'
+                    )}
+                  >
+                    {/* Edited indicator - show for all edited messages */}
+                    {message.isEdited && !message.isDeleted && (
+                      <span className="text-xs text-gray-400 mr-2">
+                        (edited{' '}
+                        {message.editedAt
+                          ? format(new Date(message.editedAt), 'p')
+                          : ''}
+                        )
+                      </span>
+                    )}
 
-                      {/* Read/Delivery status - only show for non-deleted messages */}
-                      {!message.isDeleted && (
-                        <>
-                          {message.sendStatus === 'seen' ? (
-                            <span
-                              className={cn(
-                                'text-xs flex items-center',
-                                isSeenByAll ? 'text-green-500' : 'text-gray-400'
-                              )}
-                            >
-                              <CheckCheck className="mr-1" size={14} />
-                              Seen
-                            </span>
-                          ) : message.sendStatus === 'sending' ? (
-                            <span className="text-xs flex items-center text-gray-400">
-                              Sending...
-                            </span>
-                          ) : (
-                            <span className="text-xs flex items-center text-gray-400">
-                              <Check className="mr-1" size={14} />
-                              Sent
-                            </span>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  )}
+                    {/* Read/Delivery status - only for current user's non-deleted messages */}
+                    {showStatusIndicator && !message.isDeleted && (
+                      <>
+                        {message.sendStatus === 'seen' ? (
+                          <span
+                            className={cn(
+                              'text-xs flex items-center',
+                              isSeenByAll ? 'text-green-500' : 'text-gray-400'
+                            )}
+                          >
+                            <CheckCheck className="mr-1" size={14} />
+                            Seen
+                          </span>
+                        ) : message.sendStatus === 'sending' ? (
+                          <span className="text-xs flex items-center text-gray-400">
+                            Sending...
+                          </span>
+                        ) : (
+                          <span className="text-xs flex items-center text-gray-400">
+                            <Check className="mr-1" size={14} />
+                            Sent
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -818,7 +785,7 @@ function ChatWidgetContent({
           )}
 
           {/* Input Area with fixed Enter key handling */}
-          <div className="border-t p-3 bg-white">
+          <div className="border-t p-3 bg-white rounded-b-lg">
             <form onSubmit={handleSendMessage} className="flex items-center">
               <Input
                 value={input}

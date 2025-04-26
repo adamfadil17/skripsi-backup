@@ -24,7 +24,7 @@ import { useRouter } from 'next/navigation';
 import { UserWorkspace } from '@/types/types';
 import NotificationWrapper from './NotificationWrapper';
 import ChatWidget from './ChatWidget';
-import { useIsMobile } from '@/hooks/use-mobile';
+// import dynamic from 'next/dynamic';
 
 interface WorkspaceWrapperProps {
   workspaceId: string;
@@ -33,6 +33,10 @@ interface WorkspaceWrapperProps {
   children: React.ReactNode;
 }
 
+// const ChatWidgetPortal = dynamic(() => import('./ChatWidgetPortal'), {
+//   ssr: false,
+// });
+
 export default function WorkspaceWrapper({
   workspaceId,
   currentUser,
@@ -40,7 +44,6 @@ export default function WorkspaceWrapper({
   children,
 }: WorkspaceWrapperProps) {
   const route = useRouter();
-  const isMobile = useIsMobile();
 
   const {
     isLoading,
@@ -61,7 +64,7 @@ export default function WorkspaceWrapper({
   if (!workspaceInfo) return notFound();
 
   return (
-    <SidebarProvider className="flex h-screen w-full overflow-hidden">
+    <SidebarProvider className="flex h-screen w-full">
       <PusherChannelProvider channelName={`workspace-${workspaceId}`}>
         <AppSidebar
           workspaceId={workspaceId}
