@@ -35,13 +35,15 @@ export async function GET(
       );
     }
 
-    // Check if user is a member of the workspace
+    // Check if user is a member of the workspace and get join date
     const membership = await prisma.workspaceMember.findFirst({
       where: {
         workspaceId,
-        user: {
-          email: currentUser.email,
-        },
+        userId: currentUser.id,
+      },
+      select: {
+        joinedAt: true,
+        role: true,
       },
     });
 
@@ -49,7 +51,10 @@ export async function GET(
       return new NextResponse('Forbidden', { status: 403 });
     }
 
-    // Find or create conversation for the workspace
+    // Get user join date
+    const userJoinDate = membership.joinedAt;
+
+    // Find conversation for the workspace
     const conversation = await prisma.conversation.findUnique({
       where: {
         workspaceId,
@@ -61,9 +66,11 @@ export async function GET(
     }
 
     // Get messages for the conversation
+    // All members only see messages after they joined
     const messages = await prisma.message.findMany({
       where: {
         conversationId: conversation.id,
+        createdAt: { gte: userJoinDate }, // Filter pesan berdasarkan tanggal bergabung user
       },
       include: {
         sender: {
@@ -91,7 +98,6 @@ export async function GET(
     const conversationMessages: ConversationMessage[] = messages.map(
       (message) => ({
         id: message.id,
-        // Replace body text for deleted messages
         body: message.isDeleted
           ? 'This message has been deleted'
           : message.body,
@@ -102,7 +108,6 @@ export async function GET(
         seenIds: message.seenIds,
         seenBy: message.seenBy,
         sender: message.sender,
-        // Include these important properties
         isDeleted: message.isDeleted || false,
         deletedAt: message.deletedAt || null,
         isEdited: message.isEdited || false,

@@ -35,7 +35,7 @@ export async function GET(
       );
     }
 
-    // Check if user is a member of the workspace
+    // Check if user is a member of the workspace and get join date
     const membership = await prisma.workspaceMember.findFirst({
       where: {
         workspaceId,
@@ -43,11 +43,17 @@ export async function GET(
           email: currentUser.email,
         },
       },
+      select: {
+        joinedAt: true,
+      },
     });
 
     if (!membership) {
       return new NextResponse('Forbidden', { status: 403 });
     }
+
+    // Get user join date
+    const userJoinDate = membership.joinedAt;
 
     // Find or create conversation for the workspace
     let conversation = await prisma.conversation.findUnique({
@@ -56,6 +62,9 @@ export async function GET(
       },
       include: {
         messages: {
+          where: {
+            createdAt: { gte: userJoinDate }, // Only include messages after join date
+          },
           include: {
             sender: {
               select: {
@@ -87,6 +96,9 @@ export async function GET(
         },
         include: {
           messages: {
+            where: {
+              createdAt: { gte: userJoinDate }, // Only include messages after join date
+            },
             include: {
               sender: {
                 select: {
