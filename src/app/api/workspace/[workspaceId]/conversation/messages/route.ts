@@ -43,7 +43,6 @@ export async function GET(
       },
       select: {
         joinedAt: true,
-        role: true,
       },
     });
 

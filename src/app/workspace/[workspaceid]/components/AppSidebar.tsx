@@ -7,6 +7,7 @@ import {
   Settings,
   MoreVertical,
   Loader2,
+  Trash,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -56,6 +57,7 @@ import { usePusherChannelContext } from './PusherChannelProvider';
 import MeetingDialog from './MeetingDialog';
 import WorkspaceSettingsDialog from './workspacesettings/WorkspaceSettingsDialog';
 import { DeleteDocument } from '../[documentid]/components/DeleteDocument';
+import { ShareDocument } from '../[documentid]/components/ShareDocument';
 import Link from 'next/link';
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
@@ -518,9 +520,10 @@ export function AppSidebar({
                             </div>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="start" side="right">
-                            <DropdownMenuItem className="cursor-pointer">
-                              Share
-                            </DropdownMenuItem>
+                            <ShareDocument
+                              workspaceId={workspaceId}
+                              document={document}
+                            />
                             <DeleteDocument
                               workspaceId={workspaceId}
                               document={document}
@@ -531,6 +534,7 @@ export function AppSidebar({
                                   e.preventDefault();
                                 }}
                               >
+                                <Trash className="mr-2 h-4 w-4" />
                                 Delete
                               </DropdownMenuItem>
                             </DeleteDocument>

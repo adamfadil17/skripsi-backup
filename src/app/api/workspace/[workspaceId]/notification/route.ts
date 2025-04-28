@@ -52,15 +52,18 @@ export async function GET(
       );
     }
 
-    // Check if user is a member of the workspace
-    const isMember = await prisma.workspaceMember.findFirst({
+    // Check if user is a member of the workspace and get join date
+    const membership = await prisma.workspaceMember.findFirst({
       where: {
         userId: currentUser.id,
         workspaceId,
       },
+      select: {
+        joinedAt: true,
+      },
     });
 
-    if (!isMember) {
+    if (!membership) {
       return NextResponse.json(
         {
           status: 'error',
@@ -72,10 +75,16 @@ export async function GET(
       );
     }
 
-    // Get notifications for this workspace
+    // Store the join date to filter notifications
+    const userJoinedAt = membership.joinedAt;
+
+    // Get notifications for this workspace created AFTER user joined
     const notifications = await prisma.notification.findMany({
       where: {
         workspaceId,
+        createdAt: {
+          gte: userJoinedAt // Only show notifications created after user joined
+        }
       },
       include: {
         readBy: {
@@ -330,15 +339,18 @@ export async function PATCH(
       );
     }
 
-    // Check if user is a member of the workspace
-    const isMember = await prisma.workspaceMember.findFirst({
+    // Check if user is a member of the workspace and get join date
+    const membership = await prisma.workspaceMember.findFirst({
       where: {
         userId: currentUser.id,
         workspaceId,
       },
+      select: {
+        joinedAt: true,
+      },
     });
 
-    if (!isMember) {
+    if (!membership) {
       return NextResponse.json(
         {
           status: 'error',
@@ -350,15 +362,20 @@ export async function PATCH(
       );
     }
 
+    // Store the join date
+    const userJoinedAt = membership.joinedAt;
     const body = await req.json();
 
     // For marking a specific notification as read
     if (body.notificationId) {
-      // Check if notification exists and belongs to the workspace
+      // Check if notification exists, belongs to the workspace, and was created after user joined
       const notification = await prisma.notification.findFirst({
         where: {
           id: body.notificationId,
           workspaceId,
+          createdAt: {
+            gte: userJoinedAt // Only allow marking as read if notification was created after user joined
+          }
         },
       });
 
@@ -368,7 +385,7 @@ export async function PATCH(
             status: 'error',
             code: 404,
             error_type: 'NotFound',
-            message: 'Notification not found',
+            message: 'Notification not found or you do not have permission to view it',
           },
           { status: 404 }
         );
@@ -401,10 +418,13 @@ export async function PATCH(
 
     // For marking all notifications as read
     else if (body.markAllAsRead) {
-      // Get all unread notifications for this workspace
+      // Get all unread notifications for this workspace that were created after user joined
       const unreadNotifications = await prisma.notification.findMany({
         where: {
           workspaceId,
+          createdAt: {
+            gte: userJoinedAt // Only mark notifications created after user joined
+          },
           readBy: {
             none: {
               userId: currentUser.id,
@@ -488,6 +508,7 @@ function isValidNotificationType(type: string): boolean {
     'MEETING_CREATE',
     'MEETING_UPDATE',
     'MEETING_DELETE',
+    'MESSAGE_RECEIVED',
   ];
   return validTypes.includes(type);
 }
