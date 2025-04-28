@@ -5,7 +5,7 @@ import { HiOutlineLogout } from 'react-icons/hi';
 import { DropdownMenuItem } from '../ui/dropdown-menu';
 import { useRouter } from 'next/navigation';
 
- const SignOutButton = () => {
+const SignOutButton = () => {
   const route = useRouter();
   const handleSignOut = async () => {
     await signOut({ redirect: false });
@@ -13,7 +13,7 @@ import { useRouter } from 'next/navigation';
   };
   return (
     <DropdownMenuItem
-      className="text-destructive focus:text-destructive cursor-pointer focus:bg-red-50"
+      className="text-primary focus:text-primary cursor-pointer focus:bg-gray-50"
       onClick={handleSignOut}
     >
       <div className="flex items-center gap-1">

@@ -290,6 +290,11 @@ export function AppSidebar({
     router.push(`/workspace/${workspace.id}`);
   };
 
+  function handleLogoClick() {
+    router.push('/dashboard');
+    router.refresh();
+  }
+
   return (
     <Sidebar
       {...props}
@@ -299,15 +304,15 @@ export function AppSidebar({
     >
       <SidebarHeader className="px-4 mt-2">
         {/* Logo and App Name */}
-        <Link
-          href="/dashboard"
+        <div
+          onClick={handleLogoClick}
           className="flex items-center gap-2 px-2 cursor-pointer mb-4"
         >
           <Image src={'/images/logo.png'} alt="logo" width={32} height={32} />
           <div>
             <h2 className="text-lg font-semibold">Catatan Cerdas</h2>
           </div>
-        </Link>
+        </div>
 
         {/* Version Switcher */}
         <SidebarMenu>

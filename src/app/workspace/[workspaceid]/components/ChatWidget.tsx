@@ -60,6 +60,9 @@ function ChatWidgetContent({
   const [input, setInput] = useState('');
   const [imageToSend, setImageToSend] = useState<string | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [localWorkspaceInfo, setLocalWorkspaceInfo] = useState<
+    WorkspaceInfo | undefined
+  >(workspaceInfo);
   const [editText, setEditText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
@@ -78,6 +81,11 @@ function ChatWidgetContent({
     editMessage,
     deleteMessage,
   } = useMessages(workspaceId);
+
+  // Update localWorkspaceInfo when prop changes
+  useEffect(() => {
+    setLocalWorkspaceInfo(workspaceInfo);
+  }, [workspaceInfo]);
 
   // Sync server messages with local messages
   useEffect(() => {
@@ -325,6 +333,40 @@ function ChatWidgetContent({
     }
   };
 
+  // Set up Pusher event listeners for workspace updates
+  useEffect(() => {
+    if (!channel) return;
+
+    // Handle workspace updates
+    const handleWorkspaceUpdated = (updatedWorkspace: any) => {
+      console.log(
+        '🔥 EVENT RECEIVED workspace-updated in ChatWidget:',
+        updatedWorkspace
+      );
+
+      // Update the workspace info state
+      setLocalWorkspaceInfo((prev) => {
+        if (!prev) return updatedWorkspace;
+
+        const updated = {
+          ...prev,
+          ...updatedWorkspace,
+        };
+
+        console.log('Updated workspace info in ChatWidget:', updated);
+        return updated;
+      });
+    };
+
+    // Subscribe to workspace update events
+    channel.bind('workspace-updated', handleWorkspaceUpdated);
+
+    // Cleanup on unmount
+    return () => {
+      channel.unbind('workspace-updated', handleWorkspaceUpdated);
+    };
+  }, [channel]);
+
   // Set up Pusher event listeners
   useEffect(() => {
     if (!channel) return;
@@ -478,7 +520,7 @@ function ChatWidgetContent({
       >
         <div>
           <h3 className="font-semibold">
-            {workspaceInfo?.name || 'Workspace Chat'}
+            {localWorkspaceInfo?.name || ''}
           </h3>
           {unreadCount > 0 && (
             <p className="text-sm text-gray-300">{unreadCount} new messages</p>

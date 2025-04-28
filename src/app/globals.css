@@ -121,7 +121,7 @@ body {
 /* Ensure sidebar stays fixed */
 [data-sidebar='sidebar'] {
   position: relative;
-  z-index: 20;
+  z-index: 50;
   width: var(--sidebar-width);
   min-width: var(--sidebar-width);
   flex-shrink: 0;
