@@ -33,5 +33,5 @@ export default withAuth(
 );
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/workspace/:path*'],
+  matcher: ['/dashboard/:path*', '/workspace/:path*', '/api/workspace/:path*'],
 };

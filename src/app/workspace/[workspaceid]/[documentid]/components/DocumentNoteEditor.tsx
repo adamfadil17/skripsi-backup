@@ -18,8 +18,6 @@ import Undo from 'editorjs-undo';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { usePusherChannelContext } from '../../components/PusherChannelProvider';
-import { UndoIcon, RedoIcon } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 
 interface DocumentNoteEditorProps {
   workspaceId: string;

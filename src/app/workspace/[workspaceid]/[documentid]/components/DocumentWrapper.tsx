@@ -31,6 +31,7 @@ const DocumentWrapper = ({ workspaceId, documentId }: DocumentWrapperProps) => {
   const [emoji, setEmoji] = useState<string>('');
   const [coverImage, setCoverImage] = useState('/images/placeholder.svg');
   const [documentTitle, setDocumentTitle] = useState('');
+  const [titleChanged, setTitleChanged] = useState(false);
   const [modelResponse, setModelResponse] = useState<any>(null);
 
   useEffect(() => {
@@ -73,6 +74,7 @@ const DocumentWrapper = ({ workspaceId, documentId }: DocumentWrapperProps) => {
       setEmoji(documentInfo.emoji || '');
       setCoverImage(documentInfo.coverImage || '/images/placeholder.svg');
       setDocumentTitle(documentInfo.title || '');
+      setTitleChanged(false); // Reset title changed flag when document info is updated
     }
   }, [documentInfo]);
 
@@ -92,7 +94,11 @@ const DocumentWrapper = ({ workspaceId, documentId }: DocumentWrapperProps) => {
       if (updatedDocument.id === documentId) {
         setEmoji(updatedDocument.emoji || '');
         setCoverImage(updatedDocument.coverImage || '/images/placeholder.svg');
-        setDocumentTitle(updatedDocument.title || '');
+
+        // Only update the title if we're not in the middle of editing it locally
+        if (!titleChanged) {
+          setDocumentTitle(updatedDocument.title || '');
+        }
       }
     };
 
@@ -104,22 +110,32 @@ const DocumentWrapper = ({ workspaceId, documentId }: DocumentWrapperProps) => {
       console.log('Cleaning up Pusher listeners');
       workspaceChannel.unbind('document-updated', handleDocumentUpdated);
     };
-  }, [workspaceChannel, documentId]);
+  }, [workspaceChannel, documentId, titleChanged]);
 
   const updateDocument = async (data: Partial<WorkspaceDocument>) => {
     try {
+      console.log('Attempting to update document with data:', data);
+
+      // Don't compare with trim here - send the raw data to the API and let it decide
       const response = await axios.patch(
         `/api/workspace/${workspaceId}/document/${documentId}`,
         data
       );
 
       if (response.data.status === 'success') {
+        console.log('Document updated successfully:', response.data);
+
+        // If we were updating the title, reset the title changed flag
+        if (data.title !== undefined) {
+          setTitleChanged(false);
+        }
+
         toast.success('Document updated successfully');
-        // No need to call router.refresh() since Pusher will handle the real-time update
       } else {
         toast.error(response.data.message || 'Unknown error occurred');
       }
     } catch (error: any) {
+      console.error('Error updating document:', error);
       const errorMessage =
         error.response?.data?.message || 'An unexpected error occurred.';
       toast.error(errorMessage);
@@ -127,18 +143,26 @@ const DocumentWrapper = ({ workspaceId, documentId }: DocumentWrapperProps) => {
   };
 
   const handleCoverChange = (newCover: string) => {
+    if (newCover === coverImage) return; // Skip if unchanged
     setCoverImage(newCover);
     updateDocument({ coverImage: newCover });
   };
 
   const handleEmojiChange = (newEmoji: string) => {
+    if (newEmoji === emoji) return; // Skip if unchanged
     setEmoji(newEmoji);
     updateDocument({ emoji: newEmoji });
   };
 
   const handleTitleChange = (newTitle: string) => {
     setDocumentTitle(newTitle);
-    updateDocument({ title: newTitle });
+    setTitleChanged(true); // Mark that we've made local changes to the title
+  };
+
+  const handleTitleBlur = () => {
+    // Don't check if title is unchanged - let the API handle that decision
+    console.log('Title blur event, sending update with title:', documentTitle);
+    updateDocument({ title: documentTitle });
   };
 
   if (isLoading) {
@@ -200,8 +224,8 @@ const DocumentWrapper = ({ workspaceId, documentId }: DocumentWrapperProps) => {
           placeholder="Untitled Document"
           value={documentTitle}
           className="w-full md:max-w-[840px] font-bold text-4xl truncate outline-none"
-          onChange={(e) => setDocumentTitle(e.target.value)}
-          onBlur={(event) => handleTitleChange(event.target.value)}
+          onChange={(e) => handleTitleChange(e.target.value)}
+          onBlur={handleTitleBlur}
         />
         <AITemplateDialog onGenerateTemplate={setModelResponse}>
           <Button

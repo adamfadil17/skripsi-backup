@@ -135,42 +135,68 @@ export async function PUT(
       );
     }
 
+    // Get current workspace data before update
+    const currentWorkspace = await prisma.workspace.findUnique({
+      where: { id: workspaceId },
+    });
+
+    if (!currentWorkspace) {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 404,
+          error_type: 'NotFound',
+          message: 'Workspace not found',
+        },
+        { status: 404 }
+      );
+    }
+
+    // Check if any data has changed
+    const hasChanges =
+      currentWorkspace.name !== name ||
+      currentWorkspace.emoji !== emoji ||
+      currentWorkspace.coverImage !== coverImage;
+
     // Update workspace
     const updatedWorkspace = await prisma.workspace.update({
       where: { id: workspaceId },
       data: { name, emoji, coverImage },
     });
 
-    // Create notification for workspace update
-    await prisma.notification.create({
-      data: {
-        workspaceId,
-        message: `${currentUser.name} updated workspace profile`,
-        type: 'WORKSPACE_UPDATE',
-        userId: currentUser.id,
-      },
-    });
-
-    // Trigger Pusher event for real-time updates
-    await pusherServer.trigger(
-      `workspace-${workspaceId}`,
-      'workspace-updated',
-      updatedWorkspace
-    );
-
-    await pusherServer.trigger(
-      `notification-${workspaceId}`,
-      'workspace-updated',
-      {
-        ...updatedWorkspace,
-        updatedBy: {
-          id: currentUser.id,
-          name: currentUser.name,
-          email: currentUser.email,
-          image: currentUser.image,
+    // Only create notification and trigger Pusher events if data has changed
+    if (hasChanges) {
+      // Create notification for workspace update
+      await prisma.notification.create({
+        data: {
+          workspaceId,
+          message: `${currentUser.name} updated workspace profile`,
+          type: 'WORKSPACE_UPDATE',
+          userId: currentUser.id,
         },
-      }
-    );
+      });
+
+      // Trigger Pusher event for real-time updates
+      await pusherServer.trigger(
+        `workspace-${workspaceId}`,
+        'workspace-updated',
+        updatedWorkspace
+      );
+
+      await pusherServer.trigger(
+        `notification-${workspaceId}`,
+        'workspace-updated',
+        {
+          ...updatedWorkspace,
+          updatedBy: {
+            id: currentUser.id,
+            name: currentUser.name,
+            email: currentUser.email,
+            image: currentUser.image,
+          },
+        }
+      );
+    }
 
     return NextResponse.json(
       {

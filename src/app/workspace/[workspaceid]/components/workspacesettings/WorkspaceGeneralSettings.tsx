@@ -110,6 +110,13 @@ export function WorkspaceGeneralSettings() {
   const onEditWorkspaceSubmit = useCallback(
     async (values: WorkspaceFormValues) => {
       setIsSubmitting(true);
+
+      // Check if values are the same as current workspace data
+      const hasChanges =
+        workspaceName !== values.workspaceName ||
+        emoji !== values.emoji ||
+        coverImage !== values.coverImage;
+
       try {
         const response = await axios.put(`/api/workspace/${workspaceInfo.id}`, {
           name: values.workspaceName,
@@ -129,12 +136,11 @@ export function WorkspaceGeneralSettings() {
             'Workspace updated successfully. Response:',
             response.data
           );
-          console.log(
-            'Pusher should broadcast workspace-updated event with:',
-            response.data.data.workspace || response.data.data.updatedWorkspace
-          );
 
-          toast.success('Workspace Profile has been updated');
+          // Only show toast if there were actual changes
+          if (hasChanges) {
+            toast.success('Workspace Profile has been updated');
+          }
         }
       } catch (error: any) {
         console.error('Error updating workspace:', error);
@@ -151,6 +157,9 @@ export function WorkspaceGeneralSettings() {
       setCoverImage,
       setEmoji,
       toggleModalState,
+      workspaceName,
+      emoji,
+      coverImage,
     ]
   );
 
@@ -216,7 +225,8 @@ export function WorkspaceGeneralSettings() {
                                       >
                                         <Image
                                           src={
-                                            cover.imageUrl || '/images/placeholder.svg'
+                                            cover.imageUrl ||
+                                            '/images/placeholder.svg'
                                           }
                                           alt={`Cover option ${index + 1}`}
                                           fill
