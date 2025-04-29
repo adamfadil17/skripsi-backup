@@ -14,7 +14,6 @@ import Table from '@editorjs/table';
 import List from '@editorjs/list';
 import Checklist from '@editorjs/checklist';
 import CodeTool from '@editorjs/code';
-import Undo from 'editorjs-undo';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { usePusherChannelContext } from '../../components/PusherChannelProvider';
@@ -34,13 +33,10 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
   const userEmail = session?.user?.email; // Use email instead of ID
 
   const editorRef = useRef<EditorJS | null>(null);
-  const undoRef = useRef<any>(null);
   const isFetchedRef = useRef(false);
   const hasInitialized = useRef(false);
   const prevModelResponseRef = useRef<any>(null);
   const lastSavedContentRef = useRef<string>('');
-  const lastInputTimeRef = useRef<number>(0);
-  const hasInteractedRef = useRef(false);
   const isProcessingExternalUpdateRef = useRef(false);
   const [editorReady, setEditorReady] = useState(false);
 
@@ -138,46 +134,14 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     }
   }, [workspaceId, documentId]);
 
-  // Handle undo action
-  const handleUndo = useCallback(() => {
-    if (undoRef.current) {
-      undoRef.current.undo();
-    }
-  }, []);
-
-  // Handle redo action
-  const handleRedo = useCallback(() => {
-    if (undoRef.current) {
-      undoRef.current.redo();
-    }
-  }, []);
-
   const initEditor = useCallback(() => {
     if (!hasInitialized.current) {
       hasInitialized.current = true;
       editorRef.current = new EditorJS({
         onChange: () => {
-          lastInputTimeRef.current = Date.now();
           debouncedSave();
         },
         onReady: () => {
-          // Initialize Undo plugin after editor is ready
-          if (editorRef.current) {
-            undoRef.current = new Undo({ editor: editorRef.current });
-
-            // Add keyboard shortcuts for undo/redo
-            document.addEventListener('keydown', (e) => {
-              if (e.ctrlKey || e.metaKey) {
-                if (e.key === 'z') {
-                  e.preventDefault();
-                  undoRef.current.undo();
-                } else if (e.key === 'y' || (e.shiftKey && e.key === 'z')) {
-                  e.preventDefault();
-                  undoRef.current.redo();
-                }
-              }
-            });
-          }
           getDocumentOutput();
         },
         holder: 'editorjs',
@@ -219,71 +183,55 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     const handleDocumentContentUpdated = async (data: {
       content: OutputData;
       documentId: string;
-      editorEmail: string;
+      editorEmail: string; // Changed from editorId to editorEmail
     }) => {
+      console.log('🔥 EVENT RECEIVED document-content-updated:', data);
+
+      // Only update if it's the current document and not from the current user
       if (data.documentId === documentId && data.editorEmail !== userEmail) {
-        const now = Date.now();
-        const idleThreshold = 2000; // 2 seconds
-
-        // Skip updates if no changes are made
-        if (JSON.stringify(data.content) === lastSavedContentRef.current) {
-          return;
-        }
-
-        // Capture scroll position before update
-        const scrollPosition = window.scrollY;
-
-        const applyUpdate = async () => {
-          if (!editorRef.current) return;
-
+        if (editorRef.current) {
           try {
+            // Set flag to prevent triggering another save
             isProcessingExternalUpdateRef.current = true;
 
+            // Store cursor position
             const currentBlockIndex =
               editorRef.current.blocks.getCurrentBlockIndex();
             const cursorPosition = 'end';
 
-            // Apply content update
+            // Update the editor content
             await editorRef.current.render(data.content);
+
+            // Update the last saved content to prevent duplicate saves
             lastSavedContentRef.current = JSON.stringify(data.content);
 
-            // When receiving collaborative updates, we need to update the undo/redo history
-            if (undoRef.current) {
-              undoRef.current.updateStack();
-            }
-
-            // Delay scroll or caret focus update to ensure smooth rendering
+            // Restore cursor position
             setTimeout(() => {
-              // Set caret position without affecting scroll
               if (editorRef.current && currentBlockIndex !== undefined) {
-                editorRef.current.caret.setToBlock(
-                  currentBlockIndex,
-                  cursorPosition
-                );
+                try {
+                  // Try to restore cursor to the same block if it still exists
+                  if (
+                    editorRef.current.blocks.getBlockByIndex(currentBlockIndex)
+                  ) {
+                    editorRef.current.caret.setToBlock(
+                      currentBlockIndex,
+                      cursorPosition
+                    );
+                  }
+                } catch (e) {
+                  console.log('Could not restore cursor position', e);
+                }
+
+                // Reset the flag after a short delay to ensure rendering is complete
+                setTimeout(() => {
+                  isProcessingExternalUpdateRef.current = false;
+                }, 100);
               }
-
-              // Restore scroll position after update
-              window.scrollTo(0, scrollPosition);
-
-              isProcessingExternalUpdateRef.current = false;
             }, 100);
           } catch (error) {
             console.error('Error updating editor content:', error);
             isProcessingExternalUpdateRef.current = false;
           }
-        };
-
-        const timeSinceLastInput = now - lastInputTimeRef.current;
-
-        if (timeSinceLastInput > idleThreshold) {
-          await applyUpdate(); // Apply immediately
-        } else {
-          const delay = idleThreshold - timeSinceLastInput;
-          setTimeout(() => {
-            if (Date.now() - lastInputTimeRef.current >= idleThreshold) {
-              applyUpdate();
-            }
-          }, delay);
         }
       }
     };
@@ -366,11 +314,6 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
 
         await editorRef.current.render(updatedContent);
 
-        // Update undo stack after appending model response
-        if (undoRef.current) {
-          undoRef.current.updateStack();
-        }
-
         setTimeout(() => {
           if (editorRef.current) {
             const lastBlockIndex = updatedContent.blocks.length - 1;
@@ -390,15 +333,6 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     if (session) {
       initEditor();
     }
-
-    // Cleanup function to remove event listeners
-    return () => {
-      document.removeEventListener('keydown', (e) => {
-        if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'y')) {
-          e.preventDefault();
-        }
-      });
-    };
   }, [session, initEditor]);
 
   useEffect(() => {
