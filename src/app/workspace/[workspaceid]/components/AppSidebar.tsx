@@ -524,7 +524,11 @@ export function AppSidebar({
                               <MoreVertical className="h-full w-full" />
                             </div>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="start" side="right">
+                          <DropdownMenuContent
+                            align="start"
+                            side="right"
+                            className="z-[999]"
+                          >
                             <ShareDocument
                               workspaceId={workspaceId}
                               document={document}
