@@ -52,6 +52,8 @@ export function WorkspaceAccountsSettings() {
     useState<WorkspaceMember[]>(initialMembers);
   const [fetchedInvitations, setFetchedInvitations] =
     useState<WorkspaceInvitation[]>(initialInvitations);
+  // State to track which dropdown is currently open
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
 
   const router = useRouter();
 
@@ -167,13 +169,27 @@ export function WorkspaceAccountsSettings() {
   // Using useCallback for functions passed to child components or event handlers
   const canChangeRole = useCallback(
     (item: any) => {
-      return !(
-        activeTab === 'invitations' ||
-        (!isSuperAdmin && !isAdmin) ||
-        (isAdmin && item.role === 'SUPER_ADMIN') ||
-        item.email === currentUser.email ||
-        (isAdmin && item.role === 'ADMIN')
-      );
+      // Admin tidak bisa mengubah role Super Admin atau Admin lain
+      if (isAdmin && (item.role === 'SUPER_ADMIN' || item.role === 'ADMIN')) {
+        return false;
+      }
+
+      // Tidak bisa mengubah role diri sendiri
+      if (item.email === currentUser.email) {
+        return false;
+      }
+
+      // Tidak bisa mengubah role pada tab invitations
+      if (activeTab === 'invitations') {
+        return false;
+      }
+
+      // Member tidak bisa mengubah role siapapun
+      if (!isSuperAdmin && !isAdmin) {
+        return false;
+      }
+
+      return true;
     },
     [activeTab, isSuperAdmin, isAdmin, currentUser.email]
   );
@@ -184,23 +200,29 @@ export function WorkspaceAccountsSettings() {
 
       const isTargetSuperAdmin = role === 'SUPER_ADMIN';
       const isTargetAdmin = role === 'ADMIN';
-      const currentSuperAdmins = fetchedMembers.filter(
-        (member) => member.role === 'SUPER_ADMIN'
-      );
 
+      // Jika current user adalah Admin
       if (isAdmin && (isTargetSuperAdmin || isTargetAdmin)) {
         toast.error('Admin can only remove Members.');
         return;
       }
 
-      if (
-        isSuperAdmin &&
-        isTargetSuperAdmin &&
-        currentSuperAdmins.length === 1 &&
-        currentUser.id === userId
-      ) {
-        toast.error('You cannot remove yourself if there is only one Owner.');
-        return;
+      // Jika current user adalah Super Admin
+      if (isSuperAdmin && isTargetSuperAdmin && userId === currentUser.id) {
+        const superAdminsCount = superAdmins.length;
+        if (superAdminsCount <= 1) {
+          toast.error('You cannot remove yourself as the last Owner.');
+          return;
+        }
+      }
+
+      // Jika mencoba menghapus Super Admin lain
+      if (isSuperAdmin && isTargetSuperAdmin && userId !== currentUser.id) {
+        const superAdminsCount = superAdmins.length;
+        if (superAdminsCount <= 1) {
+          toast.error('Cannot remove the last Owner.');
+          return;
+        }
       }
 
       try {
@@ -213,14 +235,15 @@ export function WorkspaceAccountsSettings() {
         toast.error(error.response?.data?.message || 'Failed to remove user.');
       }
     },
-    [workspaceInfo, isAdmin, isSuperAdmin, fetchedMembers, currentUser.id]
+    [workspaceInfo, isAdmin, isSuperAdmin, superAdmins.length, currentUser.id]
   );
 
   const handleLeave = useCallback(async () => {
     if (!workspaceInfo) return;
 
     try {
-      if (superAdmins.length === 1 && isSuperAdmin) {
+      // Cek apakah user adalah Super Admin terakhir
+      if (isSuperAdmin && superAdmins.length <= 1) {
         toast.error(
           'You are the last Owner. Please assign a new Owner before leaving.'
         );
@@ -302,6 +325,18 @@ export function WorkspaceAccountsSettings() {
     setShowInviteForm(false);
   }, []);
 
+  // Handler for dropdown open state changes
+  const handleDropdownOpenChange = useCallback(
+    (isOpen: boolean, itemId: string) => {
+      if (isOpen) {
+        setOpenDropdownId(itemId);
+      } else if (openDropdownId === itemId) {
+        setOpenDropdownId(null);
+      }
+    },
+    [openDropdownId]
+  );
+
   return (
     <>
       <div className="border-b">
@@ -376,103 +411,125 @@ export function WorkspaceAccountsSettings() {
               <div>Role</div>
               <div />
             </div>
-            {paginatedData.map((item) => (
-              <div
-                key={
-                  activeTab === 'members'
-                    ? (item as any).userId
-                    : (item as any).id
-                }
-                className="grid grid-cols-[1fr_120px_120px_40px] gap-4 items-center py-3 border-t"
-              >
-                <div className="flex items-center gap-3">
-                  <Avatar className="w-8 h-8">
-                    {activeTab === 'members' ? (
-                      <AvatarImage
-                        src={(item as any).image || ''}
-                        alt={(item as any).name || ''}
-                      />
-                    ) : null}
-                    <AvatarFallback>
-                      {activeTab === 'members'
-                        ? (
-                            (item as any).name?.charAt(0) ||
-                            item.email.charAt(0)
-                          ).toUpperCase()
-                        : item.email.charAt(0).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <div className="font-medium truncate max-w-[180px]">
-                      {activeTab === 'members'
-                        ? (item as any).name
-                        : item.email.split('@')[0]}
-                    </div>
-                    <div className="text-sm text-muted-foreground truncate max-w-[180px]">
-                      {item.email}
+            {paginatedData.map((item) => {
+              // Generate a unique ID for each item for dropdown tracking
+              const itemId =
+                activeTab === 'members'
+                  ? `member-${(item as any).userId}`
+                  : `invitation-${(item as any).id}`;
+
+              return (
+                <div
+                  key={
+                    activeTab === 'members'
+                      ? (item as any).userId
+                      : (item as any).id
+                  }
+                  className="grid grid-cols-[1fr_120px_120px_40px] gap-4 items-center py-3 border-t"
+                >
+                  <div className="flex items-center gap-3">
+                    <Avatar className="w-8 h-8">
+                      {activeTab === 'members' ? (
+                        <AvatarImage
+                          src={(item as any).image || ''}
+                          alt={(item as any).name || ''}
+                        />
+                      ) : null}
+                      <AvatarFallback>
+                        {activeTab === 'members'
+                          ? (
+                              (item as any).name?.charAt(0) ||
+                              item.email.charAt(0)
+                            ).toUpperCase()
+                          : item.email.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <div className="font-medium truncate max-w-[180px]">
+                        {activeTab === 'members'
+                          ? (item as any).name
+                          : item.email.split('@')[0]}
+                      </div>
+                      <div className="text-sm text-muted-foreground truncate max-w-[180px]">
+                        {item.email}
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div className="text-sm">{item.date}</div>
-                <div>
-                  <Select
-                    value={item.role}
-                    onValueChange={(newRole) =>
-                      handleRoleChange((item as any).userId, newRole)
-                    }
-                    disabled={!canChangeRole(item)}
-                  >
-                    <SelectTrigger className="h-8">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="SUPER_ADMIN" disabled={isAdmin}>
-                        Owner
-                      </SelectItem>
-                      <SelectItem value="ADMIN">Admin</SelectItem>
-                      <SelectItem value="MEMBER">Member</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {(isSuperAdmin || isAdmin) && (
+                  <div className="text-sm">{item.date}</div>
                   <div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreHorizontal className="h-4 w-4" />
-                          <span className="sr-only">Actions</span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          className="text-destructive focus:text-destructive focus:bg-red-50 cursor-pointer"
-                          onClick={() => {
-                            if (activeTab === 'invitations') {
-                              handleRevokeInvitation((item as any).id);
-                            } else if (activeTab === 'members') {
-                              if (item.email === currentUser.email) {
-                                handleLeave();
-                              } else {
-                                handleRemoveMember(
-                                  (item as any).userId,
-                                  item.role
-                                );
-                              }
-                            }
-                          }}
+                    <Select
+                      value={item.role}
+                      onValueChange={(newRole) =>
+                        handleRoleChange((item as any).userId, newRole)
+                      }
+                      disabled={!canChangeRole(item)}
+                    >
+                      <SelectTrigger className="h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem
+                          value="SUPER_ADMIN"
+                          disabled={!isSuperAdmin}
                         >
-                          {activeTab === 'members'
-                            ? item.email === currentUser.email
-                              ? 'Leave workspace'
-                              : 'Remove member'
-                            : 'Revoke invitation'}
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                          Owner
+                        </SelectItem>
+                        <SelectItem value="ADMIN">Admin</SelectItem>
+                        <SelectItem value="MEMBER">Member</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                )}
-              </div>
-            ))}
+                  {(isSuperAdmin || isAdmin) && (
+                    <div>
+                      <DropdownMenu
+                        open={openDropdownId === itemId}
+                        onOpenChange={(isOpen) =>
+                          handleDropdownOpenChange(isOpen, itemId)
+                        }
+                      >
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                            <span className="sr-only">Actions</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive focus:bg-red-50 cursor-pointer"
+                            onClick={() => {
+                              if (activeTab === 'invitations') {
+                                handleRevokeInvitation((item as any).id);
+                              } else if (activeTab === 'members') {
+                                if (item.email === currentUser.email) {
+                                  handleLeave();
+                                } else {
+                                  handleRemoveMember(
+                                    (item as any).userId,
+                                    item.role
+                                  );
+                                }
+                              }
+                              // Close dropdown after action
+                              setOpenDropdownId(null);
+                            }}
+                          >
+                            {activeTab === 'members'
+                              ? item.email === currentUser.email
+                                ? 'Leave workspace'
+                                : 'Remove member'
+                              : 'Revoke invitation'}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>

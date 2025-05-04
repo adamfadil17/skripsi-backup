@@ -73,79 +73,187 @@ export async function PUT(
       );
     }
 
-    // Super Admin hanya bisa turun jabatan jika ada Super Admin lain yang tersisa
-    if (isSuperAdmin) {
-      // Jika targetUser adalah Super Admin dan peran baru bukan Super Admin
-      if (targetUser.role === 'SUPER_ADMIN' && newRole !== 'SUPER_ADMIN') {
-        const superAdminCount = await prisma.workspaceMember.count({
-          where: { workspaceId, role: 'SUPER_ADMIN' },
-        });
-
-        if (superAdminCount <= 1) {
-          return NextResponse.json(
-            { message: 'At least one Super Admin must remain' },
-            { status: 403 }
-          );
-        }
-      }
-
-      // Update role Super Admin ke role lain yang diizinkan
-      if (newRole !== 'SUPER_ADMIN') {
-        const [updatedMember, _notification] = await prisma.$transaction([
-          prisma.workspaceMember.update({
-            where: {
-              userId_workspaceId: { userId, workspaceId },
-            },
-            data: { role: newRole },
-            include: {
-              user: {
-                select: {
-                  id: true,
-                  name: true,
-                  email: true,
-                  image: true,
-                },
+    // Super Admin bisa mempromosikan Admin atau Member menjadi Super Admin
+    if (isSuperAdmin && newRole === 'SUPER_ADMIN') {
+      const [updatedMember, _notification] = await prisma.$transaction([
+        prisma.workspaceMember.update({
+          where: {
+            userId_workspaceId: { userId, workspaceId },
+          },
+          data: { role: newRole },
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                image: true,
               },
             },
-          }),
-          prisma.notification.create({
-            data: {
-              workspaceId,
-              userId: currentUser.id,
-              type: 'MEMBER_UPDATE',
-              message: `${currentUser.name} change ${targetUser.user.name} role to ${newRole}`,
-            },
-          }),
-        ]);
+          },
+        }),
+        prisma.notification.create({
+          data: {
+            workspaceId,
+            userId: currentUser.id,
+            type: 'MEMBER_UPDATE',
+            message: `${currentUser.name} promoted ${targetUser.user.name} to Super Admin`,
+          },
+        }),
+      ]);
 
-        // Trigger Pusher event for real-time updates
-        await pusherServer.trigger(
-          `workspace-${workspaceId}`,
-          'member-updated',
-          updatedMember
-        );
+      // Trigger Pusher event for real-time updates
+      await pusherServer.trigger(
+        `workspace-${workspaceId}`,
+        'member-updated',
+        updatedMember
+      );
 
-        await pusherServer.trigger(
-          `notification-${workspaceId}`,
-          'member-updated',
-          {
-            member: updatedMember.user,
-            updatedBy: {
-              id: currentUser.id,
-              name: currentUser.name,
-              image: currentUser.image,
-            },
-          }
-        );
+      await pusherServer.trigger(
+        `notification-${workspaceId}`,
+        'member-updated',
+        {
+          member: updatedMember.user,
+          updatedBy: {
+            id: currentUser.id,
+            name: currentUser.name,
+            image: currentUser.image,
+          },
+        }
+      );
 
-        return NextResponse.json({
-          message: 'Role updated successfully',
-          data: { member: updatedMember },
-        });
-      }
+      return NextResponse.json({
+        message: 'Role updated successfully',
+        data: { member: updatedMember },
+      });
     }
 
-    // Admin hanya boleh mempromosikan Member menjadi Admin
+    // Super Admin bisa menurunkan Super Admin lain, tapi harus memastikan masih ada minimal satu Super Admin
+    if (
+      isSuperAdmin &&
+      targetUser.role === 'SUPER_ADMIN' &&
+      newRole !== 'SUPER_ADMIN'
+    ) {
+      const superAdminCount = await prisma.workspaceMember.count({
+        where: { workspaceId, role: 'SUPER_ADMIN' },
+      });
+
+      if (superAdminCount <= 1) {
+        return NextResponse.json(
+          { message: 'At least one Super Admin must remain' },
+          { status: 403 }
+        );
+      }
+
+      const [updatedMember, _notification] = await prisma.$transaction([
+        prisma.workspaceMember.update({
+          where: {
+            userId_workspaceId: { userId, workspaceId },
+          },
+          data: { role: newRole },
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                image: true,
+              },
+            },
+          },
+        }),
+        prisma.notification.create({
+          data: {
+            workspaceId,
+            userId: currentUser.id,
+            type: 'MEMBER_UPDATE',
+            message: `${currentUser.name} changed ${targetUser.user.name} role from Super Admin to ${newRole}`,
+          },
+        }),
+      ]);
+
+      // Trigger Pusher event for real-time updates
+      await pusherServer.trigger(
+        `workspace-${workspaceId}`,
+        'member-updated',
+        updatedMember
+      );
+
+      await pusherServer.trigger(
+        `notification-${workspaceId}`,
+        'member-updated',
+        {
+          member: updatedMember.user,
+          updatedBy: {
+            id: currentUser.id,
+            name: currentUser.name,
+            image: currentUser.image,
+          },
+        }
+      );
+
+      return NextResponse.json({
+        message: 'Role updated successfully',
+        data: { member: updatedMember },
+      });
+    }
+
+    // Super Admin mengubah role Admin atau Member (selain menjadi Super Admin, yang sudah ditangani di atas)
+    if (isSuperAdmin && newRole !== 'SUPER_ADMIN') {
+      const [updatedMember, _notification] = await prisma.$transaction([
+        prisma.workspaceMember.update({
+          where: {
+            userId_workspaceId: { userId, workspaceId },
+          },
+          data: { role: newRole },
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                image: true,
+              },
+            },
+          },
+        }),
+        prisma.notification.create({
+          data: {
+            workspaceId,
+            userId: currentUser.id,
+            type: 'MEMBER_UPDATE',
+            message: `${currentUser.name} changed ${targetUser.user.name} role to ${newRole}`,
+          },
+        }),
+      ]);
+
+      // Trigger Pusher event for real-time updates
+      await pusherServer.trigger(
+        `workspace-${workspaceId}`,
+        'member-updated',
+        updatedMember
+      );
+
+      await pusherServer.trigger(
+        `notification-${workspaceId}`,
+        'member-updated',
+        {
+          member: updatedMember.user,
+          updatedBy: {
+            id: currentUser.id,
+            name: currentUser.name,
+            image: currentUser.image,
+          },
+        }
+      );
+
+      return NextResponse.json({
+        message: 'Role updated successfully',
+        data: { member: updatedMember },
+      });
+    }
+
+    // Admin mempromosikan Member menjadi Admin
     if (isAdmin && targetUser.role === 'MEMBER' && newRole === 'ADMIN') {
       const [updatedMember, _notification] = await prisma.$transaction([
         prisma.workspaceMember.update({
@@ -169,7 +277,7 @@ export async function PUT(
             workspaceId,
             userId: currentUser.id,
             type: 'MEMBER_UPDATE',
-            message: `${currentUser.name} change ${targetUser.user.name} role to ${newRole}`,
+            message: `${currentUser.name} promoted ${targetUser.user.name} to Admin`,
           },
         }),
       ]);
@@ -354,8 +462,27 @@ export async function DELETE(
       );
     }
 
-    // Super Admin bisa menghapus siapa saja
+    // Super Admin bisa menghapus siapa saja kecuali jika menghapus Super Admin terakhir
     if (currentUserRole?.role === 'SUPER_ADMIN') {
+      // Jika target yang dihapus adalah Super Admin, pastikan masih ada Super Admin lain
+      if (targetUserRole?.role === 'SUPER_ADMIN') {
+        const superAdminCount = await prisma.workspaceMember.count({
+          where: { workspaceId, role: 'SUPER_ADMIN' },
+        });
+
+        if (superAdminCount <= 1) {
+          return NextResponse.json(
+            {
+              status: 'error',
+              code: 403,
+              error_type: 'Forbidden',
+              message: 'Cannot remove the last Super Admin from workspace.',
+            },
+            { status: 403 }
+          );
+        }
+      }
+
       // Lakukan penghapusan member
       await prisma.$transaction([
         prisma.workspaceMember.delete({
@@ -383,6 +510,7 @@ export async function DELETE(
         {
           userId,
           member: {
+            id: targetUserRole?.user.id,
             name: targetUserRole?.user.name || 'A member',
             image: targetUserRole?.user.image,
           },
