@@ -63,18 +63,46 @@ const AuthForm = () => {
     },
   });
 
+  // Fungsi khusus untuk Sign Up
+  const signUp = async (data: FieldValues) => {
+    setIsLoading(true);
+
+    try {
+      // Mengirim data registrasi ke API
+      await axios.post('/api/register', data);
+      toast.success('Account created successfully!');
+
+      // Otomatis login setelah registrasi berhasil
+      const signInResult = await signIn('credentials', {
+        ...data,
+        redirect: false,
+      });
+
+      return signInResult;
+    } catch (error) {
+      toast.error('Something went wrong during registration!');
+      setIsLoading(false);
+      throw error;
+    }
+  };
+
   const onSubmit: SubmitHandler<FieldValues> = (data) => {
     setIsLoading(true);
 
     if (variant === 'REGISTER') {
-      axios
-        .post('/api/register', data)
-        .then(() => signIn('credentials', data))
-        .catch(() => toast.error('Something went wrong!'))
-        .finally(() => setIsLoading(false));
-    }
-
-    if (variant === 'LOGIN') {
+      signUp(data)
+        .then((callback) => {
+          if (callback?.error) {
+            toast.error('Failed to login after registration');
+          } else {
+            toast.success('Logged in successfully');
+          }
+          setIsLoading(false);
+        })
+        .catch(() => {
+          setIsLoading(false);
+        });
+    } else if (variant === 'LOGIN') {
       signIn('credentials', {
         ...data,
         redirect: false,
@@ -107,29 +135,6 @@ const AuthForm = () => {
       })
       .finally(() => setIsLoading(false));
   };
-
-  // const socialAction = (action: string) => {
-  //   setIsLoading(true);
-
-  //   // Tambahkan prompt=consent untuk memaksa dialog persetujuan Google setiap kali
-  //   // Ini akan memastikan refresh token baru setiap kali login
-  //   const options = {
-  //     redirect: false,
-  //     ...(action === 'google' ? { prompt: 'consent' } : {}),
-  //   };
-
-  //   signIn(action, options)
-  //     .then((callback) => {
-  //       if (callback?.error) {
-  //         toast.error('Invalid credentials');
-  //       }
-
-  //       if (callback?.ok && !callback.error) {
-  //         toast.success('Logged in');
-  //       }
-  //     })
-  //     .finally(() => setIsLoading(false));
-  // };
 
   return (
     <div className="sm:mx-auto sm:w-full sm:max-w-md">
