@@ -34,6 +34,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { LuSmilePlus } from 'react-icons/lu';
+import { useWorkspace } from '@/app/context/WorkspaceContext';
 
 const formSchema = z.object({
   workspaceName: z
@@ -55,6 +56,7 @@ const CreateWorkspace = ({ children }: CreateWorkspaceProps) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const router = useRouter();
+  const { refetchWorkspaces } = useWorkspace();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -103,7 +105,8 @@ const CreateWorkspace = ({ children }: CreateWorkspaceProps) => {
       });
 
       handleCancel();
-      router.refresh(); // Refresh to reflect new workspace
+      router.refresh();
+      refetchWorkspaces();
       toast.success('Workspace has been created');
     } catch (error: any) {
       if (error?.response?.status === 400) {

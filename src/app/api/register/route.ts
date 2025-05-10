@@ -1,7 +1,5 @@
-import bcrypt from 'bcrypt';
-
-import prisma from '@/lib/prismadb';
 import { NextRequest, NextResponse } from 'next/server';
+import { createUser } from '@/app/actions/createUser';
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,22 +7,63 @@ export async function POST(request: NextRequest) {
     const { name, email, password } = body;
 
     if (!name || !email || !password) {
-      return new NextResponse('Missing info', { status: 400 });
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 400,
+          error_type: 'BadRequest',
+          message: 'Missing required information',
+        },
+        { status: 400 }
+      );
     }
 
-    const hashedPassword = await bcrypt.hash(password, 12);
+    const user = await createUser({ name, email, password });
 
-    const user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        hashedPassword,
+    return NextResponse.json(
+      {
+        status: 'success',
+        code: 201,
+        message: 'User created successfully',
+        data: { user },
       },
-    });
-
-    return NextResponse.json(user);
+      { status: 201 }
+    );
   } catch (error: any) {
-    console.log(error, 'REGISTRATION_ERROR');
-    return new NextResponse('Internal Server Error', { status: 500 });
+    console.error('Error in registration route:', error);
+
+    // Handle specific errors
+    if (error.error_type === 'BadRequest') {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 400,
+          error_type: 'BadRequest',
+          message: error.message || 'Missing required information',
+        },
+        { status: 400 }
+      );
+    } else if (error.error_type === 'Conflict') {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 409,
+          error_type: 'Conflict',
+          message: error.message || 'Email already in use',
+        },
+        { status: 409 }
+      );
+    }
+
+    // Default error response
+    return NextResponse.json(
+      {
+        status: 'error',
+        code: 500,
+        error_type: 'InternalServerError',
+        message: 'An unexpected error occurred. Please try again later.',
+      },
+      { status: 500 }
+    );
   }
 }

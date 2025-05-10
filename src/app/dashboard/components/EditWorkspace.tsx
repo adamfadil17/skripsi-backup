@@ -35,6 +35,7 @@ import {
 } from '@/components/ui/form';
 import { UserWorkspace } from '@/types/types';
 import { LuSmilePlus } from 'react-icons/lu';
+import { useWorkspace } from '@/app/context/WorkspaceContext';
 
 const formSchema = z.object({
   workspaceName: z
@@ -57,6 +58,7 @@ const EditWorkspace = ({ children, workspace }: EditWorkspaceProps) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const router = useRouter();
+  const { refetchWorkspaces } = useWorkspace();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -108,6 +110,7 @@ const EditWorkspace = ({ children, workspace }: EditWorkspaceProps) => {
       if (response.data.status === 'success') {
         handleCancel();
         router.refresh();
+        refetchWorkspaces();
         toast.success(response.data.message || 'Workspace has been updated');
       } else {
         toast.error(response.data.message || 'Failed to update workspace');

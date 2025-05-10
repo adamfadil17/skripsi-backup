@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prismadb';
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
 import { getUserWorkspaces } from '@/app/actions/getUserWorkspaces';
+import { createWorkspace } from '@/app/actions/createWorkspace';
 
 export async function GET(req: NextRequest) {
   try {
@@ -74,139 +75,50 @@ export async function POST(req: NextRequest) {
     }
 
     // Get input from request
-    const { name, emoji, coverImage } = await req.json();
+    const body = await req.json();
+    const { name, emoji, coverImage } = body;
 
-    if (!name) {
+    try {
+      const newWorkspace = await createWorkspace(
+        { name, emoji, coverImage },
+        currentUser
+      );
+
       return NextResponse.json(
         {
-          status: 'error',
-          code: 400,
-          error_type: 'BadRequest',
-          message: 'Workspace name is required',
+          status: 'success',
+          code: 201,
+          message: 'Workspace created successfully',
+          data: { newWorkspace },
         },
-        { status: 400 }
+        { status: 201 }
       );
+    } catch (error: any) {
+      // Handle specific errors
+      if (error.error_type === 'BadRequest') {
+        return NextResponse.json(
+          {
+            status: 'error',
+            code: 400,
+            error_type: 'BadRequest',
+            message: error.message || 'Invalid request',
+          },
+          { status: 400 }
+        );
+      } else if (error.error_type === 'Unauthorized') {
+        return NextResponse.json(
+          {
+            status: 'error',
+            code: 401,
+            error_type: 'Unauthorized',
+            message: error.message || 'Unauthorized access',
+          },
+          { status: 401 }
+        );
+      } else {
+        throw error; // Re-throw for the outer catch block
+      }
     }
-
-    const existingWorkspace = await prisma.workspace.findFirst({
-      where: {
-        name,
-        members: {
-          some: {
-            userId: currentUser.id,
-          },
-        },
-      },
-    });
-
-    if (existingWorkspace) {
-      return NextResponse.json(
-        {
-          status: 'error',
-          code: 400,
-          error_type: 'BadRequest',
-          message: 'Workspace name already exists',
-        },
-        { status: 400 }
-      );
-    }
-
-    // Create new workspace with document, chat, and member
-    const newWorkspace = await prisma.workspace.create({
-      data: {
-        name,
-        emoji,
-        coverImage,
-        members: {
-          create: {
-            userId: currentUser.id,
-            role: 'SUPER_ADMIN',
-          },
-        },
-        conversation: {
-          create: {
-            messages: {
-              create: {
-                body: `Welcome to the ${name} workspace! Start collaborating here.`,
-                senderId: currentUser.id,
-                seenIds: [currentUser.id],
-                seenBy: {
-                  connect: {
-                    id: currentUser.id,
-                  },
-                },
-              },
-            },
-          },
-        },
-        documents: {
-          create: {
-            // Default document with title 'Untitled Document'
-            title: 'Untitled Document',
-            emoji: '📝',
-            coverImage: '/images/cover.png',
-            // Mark who created the document
-            createdById: currentUser.id,
-            // Since it's a new document, updatedBy can be null
-            documentContents: {
-              create: {
-                content: {
-                  time: Date.now(),
-                  blocks: [
-                    {
-                      type: 'paragraph',
-                      data: {
-                        text: 'Welcome to your new workspace! Start collaborating here.',
-                      },
-                    },
-                  ],
-                  version: '2.30.8',
-                },
-                // Use currentUser as initial editor
-                editedById: currentUser.id,
-              },
-            },
-          },
-        },
-      },
-      include: {
-        members: true,
-        conversation: {
-          include: {
-            messages: {
-              include: {
-                sender: {
-                  select: {
-                    id: true,
-                    name: true,
-                    email: true,
-                    image: true,
-                  },
-                },
-                seenBy: {
-                  select: {
-                    id: true,
-                    name: true,
-                    email: true,
-                  },
-                },
-              },
-            },
-          },
-        },
-        documents: true,
-      },
-    });
-
-    return NextResponse.json(
-      {
-        status: 'success',
-        code: 201,
-        message: 'Workspace created successfully',
-        data: { newWorkspace },
-      },
-      { status: 201 }
-    );
   } catch (error) {
     console.error('Error creating workspace:', error);
     return NextResponse.json(

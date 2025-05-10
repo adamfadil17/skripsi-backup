@@ -19,6 +19,7 @@ import {
 import { Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
+import { useWorkspace } from '@/app/context/WorkspaceContext';
 
 interface DeleteWorkspaceProps {
   workspace: UserWorkspace;
@@ -30,6 +31,7 @@ export function DeleteWorkspace({ workspace, children }: DeleteWorkspaceProps) {
   const [isDeleting, setIsDeleting] = useState(false);
 
   const router = useRouter();
+  const { refetchWorkspaces } = useWorkspace();
 
   useEffect(() => {
     if (!isOpen) {
@@ -48,6 +50,7 @@ export function DeleteWorkspace({ workspace, children }: DeleteWorkspaceProps) {
         toast.success(response.data.message || 'Workspace has been deleted');
         setIsOpen(false);
         router.refresh();
+        refetchWorkspaces();
       } else {
         toast.error(response.data.message || 'Failed to delete workspace');
       }
