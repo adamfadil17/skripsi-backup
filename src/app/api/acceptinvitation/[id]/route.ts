@@ -1,7 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server';
-import prisma from '@/lib/prismadb';
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
-import { pusherServer } from '@/lib/pusher';
+import { acceptInvitation } from '@/app/actions/acceptInvitation';
 
 export async function POST(
   req: NextRequest,
@@ -11,149 +10,94 @@ export async function POST(
     const currentUser = await getCurrentUser();
 
     if (!currentUser?.id || !currentUser?.email) {
-      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
-    }
-
-    const invitation = await prisma.invitation.findUnique({
-      where: { id: params.id },
-      include: {
-        workspace: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-      },
-    });
-
-    if (!invitation) {
-      return NextResponse.json(
-        { message: 'Invitation not found or expired' },
-        { status: 404 }
-      );
-    }
-
-    // Check if email matches the invitation
-    if (currentUser.email !== invitation.email) {
-      return NextResponse.json(
-        { message: 'Forbidden: Email does not match the invitation' },
-        { status: 403 }
-      );
-    }
-
-    // Check if user is already a workspace member
-    const existingMember = await prisma.workspaceMember.findFirst({
-      where: {
-        workspaceId: invitation.workspaceId,
-        userId: currentUser.id,
-      },
-    });
-
-    if (existingMember) {
       return NextResponse.json(
         {
-          error_type: 'UserIsMember',
-          message: 'You are already a member of this workspace',
+          status: 'error',
+          code: 401,
+          error_type: 'Unauthorized',
+          message: 'Unauthorized access',
         },
-        { status: 400 }
+        { status: 401 }
       );
     }
 
-    if (new Date() > invitation.expiredAt) {
-      return NextResponse.json(
-        { message: 'Invitation expired' },
-        { status: 400 }
-      );
-    }
+    try {
+      const result = await acceptInvitation(params.id, currentUser);
 
-    // Add user to workspace
-    const [newMember, _] = await prisma.$transaction([
-      prisma.workspaceMember.create({
+      return NextResponse.json({
+        status: 'success',
+        code: 200,
+        message: 'Invitation accepted',
         data: {
-          workspaceId: invitation.workspaceId,
-          userId: currentUser.id,
-          role: invitation.role,
+          workspaceName: result.workspaceName,
+          newMember: result.newMember,
         },
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              image: true,
-            },
+      });
+    } catch (error: any) {
+      // Handle specific errors
+      if (error.error_type === 'NotFound') {
+        return NextResponse.json(
+          {
+            status: 'error',
+            code: 404,
+            error_type: 'NotFound',
+            message: error.message || 'Invitation not found or expired',
           },
-        },
-      }),
-      prisma.invitation.delete({ where: { id: params.id } }),
-      prisma.notification.create({
-        data: {
-          workspaceId: invitation.workspaceId,
-          userId: currentUser.id,
-          type: 'MEMBER_CREATE',
-          message: `${currentUser.name} has joined the workspace ${invitation.workspace?.name}. Welcome aboard!`,
-        },
-      }),
-    ]);
-
-    await pusherServer.trigger(
-      `workspace-${invitation.workspaceId}`,
-      'member-added',
-      newMember
-    );
-
-    await pusherServer.trigger(
-      `workspace-${invitation.workspaceId}`,
-      'invitation-removed',
-      invitation.id
-    );
-
-    // Trigger Pusher events
-    await pusherServer.trigger(
-      `notification-${invitation.workspaceId}`,
-      'member-added',
-      {
-        member: {
-          id: currentUser.id,
-          name: currentUser.name,
-          email: currentUser.email,
-          image: currentUser.image,
-        },
-        addedBy: invitation.invitedById || {
-          id: 'system',
-          name: 'System',
-          image: null,
-        },
+          { status: 404 }
+        );
+      } else if (error.error_type === 'Forbidden') {
+        return NextResponse.json(
+          {
+            status: 'error',
+            code: 403,
+            error_type: 'Forbidden',
+            message: error.message || 'Forbidden: Email does not match the invitation',
+          },
+          { status: 403 }
+        );
+      } else if (error.error_type === 'UserIsMember') {
+        return NextResponse.json(
+          {
+            status: 'error',
+            code: 400,
+            error_type: 'UserIsMember',
+            message: error.message || 'You are already a member of this workspace',
+          },
+          { status: 400 }
+        );
+      } else if (error.error_type === 'InvitationExpired') {
+        return NextResponse.json(
+          {
+            status: 'error',
+            code: 400,
+            error_type: 'InvitationExpired',
+            message: error.message || 'Invitation expired',
+          },
+          { status: 400 }
+        );
+      } else if (error.error_type === 'Unauthorized') {
+        return NextResponse.json(
+          {
+            status: 'error',
+            code: 401,
+            error_type: 'Unauthorized',
+            message: error.message || 'Unauthorized access',
+          },
+          { status: 401 }
+        );
+      } else {
+        throw error; // Re-throw for the outer catch block
       }
-    );
-
-    await pusherServer.trigger(
-      `notification-${invitation.workspaceId}`,
-      'invitation-removed',
-      {
-        id: invitation.id,
-        email: invitation.email,
-        revokedBy: {
-          id: currentUser.id,
-          name: currentUser.name,
-          image: currentUser.image,
-        },
-      }
-    );
-
-    return NextResponse.json({
-      status: 'success',
-      code: 200,
-      message: 'Invitation accepted',
-      data: {
-        workspaceName: invitation.workspace?.name,
-        newMember,
-      },
-    });
+    }
   } catch (error) {
     console.error('Error accepting invitation:', error);
     return NextResponse.json(
-      { message: 'Internal Server Error' },
+      {
+        status: 'error',
+        code: 500,
+        error_type: 'InternalServerError',
+        message: 'An unexpected error occurred. Please try again later.',
+      },
       { status: 500 }
     );
   }

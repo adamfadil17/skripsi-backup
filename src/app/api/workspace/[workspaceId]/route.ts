@@ -1,8 +1,8 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { getWorkspaceInfo } from '@/app/actions/getWorkspaceInfo';
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
-import prisma from '@/lib/prismadb';
-import { pusherServer } from '@/lib/pusher';
+import { updateWorkspaceById } from '@/app/actions/updateWorkspaceById';
+import { deleteWorkspaceById } from '@/app/actions/deleteWorkspaceById';
 
 export async function GET(
   req: NextRequest,
@@ -102,111 +102,69 @@ export async function PUT(
 
     // Get data from body
     const { name, emoji, coverImage } = await req.json();
-    if (!name || !emoji || !coverImage) {
-      return NextResponse.json(
-        {
-          status: 'error',
-          code: 400,
-          error_type: 'BadRequest',
-          message: 'All fields are required',
-        },
-        { status: 400 }
-      );
-    }
 
-    // Validate: Check if user is SUPER_ADMIN in this workspace
-    const userWorkspace = await prisma.workspaceMember.findFirst({
-      where: {
-        userId: currentUser.id,
+    try {
+      const updatedWorkspace = await updateWorkspaceById(
         workspaceId,
-        role: 'SUPER_ADMIN',
-      },
-    });
+        { name, emoji, coverImage },
+        currentUser
+      );
 
-    if (!userWorkspace) {
       return NextResponse.json(
         {
-          status: 'error',
-          code: 403,
-          error_type: 'Forbidden',
-          message: 'Forbidden: Only Owner can update workspace',
+          status: 'success',
+          code: 200,
+          message: 'Workspace updated successfully',
+          data: { updatedWorkspace },
         },
-        { status: 403 }
+        { status: 200 }
       );
-    }
-
-    // Get current workspace data before update
-    const currentWorkspace = await prisma.workspace.findUnique({
-      where: { id: workspaceId },
-    });
-
-    if (!currentWorkspace) {
-      return NextResponse.json(
-        {
-          status: 'error',
-          code: 404,
-          error_type: 'NotFound',
-          message: 'Workspace not found',
-        },
-        { status: 404 }
-      );
-    }
-
-    // Check if any data has changed
-    const hasChanges =
-      currentWorkspace.name !== name ||
-      currentWorkspace.emoji !== emoji ||
-      currentWorkspace.coverImage !== coverImage;
-
-    // Update workspace
-    const updatedWorkspace = await prisma.workspace.update({
-      where: { id: workspaceId },
-      data: { name, emoji, coverImage },
-    });
-
-    // Only create notification and trigger Pusher events if data has changed
-    if (hasChanges) {
-      // Create notification for workspace update
-      await prisma.notification.create({
-        data: {
-          workspaceId,
-          message: `${currentUser.name} updated workspace profile`,
-          type: 'WORKSPACE_UPDATE',
-          userId: currentUser.id,
-        },
-      });
-
-      // Trigger Pusher event for real-time updates
-      await pusherServer.trigger(
-        `workspace-${workspaceId}`,
-        'workspace-updated',
-        updatedWorkspace
-      );
-
-      await pusherServer.trigger(
-        `notification-${workspaceId}`,
-        'workspace-updated',
-        {
-          ...updatedWorkspace,
-          updatedBy: {
-            id: currentUser.id,
-            name: currentUser.name,
-            email: currentUser.email,
-            image: currentUser.image,
+    } catch (error: any) {
+      // Handle specific errors
+      if (error.error_type === 'BadRequest') {
+        return NextResponse.json(
+          {
+            status: 'error',
+            code: 400,
+            error_type: 'BadRequest',
+            message: error.message || 'Invalid request',
           },
-        }
-      );
+          { status: 400 }
+        );
+      } else if (error.error_type === 'Unauthorized') {
+        return NextResponse.json(
+          {
+            status: 'error',
+            code: 401,
+            error_type: 'Unauthorized',
+            message: error.message || 'Unauthorized access',
+          },
+          { status: 401 }
+        );
+      } else if (error.error_type === 'Forbidden') {
+        return NextResponse.json(
+          {
+            status: 'error',
+            code: 403,
+            error_type: 'Forbidden',
+            message: error.message || 'Forbidden',
+          },
+          { status: 403 }
+        );
+      } else if (error.error_type === 'NotFound') {
+        return NextResponse.json(
+          {
+            status: 'error',
+            code: 404,
+            error_type: 'NotFound',
+            message: error.message || 'Not found',
+          },
+          { status: 404 }
+        );
+      } else {
+        throw error; // Re-throw for the outer catch block
+      }
     }
-
-    return NextResponse.json(
-      {
-        status: 'success',
-        code: 200,
-        message: 'Workspace updated successfully',
-        data: { updatedWorkspace },
-      },
-      { status: 200 }
-    );
   } catch (error) {
     console.error('Error updating workspace:', error);
     return NextResponse.json(
@@ -253,63 +211,64 @@ export async function DELETE(
       );
     }
 
-    // Find workspace by id, include members for role validation
-    const workspace = await prisma.workspace.findUnique({
-      where: { id: workspaceId },
-      include: { members: true },
-    });
+    try {
+      const deletedWorkspace = await deleteWorkspaceById(workspaceId, currentUser);
 
-    if (!workspace) {
       return NextResponse.json(
         {
-          status: 'error',
-          code: 404,
-          error_type: 'NotFound',
-          message: 'Workspace not found',
+          status: 'success',
+          code: 200,
+          message: 'Workspace deleted successfully',
+          data: { deletedWorkspace },
         },
-        { status: 404 }
+        { status: 200 }
       );
+    } catch (error: any) {
+      // Handle specific errors
+      if (error.error_type === 'BadRequest') {
+        return NextResponse.json(
+          {
+            status: 'error',
+            code: 400,
+            error_type: 'BadRequest',
+            message: error.message || 'Invalid request',
+          },
+          { status: 400 }
+        );
+      } else if (error.error_type === 'Unauthorized') {
+        return NextResponse.json(
+          {
+            status: 'error',
+            code: 401,
+            error_type: 'Unauthorized',
+            message: error.message || 'Unauthorized access',
+          },
+          { status: 401 }
+        );
+      } else if (error.error_type === 'Forbidden') {
+        return NextResponse.json(
+          {
+            status: 'error',
+            code: 403,
+            error_type: 'Forbidden',
+            message: error.message || 'Forbidden',
+          },
+          { status: 403 }
+        );
+      } else if (error.error_type === 'NotFound') {
+        return NextResponse.json(
+          {
+            status: 'error',
+            code: 404,
+            error_type: 'NotFound',
+            message: error.message || 'Not found',
+          },
+          { status: 404 }
+        );
+      } else {
+        throw error; // Re-throw for the outer catch block
+      }
     }
-
-    // Validate if currentUser is SUPER_ADMIN in the workspace
-    const isOwner = workspace.members.some(
-      (member) =>
-        member.userId === currentUser.id && member.role === 'SUPER_ADMIN'
-    );
-
-    if (!isOwner) {
-      return NextResponse.json(
-        {
-          status: 'error',
-          code: 403,
-          error_type: 'Forbidden',
-          message: 'Forbidden',
-        },
-        { status: 403 }
-      );
-    }
-
-    // Delete workspace
-    const deletedWorkspace = await prisma.workspace.delete({
-      where: { id: workspaceId },
-    });
-
-    // Trigger Pusher event for real-time updates
-    await pusherServer.trigger(
-      `workspace-${workspaceId}`,
-      'workspace-deleted',
-      workspaceId
-    );
-
-    return NextResponse.json(
-      {
-        status: 'success',
-        code: 200,
-        message: 'Workspace deleted successfully',
-        data: { deletedWorkspace },
-      },
-      { status: 200 }
-    );
   } catch (error) {
     console.error('Error deleting workspace:', error);
     return NextResponse.json(

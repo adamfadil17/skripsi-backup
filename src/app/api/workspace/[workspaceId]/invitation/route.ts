@@ -1,10 +1,10 @@
-import { sendInvitation } from '@/app/actions/sendInvitation';
+// app/api/workspaces/[workspaceId]/invitations/route.ts
 import { type NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
-import prisma from '@/lib/prismadb';
 import { getWorkspaceInvitations } from '@/app/actions/getWorkspaceInvitations';
-import { pusherServer } from '@/lib/pusher';
+import { createInvitation } from '@/app/actions/createInvitation';
 
+// GET method remains the same
 export async function GET(
   req: NextRequest,
   { params }: { params: { workspaceId: string } }
@@ -75,6 +75,7 @@ export async function GET(
   }
 }
 
+// Refactored POST method to use createInvitation action
 export async function POST(
   req: NextRequest,
   { params }: { params: { workspaceId: string } }
@@ -82,7 +83,6 @@ export async function POST(
   try {
     const currentUser = await getCurrentUser();
 
-    // Cek apakah user sudah login
     if (!currentUser?.id || !currentUser?.email) {
       return NextResponse.json(
         {
@@ -110,145 +110,73 @@ export async function POST(
       );
     }
 
-    // Validasi input
-    if (!email || !role) {
-      return NextResponse.json(
-        {
-          status: 'error',
-          code: 400,
-          error_type: 'BadRequest',
-          message: 'Missing required fields: email, workspaceId, or role.',
-        },
-        { status: 400 }
-      );
-    }
-
-    const normalizedEmail = email.trim().toLowerCase();
-
-    // Cek apakah email sudah menjadi member workspace
-    const existingMember = await prisma.workspaceMember.findFirst({
-      where: {
+    try {
+      // Use the createInvitation action
+      const invitation = await createInvitation({
+        email,
         workspaceId,
-        user: {
-          email: normalizedEmail,
-        },
-      },
-    });
+        role,
+        currentUser,
+      });
 
-    if (existingMember) {
       return NextResponse.json(
         {
-          status: 'error',
-          code: 400,
-          error_type: 'AlreadyMember',
-          message: 'This user is already a member of the workspace.',
+          status: 'success',
+          code: 201,
+          message: 'Invitation sent successfully.',
+          data: invitation,
         },
-        { status: 400 }
+        { status: 201 }
       );
-    }
-
-    // Cek apakah email sudah menerima invitation sebelumnya
-    const existingInvitation = await prisma.invitation.findFirst({
-      where: {
-        workspaceId,
-        email: normalizedEmail,
-      },
-    });
-
-    if (existingInvitation) {
-      return NextResponse.json(
-        {
-          status: 'error',
-          code: 400,
-          error_type: 'AlreadyInvited',
-          message: 'This user has already been invited to the workspace.',
-        },
-        { status: 400 }
-      );
-    }
-
-    // Cek role dari currentUser
-    const workspaceUser = await prisma.workspaceMember.findUnique({
-      where: {
-        userId_workspaceId: { userId: currentUser.id, workspaceId },
-      },
-    });
-
-    // Hanya Super Admin yang bisa memberikan role SUPER_ADMIN atau ADMIN
-    if (workspaceUser?.role !== 'SUPER_ADMIN') {
-      if (role === 'SUPER_ADMIN') {
+    } catch (error: any) {
+      // Handle specific error types
+      if (error.error_type === 'BadRequest') {
+        return NextResponse.json(
+          {
+            status: 'error',
+            code: 400,
+            error_type: error.error_type,
+            message: error.message || 'Invalid request',
+          },
+          { status: 400 }
+        );
+      } else if (error.error_type === 'Unauthorized') {
+        return NextResponse.json(
+          {
+            status: 'error',
+            code: 401,
+            error_type: error.error_type,
+            message: error.message || 'Unauthorized access',
+          },
+          { status: 401 }
+        );
+      } else if (error.error_type === 'Forbidden') {
         return NextResponse.json(
           {
             status: 'error',
             code: 403,
-            error_type: 'Forbidden',
-            message: 'Only Super Admin can invite users with role SUPER_ADMIN.',
+            error_type: error.error_type,
+            message: error.message || 'Permission denied',
           },
           { status: 403 }
         );
-      }
-
-      // Admin hanya bisa mengundang user dengan role MEMBER
-      if (role !== 'MEMBER') {
+      } else if (
+        error.error_type === 'AlreadyMember' ||
+        error.error_type === 'AlreadyInvited'
+      ) {
         return NextResponse.json(
           {
             status: 'error',
-            code: 403,
-            error_type: 'Forbidden',
-            message: 'Admin can only invite users with role MEMBER.',
+            code: 400,
+            error_type: error.error_type,
+            message: error.message,
           },
-          { status: 403 }
+          { status: 400 }
         );
+      } else {
+        throw error; // Re-throw for the outer catch block
       }
     }
-
-    // Kirim undangan
-    const invitation = await sendInvitation(
-      normalizedEmail,
-      workspaceId,
-      currentUser.id,
-      role
-    );
-
-    await prisma.notification.create({
-      data: {
-        workspaceId,
-        userId: currentUser.id,
-        type: 'INVITATION_CREATE',
-        message: `${currentUser.name} invited ${normalizedEmail} to join this workspace.`,
-      },
-    });
-
-    // Trigger Pusher event for real-time updates
-    await pusherServer.trigger(
-      `workspace-${workspaceId}`,
-      'invitation-added',
-      invitation
-    );
-
-    await pusherServer.trigger(
-      `notification-${workspaceId}`,
-      'invitation-added',
-      {
-        id: invitation.id,
-        email: invitation.email,
-        invitedBy: {
-          id: currentUser.id,
-          name: currentUser.name,
-          image: currentUser.image,
-        },
-      }
-    );
-
-    return NextResponse.json(
-      {
-        status: 'success',
-        code: 201,
-        message: 'Invitation sent successfully.',
-        data: invitation,
-      },
-      { status: 201 }
-    );
   } catch (error) {
     console.error('Error sending invitation:', error);
     return NextResponse.json(
