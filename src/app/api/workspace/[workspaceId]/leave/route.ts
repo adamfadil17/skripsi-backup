@@ -1,7 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server';
-import prisma from '@/lib/prismadb';
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
-import { pusherServer } from '@/lib/pusher';
+import { leaveWorkspace } from '@/app/actions/leaveWorkspace';
 
 export async function DELETE(
   req: NextRequest,
@@ -9,7 +8,8 @@ export async function DELETE(
 ) {
   try {
     const currentUser = await getCurrentUser();
-    if (!currentUser.id || !currentUser.email) {
+
+    if (!currentUser?.id || !currentUser?.email) {
       return NextResponse.json(
         {
           status: 'error',
@@ -23,103 +23,18 @@ export async function DELETE(
 
     const { workspaceId } = params;
     if (!workspaceId) {
-      return NextResponse.json({
-        status: 'error',
-        code: 400,
-        error_type: 'BadRequest',
-        message: 'workspaceId is required',
-      });
-    }
-
-    // Ambil workspace dengan anggota
-    const workspace = await prisma.workspace.findUnique({
-      where: { id: workspaceId },
-      include: { members: true },
-    });
-
-    if (!workspace) {
-      return NextResponse.json(
-        { status: 'error', code: 404, message: 'Workspace not found' },
-        { status: 404 }
-      );
-    }
-
-    const userMembership = workspace.members.find(
-      (m) => m.userId === currentUser.id
-    );
-
-    if (!userMembership) {
-      return NextResponse.json(
-        {
-          status: 'error',
-          code: 403,
-          message: 'You are not a member of this workspace',
-        },
-        { status: 403 }
-      );
-    }
-
-    const superAdminCount = workspace.members.filter(
-      (m) => m.role === 'SUPER_ADMIN'
-    ).length;
-
-    if (superAdminCount === 0) {
       return NextResponse.json(
         {
           status: 'error',
           code: 400,
-          message: 'A workspace must have at least one Owner.',
+          error_type: 'BadRequest',
+          message: 'Workspace ID is required',
         },
         { status: 400 }
       );
     }
 
-    if (superAdminCount === 1 && userMembership.role === 'SUPER_ADMIN') {
-      return NextResponse.json(
-        {
-          status: 'error',
-          code: 400,
-          message:
-            'You are the last Owner. Assign another Owner before leaving.',
-        },
-        { status: 400 }
-      );
-    }
-
-    // Delete the member
-    await prisma.$transaction([
-      prisma.workspaceMember.delete({
-        where: {
-          userId_workspaceId: {
-            userId: currentUser.id,
-            workspaceId,
-          },
-        },
-      }),
-      prisma.notification.create({
-        data: {
-          workspaceId,
-          userId: currentUser.id,
-          type: 'MEMBER_LEAVE',
-          message: `${currentUser.name} left the workspace`,
-        },
-      }),
-    ]);
-
-    // Trigger Pusher event for real-time updates
-    await pusherServer.trigger(
-      `workspace-${workspaceId}`,
-      'member-leaved',
-      currentUser.id
-    );
-
-    await pusherServer.trigger(`notification-${workspaceId}`, 'member-leaved', {
-      member: {
-        id: currentUser.id,
-        name: currentUser.name,
-        image: currentUser.image,
-      },
-    });
+    await leaveWorkspace(workspaceId, currentUser);
 
     return NextResponse.json(
       {
@@ -129,8 +44,46 @@ export async function DELETE(
       },
       { status: 200 }
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error leaving workspace:', error);
+
+    // Handle specific error types
+    if (error.error_type === 'Forbidden') {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 403,
+          error_type: 'Forbidden',
+          message: error.message || 'You do not have access to this workspace',
+        },
+        { status: 403 }
+      );
+    }
+
+    if (error.error_type === 'NotFound') {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 404,
+          error_type: 'NotFound',
+          message: error.message || 'Workspace not found',
+        },
+        { status: 404 }
+      );
+    }
+
+    if (error.error_type === 'BadRequest') {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 400,
+          error_type: 'BadRequest',
+          message: error.message || 'Invalid request',
+        },
+        { status: 400 }
+      );
+    }
+
     return NextResponse.json(
       {
         status: 'error',
