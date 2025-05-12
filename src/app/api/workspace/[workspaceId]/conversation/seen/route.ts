@@ -1,15 +1,15 @@
-import { NextResponse } from 'next/server';
+// app/api/workspaces/[workspaceId]/messages/seen/route.ts
+import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
-import prisma from '@/lib/prismadb';
-import { pusherServer } from '@/lib/pusher';
-import type { ConversationMessage } from '@/types/types';
+import { seenMessageById } from '@/app/actions/seenMessageById';
 
 export async function POST(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { workspaceId: string } }
 ) {
   try {
     const currentUser = await getCurrentUser();
+
     if (!currentUser?.id || !currentUser?.email) {
       return NextResponse.json(
         {
@@ -38,102 +38,83 @@ export async function POST(
     const body = await request.json();
     const { messageId } = body;
 
-    // Check if user is a member of the workspace
-    const membership = await prisma.workspaceMember.findFirst({
-      where: {
-        workspaceId,
-        user: {
-          email: currentUser.email,
+    if (!messageId) {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 400,
+          error_type: 'BadRequest',
+          message: 'Message ID is required',
         },
-      },
-    });
-
-    if (!membership) {
-      return new NextResponse('Forbidden', { status: 403 });
+        { status: 400 }
+      );
     }
 
-    // Find the conversation
-    const conversation = await prisma.conversation.findUnique({
-      where: {
-        workspaceId,
-      },
-    });
-
-    if (!conversation) {
-      return new NextResponse('Conversation not found', { status: 404 });
-    }
-
-    // Find the message
-    const message = await prisma.message.findUnique({
-      where: {
-        id: messageId,
-      },
-    });
-
-    if (!message || message.conversationId !== conversation.id) {
-      return new NextResponse('Message not found', { status: 404 });
-    }
-
-    // FIX: Update seenIds to include the user's email (not just ID)
-    // This is the most critical fix - ensuring consistency between what's stored and what's checked
-    const updatedMessage = await prisma.message.update({
-      where: {
-        id: messageId,
-      },
-      data: {
-        // Add email to seenIds array
-        seenIds: {
-          push: currentUser.id,
-        },
-        // Also maintain the seenBy relationship
-        seenBy: {
-          connect: {
-            id: currentUser.id,
-          },
-        },
-      },
-      include: {
-        sender: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            image: true,
-          },
-        },
-        seenBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-      },
-    });
-
-    // Convert to ConversationMessage type
-    const conversationMessage: ConversationMessage = {
-      id: updatedMessage.id,
-      body: updatedMessage.body,
-      image: updatedMessage.image,
-      conversationId: updatedMessage.conversationId,
-      senderId: updatedMessage.senderId,
-      createdAt: updatedMessage.createdAt,
-      seenIds: updatedMessage.seenIds,
-      seenBy: updatedMessage.seenBy,
-      sender: updatedMessage.sender,
-    };
-
-    // Trigger Pusher event for updated message
-    await pusherServer.trigger(
-      `workspace-${workspaceId}`,
-      'messages:update',
-      conversationMessage
+    const updatedMessage = await seenMessageById(
+      workspaceId,
+      messageId,
+      currentUser
     );
 
-    return NextResponse.json(conversationMessage);
-  } catch (error) {
-    console.error('SEEN MESSAGE ERROR:', error);
-    return new NextResponse('Internal Error', { status: 500 });
+    return NextResponse.json(
+      {
+        status: 'success',
+        code: 200,
+        message: 'Message marked as seen successfully',
+        data: { message: updatedMessage },
+      },
+      { status: 200 }
+    );
+  } catch (error: any) {
+    console.error('Error marking message as seen:', error);
+
+    // Handle specific error types
+    if (error.error_type === 'Forbidden') {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 403,
+          error_type: 'Forbidden',
+          message:
+            error.message ||
+            'You do not have permission to access this workspace',
+        },
+        { status: 403 }
+      );
+    }
+
+    if (error.error_type === 'NotFound') {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 404,
+          error_type: 'NotFound',
+          message: error.message || 'Message or conversation not found',
+        },
+        { status: 404 }
+      );
+    }
+
+    if (error.error_type === 'BadRequest') {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 400,
+          error_type: 'BadRequest',
+          message: error.message || 'Bad request',
+        },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json(
+      {
+        status: 'error',
+        code: 500,
+        error_type: 'InternalServerError',
+        message: 'An unexpected error occurred. Please try again later.',
+      },
+      { status: 500 }
+    );
   }
 }
