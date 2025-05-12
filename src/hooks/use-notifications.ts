@@ -52,10 +52,10 @@ export function useNotifications(
       console.error('Error marking notification as read:', error);
     }
   };
-  
+
   // Load initial notifications from the server
   useEffect(() => {
-    const fetchNotifications = async () => {
+    const getWorkspaceNotification = async () => {
       try {
         const response = await axios.get(
           `/api/workspace/${workspaceId}/notification`
@@ -100,7 +100,7 @@ export function useNotifications(
     };
 
     if (workspaceId) {
-      fetchNotifications();
+      getWorkspaceNotification();
     }
   }, [workspaceId]);
 

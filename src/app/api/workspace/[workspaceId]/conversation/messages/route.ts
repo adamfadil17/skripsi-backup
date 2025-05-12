@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
-import prisma from '@/lib/prismadb';
-import { pusherServer } from '@/lib/pusher';
-import type { ConversationMessage } from '@/types/types';
+import { getWorkspaceMessages } from '@/app/actions/getWorkspaceMessages';
+import { sendWorkspaceMessage } from '@/app/actions/sendWorkspaceMessage';
 
 export async function GET(
   request: NextRequest,
@@ -10,6 +9,7 @@ export async function GET(
 ) {
   try {
     const currentUser = await getCurrentUser();
+
     if (!currentUser?.id || !currentUser?.email) {
       return NextResponse.json(
         {
@@ -35,89 +35,54 @@ export async function GET(
       );
     }
 
-    // Check if user is a member of the workspace and get join date
-    const membership = await prisma.workspaceMember.findFirst({
-      where: {
-        workspaceId,
-        userId: currentUser.id,
-      },
-      select: {
-        joinedAt: true,
-      },
-    });
+    const messages = await getWorkspaceMessages(workspaceId, currentUser);
 
-    if (!membership) {
-      return new NextResponse('Forbidden', { status: 403 });
+    if (!messages) {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 404,
+          error_type: 'NotFound',
+          message: 'Messages not found',
+        },
+        { status: 404 }
+      );
     }
 
-    // Get user join date
-    const userJoinDate = membership.joinedAt;
-
-    // Find conversation for the workspace
-    const conversation = await prisma.conversation.findUnique({
-      where: {
-        workspaceId,
+    return NextResponse.json(
+      {
+        status: 'success',
+        code: 200,
+        message: 'Messages fetched successfully',
+        data: { messages },
       },
-    });
-
-    if (!conversation) {
-      return new NextResponse('Conversation not found', { status: 404 });
-    }
-
-    // Get messages for the conversation
-    // All members only see messages after they joined
-    const messages = await prisma.message.findMany({
-      where: {
-        conversationId: conversation.id,
-        createdAt: { gte: userJoinDate }, // Filter pesan berdasarkan tanggal bergabung user
-      },
-      include: {
-        sender: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            image: true,
-          },
-        },
-        seenBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-      },
-      orderBy: {
-        createdAt: 'asc',
-      },
-    });
-
-    // Convert to ConversationMessage type
-    const conversationMessages: ConversationMessage[] = messages.map(
-      (message) => ({
-        id: message.id,
-        body: message.isDeleted
-          ? 'This message has been deleted'
-          : message.body,
-        image: message.image,
-        conversationId: message.conversationId,
-        senderId: message.senderId,
-        createdAt: message.createdAt,
-        seenIds: message.seenIds,
-        seenBy: message.seenBy,
-        sender: message.sender,
-        isDeleted: message.isDeleted || false,
-        deletedAt: message.deletedAt || null,
-        isEdited: message.isEdited || false,
-        editedAt: message.editedAt || null,
-      })
+      { status: 200 }
     );
+  } catch (error: any) {
+    console.error('Error fetching workspace messages:', error);
 
-    return NextResponse.json(conversationMessages);
-  } catch (error) {
-    console.error('GET MESSAGES ERROR:', error);
-    return new NextResponse('Internal Error', { status: 500 });
+    // Handle specific error types
+    if (error.error_type === 'Forbidden') {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 403,
+          error_type: 'Forbidden',
+          message: error.message || 'You do not have access to this workspace',
+        },
+        { status: 403 }
+      );
+    }
+
+    return NextResponse.json(
+      {
+        status: 'error',
+        code: 500,
+        error_type: 'InternalServerError',
+        message: 'An unexpected error occurred. Please try again later.',
+      },
+      { status: 500 }
+    );
   }
 }
 
@@ -127,6 +92,7 @@ export async function POST(
 ) {
   try {
     const currentUser = await getCurrentUser();
+
     if (!currentUser?.id || !currentUser?.email) {
       return NextResponse.json(
         {
@@ -155,112 +121,60 @@ export async function POST(
     const body = await request.json();
     const { body: messageBody, image } = body;
 
-    // Check if user is a member of the workspace
-    const membership = await prisma.workspaceMember.findFirst({
-      where: {
-        workspaceId,
-        user: {
-          email: currentUser.email,
+    if (!messageBody && !image) {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 400,
+          error_type: 'BadRequest',
+          message: 'Message body or image is required',
         },
-      },
-    });
-
-    if (!membership) {
-      return new NextResponse('Forbidden', { status: 403 });
+        { status: 400 }
+      );
     }
 
-    // Find or create conversation for the workspace
-    let conversation = await prisma.conversation.findUnique({
-      where: {
+    const message = await sendWorkspaceMessage(
+      {
         workspaceId,
-      },
-    });
-
-    if (!conversation) {
-      conversation = await prisma.conversation.create({
-        data: {
-          workspaceId,
-        },
-      });
-    }
-
-    // Create the message
-    const message = await prisma.message.create({
-      data: {
         body: messageBody,
         image,
-        conversation: {
-          connect: {
-            id: conversation.id,
-          },
-        },
-        sender: {
-          connect: {
-            id: currentUser.id,
-          },
-        },
-        seenBy: {
-          connect: {
-            id: currentUser.id,
-          },
-        },
       },
-      include: {
-        sender: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            image: true,
-          },
-        },
-        seenBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-      },
-    });
-
-    // Update the conversation's lastMessageAt
-    await prisma.conversation.update({
-      where: {
-        id: conversation.id,
-      },
-      data: {
-        lastMessageAt: new Date(),
-      },
-    });
-
-    // Convert to ConversationMessage type
-    const conversationMessage: ConversationMessage = {
-      id: message.id,
-      body: message.body,
-      image: message.image,
-      conversationId: message.conversationId,
-      senderId: message.senderId,
-      createdAt: message.createdAt,
-      seenIds: message.seenIds,
-      seenBy: message.seenBy,
-      sender: message.sender,
-      isDeleted: false, // New message is not deleted
-      deletedAt: null, // New message has no delete date
-      isEdited: false, // New message is not edited
-      editedAt: null, // New message has no edit date
-    };
-
-    // Trigger Pusher event for new message
-    await pusherServer.trigger(
-      `workspace-${workspaceId}`,
-      'messages:new',
-      conversationMessage
+      currentUser
     );
 
-    return NextResponse.json(conversationMessage);
-  } catch (error) {
-    console.error('POST MESSAGE ERROR:', error);
-    return new NextResponse('Internal Error', { status: 500 });
+    return NextResponse.json(
+      {
+        status: 'success',
+        code: 201,
+        message: 'Message sent successfully',
+        data: { message },
+      },
+      { status: 201 }
+    );
+  } catch (error: any) {
+    console.error('Error sending workspace message:', error);
+
+    // Handle specific error types
+    if (error.error_type === 'Forbidden') {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 403,
+          error_type: 'Forbidden',
+          message: error.message || 'You do not have access to this workspace',
+        },
+        { status: 403 }
+      );
+    }
+
+    return NextResponse.json(
+      {
+        status: 'error',
+        code: 500,
+        error_type: 'InternalServerError',
+        message: 'An unexpected error occurred. Please try again later.',
+      },
+      { status: 500 }
+    );
   }
 }

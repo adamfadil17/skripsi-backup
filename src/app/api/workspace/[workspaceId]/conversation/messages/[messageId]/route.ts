@@ -1,15 +1,16 @@
-import { NextResponse } from 'next/server';
+// app/api/workspaces/[workspaceId]/messages/[messageId]/route.ts
+import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
-import prisma from '@/lib/prismadb';
-import { pusherServer } from '@/lib/pusher';
-import type { ConversationMessage } from '@/types/types';
+import { updateMessageById } from '@/app/actions/updateMessageById';
+import { deleteMessageById } from '@/app/actions/deleteMessageById';
 
 export async function PUT(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { workspaceId: string; messageId: string } }
 ) {
   try {
     const currentUser = await getCurrentUser();
+
     if (!currentUser?.id || !currentUser?.email) {
       return NextResponse.json(
         {
@@ -38,117 +39,95 @@ export async function PUT(
     const body = await request.json();
     const { body: messageBody } = body;
 
-    // Check if user is a member of the workspace
-    const membership = await prisma.workspaceMember.findFirst({
-      where: {
-        workspaceId,
-        user: {
-          email: currentUser.email,
-        },
-      },
-    });
-
-    if (!membership) {
-      return new NextResponse('Forbidden', { status: 403 });
-    }
-
-    // Find the message
-    const message = await prisma.message.findUnique({
-      where: {
-        id: messageId,
-      },
-    });
-
-    if (!message) {
-      return new NextResponse('Message not found', { status: 404 });
-    }
-
-    // Check if the user is the sender of the message
-    if (message.senderId !== currentUser.id) {
-      return new NextResponse('Forbidden - Not message owner', { status: 403 });
-    }
-
-    // Check if the message is within the edit time window (2 minutes)
-    const now = new Date();
-    const messageTime = new Date(message.createdAt);
-    const diffInMinutes = (now.getTime() - messageTime.getTime()) / (1000 * 60);
-
-    if (diffInMinutes > 2) {
+    if (!messageBody) {
       return NextResponse.json(
         {
           status: 'error',
           code: 400,
           error_type: 'BadRequest',
-          message: 'Edit time window expired (2 minutes)',
+          message: 'Message body is required',
         },
         { status: 400 }
       );
     }
 
-    // Update the message
-    const updatedMessage = await prisma.message.update({
-      where: {
-        id: messageId,
-      },
-      data: {
-        body: messageBody,
-        isEdited: true,
-        editedAt: now,
-      },
-      include: {
-        sender: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            image: true,
-          },
-        },
-        seenBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-      },
-    });
-
-    // Convert to ConversationMessage type
-    const conversationMessage: ConversationMessage = {
-      id: updatedMessage.id,
-      body: updatedMessage.body,
-      image: updatedMessage.image,
-      conversationId: updatedMessage.conversationId,
-      senderId: updatedMessage.senderId,
-      createdAt: updatedMessage.createdAt,
-      seenIds: updatedMessage.seenIds,
-      seenBy: updatedMessage.seenBy,
-      sender: updatedMessage.sender,
-      isEdited: updatedMessage.isEdited,
-      editedAt: updatedMessage.editedAt,
-    };
-
-    // Trigger Pusher event for updated message
-    await pusherServer.trigger(
-      `workspace-${workspaceId}`,
-      'messages:update',
-      conversationMessage
+    const updatedMessage = await updateMessageById(
+      workspaceId,
+      messageId,
+      messageBody,
+      currentUser
     );
 
-    return NextResponse.json(conversationMessage);
-  } catch (error) {
-    console.error('EDIT MESSAGE ERROR:', error);
-    return new NextResponse('Internal Error', { status: 500 });
+    return NextResponse.json(
+      {
+        status: 'success',
+        code: 200,
+        message: 'Message updated successfully',
+        data: { message: updatedMessage },
+      },
+      { status: 200 }
+    );
+  } catch (error: any) {
+    console.error('Error updating message:', error);
+
+    // Handle specific error types
+    if (error.error_type === 'Forbidden') {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 403,
+          error_type: 'Forbidden',
+          message:
+            error.message ||
+            'You do not have permission to update this message',
+        },
+        { status: 403 }
+      );
+    }
+
+    if (error.error_type === 'NotFound') {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 404,
+          error_type: 'NotFound',
+          message: error.message || 'Message not found',
+        },
+        { status: 404 }
+      );
+    }
+
+    if (error.error_type === 'BadRequest') {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 400,
+          error_type: 'BadRequest',
+          message: error.message || 'Bad request',
+        },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json(
+      {
+        status: 'error',
+        code: 500,
+        error_type: 'InternalServerError',
+        message: 'An unexpected error occurred. Please try again later.',
+      },
+      { status: 500 }
+    );
   }
 }
 
 export async function DELETE(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { workspaceId: string; messageId: string } }
 ) {
   try {
     const currentUser = await getCurrentUser();
+
     if (!currentUser?.id || !currentUser?.email) {
       return NextResponse.json(
         {
@@ -174,96 +153,59 @@ export async function DELETE(
       );
     }
 
-    // Check if user is a member of the workspace
-    const membership = await prisma.workspaceMember.findFirst({
-      where: {
-        workspaceId,
-        user: {
-          email: currentUser.email,
-        },
-      },
-    });
-
-    if (!membership) {
-      return new NextResponse('Forbidden', { status: 403 });
-    }
-
-    // Find the message
-    const message = await prisma.message.findUnique({
-      where: {
-        id: messageId,
-      },
-    });
-
-    if (!message) {
-      return new NextResponse('Message not found', { status: 404 });
-    }
-
-    // Check if the user is the sender of the message or an admin
-    const isAdmin =
-      membership.role === 'SUPER_ADMIN' || membership.role === 'ADMIN';
-    if (message.senderId !== currentUser.id && !isAdmin) {
-      return new NextResponse('Forbidden - Not message owner or admin', {
-        status: 403,
-      });
-    }
-
-    // Soft delete the message
-    const now = new Date();
-    const deletedMessage = await prisma.message.update({
-      where: {
-        id: messageId,
-      },
-      data: {
-        isDeleted: true,
-        deletedAt: now,
-      },
-      include: {
-        sender: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            image: true,
-          },
-        },
-        seenBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-      },
-    });
-
-    // Convert to ConversationMessage type
-    const conversationMessage: ConversationMessage = {
-      id: deletedMessage.id,
-      body: deletedMessage.body,
-      image: deletedMessage.image,
-      conversationId: deletedMessage.conversationId,
-      senderId: deletedMessage.senderId,
-      createdAt: deletedMessage.createdAt,
-      seenIds: deletedMessage.seenIds,
-      seenBy: deletedMessage.seenBy,
-      sender: deletedMessage.sender,
-      isEdited: deletedMessage.isEdited,
-      editedAt: deletedMessage.editedAt,
-      isDeleted: deletedMessage.isDeleted,
-      deletedAt: deletedMessage.deletedAt,
-    };
-
-    // Trigger Pusher event for updated message
-    await pusherServer.trigger(
-      `workspace-${workspaceId}`,
-      'messages:update',
-      conversationMessage
+    const deletedMessage = await deleteMessageById(
+      workspaceId,
+      messageId,
+      currentUser
     );
 
-    return NextResponse.json(conversationMessage);
-  } catch (error) {
-    console.error('DELETE MESSAGE ERROR:', error);
-    return new NextResponse('Internal Error', { status: 500 });
+    return NextResponse.json(
+      {
+        status: 'success',
+        code: 200,
+        message: 'Message deleted successfully',
+        data: { message: deletedMessage },
+      },
+      { status: 200 }
+    );
+  } catch (error: any) {
+    console.error('Error deleting message:', error);
+
+    // Handle specific error types
+    if (error.error_type === 'Forbidden') {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 403,
+          error_type: 'Forbidden',
+          message:
+            error.message ||
+            'You do not have permission to delete this message',
+        },
+        { status: 403 }
+      );
+    }
+
+    if (error.error_type === 'NotFound') {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 404,
+          error_type: 'NotFound',
+          message: error.message || 'Message not found',
+        },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json(
+      {
+        status: 'error',
+        code: 500,
+        error_type: 'InternalServerError',
+        message: 'An unexpected error occurred. Please try again later.',
+      },
+      { status: 500 }
+    );
   }
 }
