@@ -1,8 +1,8 @@
+// app/api/workspaces/[workspaceId]/documents/route.ts
 import { type NextRequest, NextResponse } from 'next/server';
-import prisma from '@/lib/prismadb';
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
 import { getWorkspaceDocuments } from '@/app/actions/getWorkspaceDocuments';
-import { pusherServer } from '@/lib/pusher';
+import { createDocument } from '@/app/actions/createDocument';
 
 export async function GET(
   req: NextRequest,
@@ -118,7 +118,8 @@ export async function POST(
       );
     }
 
-    const { title, emoji, coverImage } = await req.json();
+    const body = await req.json();
+    const { title, emoji, coverImage } = body;
 
     if (!title || !emoji || !coverImage) {
       return NextResponse.json(
@@ -132,80 +133,10 @@ export async function POST(
       );
     }
 
-    const newDocument = await prisma.document.create({
-      data: {
-        title: title || 'Untitled Document',
-        emoji: emoji || '📝',
-        coverImage: coverImage || '/images/cover.png',
-        createdById: currentUser.id,
-        workspaceId,
-
-        documentContents: {
-          create: {
-            content: {
-              time: Date.now(),
-              blocks: [
-                {
-                  type: 'paragraph',
-                  data: {
-                    text: 'Welcome to your new workspace! Start collaborating here.',
-                  },
-                },
-              ],
-              version: '2.30.8',
-            },
-            editedById: currentUser.id,
-          },
-        },
-      },
-      include: {
-        documentContents: true,
-        createdBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            image: true,
-          },
-        },
-      },
-    });
-
-    // Create notification for document creation
-    await prisma.notification.create({
-      data: {
-        workspaceId,
-        message: `${currentUser.name} created document "${newDocument.title}"`,
-        type: 'DOCUMENT_CREATE',
-        userId: currentUser.id,
-        documentId: newDocument.id,
-      },
-    });
-
-    // Trigger Pusher event for real-time updates
-    await pusherServer.trigger(`workspace-${workspaceId}`, 'document-added', {
-      id: newDocument.id,
-      title: newDocument.title,
-      emoji: newDocument.emoji,
-      coverImage: newDocument.coverImage,
-      createdAt: newDocument.createdAt,
-      createdBy: newDocument.createdBy,
-    });
-
-    await pusherServer.trigger(
-      `notification-${workspaceId}`,
-      'document-added',
-      {
-        id: newDocument.id,
-        title: newDocument.title,
-        emoji: newDocument.emoji,
-        coverImage: newDocument.coverImage,
-        createdBy: {
-          id: newDocument.createdBy?.id,
-          name: newDocument.createdBy?.name,
-          image: newDocument.createdBy?.image,
-        },
-      }
+    const newDocument = await createDocument(
+      workspaceId,
+      { title, emoji, coverImage },
+      currentUser
     );
 
     return NextResponse.json(
@@ -217,8 +148,48 @@ export async function POST(
       },
       { status: 201 }
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating document:', error);
+
+    // Handle specific error types
+    if (error.error_type === 'Forbidden') {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 403,
+          error_type: 'Forbidden',
+          message:
+            error.message ||
+            'You do not have permission to create a document in this workspace',
+        },
+        { status: 403 }
+      );
+    }
+
+    if (error.error_type === 'BadRequest') {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 400,
+          error_type: 'BadRequest',
+          message: error.message || 'Invalid request parameters',
+        },
+        { status: 400 }
+      );
+    }
+
+    if (error.error_type === 'Unauthorized') {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 401,
+          error_type: 'Unauthorized',
+          message: error.message || 'Unauthorized access',
+        },
+        { status: 401 }
+      );
+    }
+
     return NextResponse.json(
       {
         status: 'error',
