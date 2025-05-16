@@ -39,7 +39,7 @@ export function DeleteWorkspace({ workspace, children }: DeleteWorkspaceProps) {
     }
   }, [isOpen]);
 
-  async function handleDelete() {
+  async function onDeleteWorkspace() {
     try {
       setIsDeleting(true);
 
@@ -80,7 +80,7 @@ export function DeleteWorkspace({ workspace, children }: DeleteWorkspaceProps) {
           <AlertDialogAction
             onClick={(e) => {
               e.preventDefault();
-              handleDelete();
+              onDeleteWorkspace();
             }}
             disabled={isDeleting}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"

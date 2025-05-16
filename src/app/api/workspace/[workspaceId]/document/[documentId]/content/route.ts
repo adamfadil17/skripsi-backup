@@ -1,7 +1,8 @@
+// app/api/workspaces/[workspaceId]/documents/[documentId]/content/route.ts
 import { type NextRequest, NextResponse } from 'next/server';
-import prisma from '@/lib/prismadb';
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
-import { pusherServer } from '@/lib/pusher'; // Import the Pusher server instance
+import { getDocumentContentById } from '@/app/actions/getDocumentContentById';
+import { updateDocumentContentById } from '@/app/actions/updateDocumentContentById';
 
 export async function GET(
   req: NextRequest,
@@ -9,7 +10,7 @@ export async function GET(
 ) {
   try {
     const currentUser = await getCurrentUser();
-    if (!currentUser.id || !currentUser?.email) {
+    if (!currentUser?.id || !currentUser?.email) {
       return NextResponse.json(
         {
           status: 'error',
@@ -34,12 +35,7 @@ export async function GET(
       );
     }
 
-    // Get the latest document content
-    const documentContent = await prisma.documentContent.findFirst({
-      where: { documentId: params.documentId },
-      orderBy: { editedAt: 'desc' }, // Ensure we get the most recent version
-      select: { content: true },
-    });
+    const documentContent = await getDocumentContentById(documentId);
 
     if (!documentContent) {
       return NextResponse.json(
@@ -62,8 +58,34 @@ export async function GET(
       },
       { status: 200 }
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching document content:', error);
+
+    // Handle specific error types
+    if (error.error_type === 'NotFound') {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 404,
+          error_type: 'NotFound',
+          message: error.message || 'Document content not found',
+        },
+        { status: 404 }
+      );
+    }
+
+    if (error.error_type === 'Forbidden') {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 403,
+          error_type: 'Forbidden',
+          message: error.message || 'Access denied to this document',
+        },
+        { status: 403 }
+      );
+    }
+
     return NextResponse.json(
       {
         status: 'error',
@@ -107,11 +129,6 @@ export async function PUT(
       );
     }
 
-    const document = await prisma.document.findUnique({
-      where: { id: documentId },
-      select: { title: true },
-    });
-
     const body = await req.json();
     if (!body?.content) {
       return NextResponse.json(
@@ -125,97 +142,12 @@ export async function PUT(
       );
     }
 
-    const safeContent = body.content ?? {}; // Ensure content is not null/undefined
-    const editorEmail = body.userEmail || currentUser.email; // Get the editor email instead of ID
-
-    // Find the user by email to get their ID for the database
-    const user = await prisma.user.findUnique({
-      where: { email: currentUser.email },
-      select: { id: true },
-    });
-
-    if (!user) {
-      return NextResponse.json(
-        {
-          status: 'error',
-          code: 404,
-          error_type: 'NotFound',
-          message: 'User not found',
-        },
-        { status: 404 }
-      );
-    }
-
-    // Check if document already exists in database
-    const existingContent = await prisma.documentContent.findFirst({
-      where: { documentId: params.documentId },
-    });
-
-    let updatedContent;
-    if (existingContent) {
-      // If it exists, update it
-      updatedContent = await prisma.documentContent.update({
-        where: { id: existingContent.id },
-        data: {
-          content: safeContent,
-          editedAt: new Date(),
-          editedById: user.id, // Use the user ID from the database
-        },
-      });
-    } else {
-      // If it doesn't exist, create a new entry
-      updatedContent = await prisma.documentContent.create({
-        data: {
-          documentId: params.documentId,
-          content: safeContent,
-          editedAt: new Date(),
-          editedById: user.id, // Use the user ID from the database
-        },
-      });
-    }
-
-    // Update the document's updatedBy field
-    await prisma.document.update({
-      where: { id: documentId },
-      data: {
-        updatedById: user.id, // Use the user ID from the database
-        updatedAt: new Date(),
-      },
-    });
-
-    await pusherServer.trigger(
-      `workspace-${workspaceId}`,
-      'document-content-updated',
-      {
-        documentId,
-        content: safeContent,
-        editorEmail, // Include the editor's email to prevent update loops
-        timestamp: new Date().toISOString(),
-        documentName: document?.title,
-        // editorName: currentUser.name,
-        editedBy: {
-          id: currentUser.id,
-          name: currentUser.name,
-          image: currentUser.image,
-        }, // Optional: include editor name for UI display
-      }
-    );
-
-    await pusherServer.trigger(
-      `notification-${workspaceId}`,
-      'document-content-updated',
-      {
-        documentId,
-        content: safeContent,
-        editorEmail, // Include the editor's email to prevent update loops
-        timestamp: new Date().toISOString(),
-        documentName: document?.title,
-        editedBy: {
-          id: currentUser.id,
-          name: currentUser.name,
-          image: currentUser.image,
-        }, // Optional: include editor name for UI display
-      }
+    const result = await updateDocumentContentById(
+      workspaceId,
+      documentId,
+      body.content,
+      body.userEmail || currentUser.email,
+      currentUser
     );
 
     return NextResponse.json(
@@ -223,12 +155,52 @@ export async function PUT(
         status: 'success',
         code: 200,
         message: 'Document content updated successfully',
-        data: { updatedContent },
+        data: { updatedContent: result.updatedContent },
       },
       { status: 200 }
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error updating document content:', error);
+
+    // Handle specific error types
+    if (error.error_type === 'BadRequest') {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 400,
+          error_type: 'BadRequest',
+          message: error.message || 'Invalid request parameters',
+        },
+        { status: 400 }
+      );
+    }
+
+    if (error.error_type === 'NotFound') {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 404,
+          error_type: 'NotFound',
+          message: error.message || 'Document or user not found',
+        },
+        { status: 404 }
+      );
+    }
+
+    if (error.error_type === 'Forbidden') {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 403,
+          error_type: 'Forbidden',
+          message:
+            error.message ||
+            'You do not have permission to update this document',
+        },
+        { status: 403 }
+      );
+    }
+
     return NextResponse.json(
       {
         status: 'error',

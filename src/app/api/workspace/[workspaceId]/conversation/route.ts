@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
-import { getWorkspaceConversation } from '@/app/actions/getWorkspaceConversation';
+import { getWorkspaceConversations } from '@/app/actions/getWorkspaceConversations';
 
 export async function GET(
   request: NextRequest,
@@ -34,7 +34,7 @@ export async function GET(
       );
     }
 
-    const conversation = await getWorkspaceConversation(
+    const conversation = await getWorkspaceConversations(
       workspaceId,
       currentUser
     );

@@ -33,7 +33,7 @@ export function DeleteDocument({
   const [isDeleting, setIsDeleting] = useState(false);
   const router = useRouter();
 
-  async function handleDelete() {
+  async function onDeleteDocument() {
     try {
       setIsDeleting(true);
 
@@ -85,7 +85,7 @@ export function DeleteDocument({
           <AlertDialogAction
             onClick={(e) => {
               e.stopPropagation();
-              handleDelete();
+              onDeleteDocument();
             }}
             disabled={isDeleting}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"

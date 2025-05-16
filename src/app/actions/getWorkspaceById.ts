@@ -2,7 +2,7 @@ import prisma from '@/lib/prismadb';
 import { WorkspaceInfo } from '@/types/types';
 import { User } from '@prisma/client';
 
-export async function getWorkspaceInfo(
+export async function getWorkspaceById(
   workspaceId: string,
   currentUser: User
 ): Promise<WorkspaceInfo | null> {

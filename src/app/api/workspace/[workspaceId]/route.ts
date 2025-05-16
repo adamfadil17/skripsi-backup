@@ -1,8 +1,8 @@
 import { type NextRequest, NextResponse } from 'next/server';
-import { getWorkspaceInfo } from '@/app/actions/getWorkspaceInfo';
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
 import { updateWorkspaceById } from '@/app/actions/updateWorkspaceById';
 import { deleteWorkspaceById } from '@/app/actions/deleteWorkspaceById';
+import { getWorkspaceById } from '@/app/actions/getWorkspaceById';
 
 export async function GET(
   req: NextRequest,
@@ -37,7 +37,7 @@ export async function GET(
     }
 
     // Use the existing getWorkspaceInfo action
-    const workspace = await getWorkspaceInfo(workspaceId, currentUser);
+    const workspace = await getWorkspaceById(workspaceId, currentUser);
 
     if (!workspace) {
       return NextResponse.json(
@@ -212,7 +212,10 @@ export async function DELETE(
     }
 
     try {
-      const deletedWorkspace = await deleteWorkspaceById(workspaceId, currentUser);
+      const deletedWorkspace = await deleteWorkspaceById(
+        workspaceId,
+        currentUser
+      );
 
       return NextResponse.json(
         {

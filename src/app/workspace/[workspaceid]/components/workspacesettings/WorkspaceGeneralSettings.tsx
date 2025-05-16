@@ -107,7 +107,7 @@ export function WorkspaceGeneralSettings() {
     editWorkspaceForm,
   ]);
 
-  const onEditWorkspaceSubmit = useCallback(
+  const onEditWorkspace = useCallback(
     async (values: WorkspaceFormValues) => {
       setIsSubmitting(true);
 
@@ -182,7 +182,7 @@ export function WorkspaceGeneralSettings() {
           <div className="space-y-4 border rounded-lg p-4">
             <Form {...editWorkspaceForm}>
               <form
-                onSubmit={editWorkspaceForm.handleSubmit(onEditWorkspaceSubmit)}
+                onSubmit={editWorkspaceForm.handleSubmit(onEditWorkspace)}
               >
                 <FormField
                   control={editWorkspaceForm.control}
@@ -399,7 +399,7 @@ function WorkspaceLeaveSection() {
     }
   }, [modalState.showLeaveConfirmation, workspaceInfo.id]);
 
-  const handleLeave = useCallback(async () => {
+  const onMemberLeave = useCallback(async () => {
     try {
       if (superAdminCount === 1 && isSuperAdmin) {
         toast.error(
@@ -452,7 +452,7 @@ function WorkspaceLeaveSection() {
             <Button
               type="button"
               variant="destructive"
-              onClick={handleLeave}
+              onClick={onMemberLeave}
               disabled={isSubmitting}
             >
               {isSubmitting ? (
@@ -493,7 +493,7 @@ function WorkspaceDeleteSection() {
 
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const handleDelete = useCallback(async () => {
+  const onDeleteWorkspace = useCallback(async () => {
     try {
       setIsDeleting(true);
 
@@ -536,7 +536,7 @@ function WorkspaceDeleteSection() {
             <Button
               type="button"
               variant="destructive"
-              onClick={handleDelete}
+              onClick={onDeleteWorkspace}
               disabled={isDeleting}
             >
               {isDeleting ? (

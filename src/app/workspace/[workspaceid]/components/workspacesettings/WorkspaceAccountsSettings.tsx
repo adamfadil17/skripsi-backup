@@ -194,7 +194,7 @@ export function WorkspaceAccountsSettings() {
     [activeTab, isSuperAdmin, isAdmin, currentUser.email]
   );
 
-  const handleRemoveMember = useCallback(
+  const onRemoveMember = useCallback(
     async (userId: string, role: string) => {
       if (!workspaceInfo) return;
 
@@ -263,7 +263,7 @@ export function WorkspaceAccountsSettings() {
     }
   }, [workspaceInfo, superAdmins.length, isSuperAdmin, router]);
 
-  const handleRevokeInvitation = useCallback(
+  const onRevokeInvitation = useCallback(
     async (invitationId: string) => {
       if (!workspaceInfo) return;
 
@@ -282,7 +282,7 @@ export function WorkspaceAccountsSettings() {
     [workspaceInfo]
   );
 
-  const handleRoleChange = useCallback(
+  const onRoleChange = useCallback(
     async (userId: string, newRole: string) => {
       if (!workspaceInfo) return;
 
@@ -460,7 +460,7 @@ export function WorkspaceAccountsSettings() {
                     <Select
                       value={item.role}
                       onValueChange={(newRole) =>
-                        handleRoleChange((item as any).userId, newRole)
+                        onRoleChange((item as any).userId, newRole)
                       }
                       disabled={!canChangeRole(item)}
                     >
@@ -502,12 +502,12 @@ export function WorkspaceAccountsSettings() {
                             className="text-destructive focus:text-destructive focus:bg-red-50 cursor-pointer"
                             onClick={() => {
                               if (activeTab === 'invitations') {
-                                handleRevokeInvitation((item as any).id);
+                                onRevokeInvitation((item as any).id);
                               } else if (activeTab === 'members') {
                                 if (item.email === currentUser.email) {
                                   handleLeave();
                                 } else {
-                                  handleRemoveMember(
+                                  onRemoveMember(
                                     (item as any).userId,
                                     item.role
                                   );

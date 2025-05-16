@@ -56,7 +56,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     };
   }
 
-  const saveDocument = useCallback(async () => {
+  const onSaveDocumentContent = useCallback(async () => {
     if (
       editorRef.current &&
       !isProcessingExternalUpdateRef.current &&
@@ -99,12 +99,12 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
   // Add debounced save to prevent too many saves during typing
   const debouncedSave = useCallback(
     debounce(() => {
-      saveDocument();
+      onSaveDocumentContent();
     }, 500),
-    [saveDocument]
+    [onSaveDocumentContent]
   );
 
-  const getDocumentOutput = useCallback(async () => {
+  const getDocumentContent = useCallback(async () => {
     if (!isFetchedRef.current) {
       try {
         const response = await axios.get(
@@ -142,7 +142,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
           debouncedSave();
         },
         onReady: () => {
-          getDocumentOutput();
+          getDocumentContent();
         },
         holder: 'editorjs',
         tools: {
@@ -168,7 +168,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
         },
       });
     }
-  }, [debouncedSave, getDocumentOutput]);
+  }, [debouncedSave, getDocumentContent]);
 
   // Set up Pusher event listeners for real-time updates
   useEffect(() => {
@@ -321,12 +321,12 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
           }
         }, 300);
 
-        saveDocument();
+        onSaveDocumentContent();
       } catch (error) {
         console.error('Error appending model response:', error);
       }
     },
-    [saveDocument]
+    [onSaveDocumentContent]
   );
 
   useEffect(() => {

@@ -58,7 +58,7 @@ function AITemplateDialog({
     form.reset();
   };
 
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+  const onModelReq = async (values: z.infer<typeof formSchema>) => {
     try {
       setIsSubmitting(true);
 
@@ -66,8 +66,6 @@ function AITemplateDialog({
       const result = await chatSession.sendMessage(prompt);
       const responseText = await result.response.text();
       const output = JSON.parse(responseText);
-
-      console.log(output);
 
       onGenerateTemplate(output);
       setOpen(false);
@@ -107,7 +105,10 @@ function AITemplateDialog({
             What do you want to write in this document?
           </DialogDescription>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <form
+              onSubmit={form.handleSubmit(onModelReq)}
+              className="space-y-4"
+            >
               <FormField
                 control={form.control}
                 name="prompt"

@@ -3,7 +3,7 @@ import prisma from '@/lib/prismadb';
 import { User } from '@prisma/client';
 import type { WorkspaceConversation } from '@/types/types';
 
-export async function getWorkspaceConversation(
+export async function getWorkspaceConversations(
   workspaceId: string,
   currentUser: User
 ) {

@@ -1,6 +1,6 @@
 // app/api/workspaces/[workspaceId]/documents/[documentId]/route.ts
 import { type NextRequest, NextResponse } from 'next/server';
-import { getDocumentInfo } from '@/app/actions/getDocumentInfo';
+import { getDocumentById } from '@/app/actions/getDocumentById';
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
 import { updateDocumentById } from '@/app/actions/updateDocumentById';
 import { deleteDocumentById } from '@/app/actions/deleteDocumentById';
@@ -37,7 +37,7 @@ export async function GET(
       );
     }
 
-    const document = await getDocumentInfo(workspaceId, documentId);
+    const document = await getDocumentById(workspaceId, documentId);
 
     if (!document) {
       return NextResponse.json(

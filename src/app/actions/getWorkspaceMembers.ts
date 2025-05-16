@@ -21,7 +21,7 @@ export async function getWorkspaceMembers(
     });
 
     if (!isMember) {
-      return null;
+      return [];
     }
 
     // Ambil semua anggota di workspace langsung dari WorkspaceMember
@@ -44,7 +44,7 @@ export async function getWorkspaceMembers(
     });
 
     // Jika tidak ada anggota, berarti workspace tidak ada atau kosong
-    if (!members.length) return null;
+    if (!members.length) return [];
 
     return members;
   } catch (error) {

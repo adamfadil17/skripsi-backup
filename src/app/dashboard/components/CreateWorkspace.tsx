@@ -94,7 +94,7 @@ const CreateWorkspace = ({ children }: CreateWorkspaceProps) => {
     form.reset();
   };
 
-  async function onSubmit(values: z.infer<typeof formSchema>) {
+  async function onCreateWorkspace(values: z.infer<typeof formSchema>) {
     try {
       setIsSubmitting(true);
 
@@ -133,7 +133,7 @@ const CreateWorkspace = ({ children }: CreateWorkspaceProps) => {
         )}
       >
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)}>
+          <form onSubmit={form.handleSubmit(onCreateWorkspace)}>
             <div className="flex h-full">
               <div
                 className={cn(
@@ -213,7 +213,7 @@ const CreateWorkspace = ({ children }: CreateWorkspaceProps) => {
                 <div className="space-y-4 my-4">
                   <DialogHeader>
                     <DialogTitle className="text-xl font-semibold mb-1">
-                      Edit Workspace
+                      Create Workspace
                     </DialogTitle>
                     <DialogDescription className="text-sm text-muted-foreground">
                       This is a shared space where you can collaborate with your

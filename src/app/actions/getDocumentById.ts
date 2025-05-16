@@ -1,7 +1,7 @@
 // src/app/actions/getDocumentById.ts
 import prisma from '@/lib/prismadb';
 
-export async function getDocumentInfo(workspaceId: string, documentId: string) {
+export async function getDocumentById(workspaceId: string, documentId: string) {
   if (!workspaceId || !documentId)
     throw new Error('workspaceId and documentId are required');
 

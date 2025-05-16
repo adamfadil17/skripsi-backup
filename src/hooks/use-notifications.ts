@@ -55,7 +55,7 @@ export function useNotifications(
 
   // Load initial notifications from the server
   useEffect(() => {
-    const getWorkspaceNotification = async () => {
+    const getWorkspaceNotifications = async () => {
       try {
         const response = await axios.get(
           `/api/workspace/${workspaceId}/notification`
@@ -100,7 +100,7 @@ export function useNotifications(
     };
 
     if (workspaceId) {
-      getWorkspaceNotification();
+      getWorkspaceNotifications();
     }
   }, [workspaceId]);
 

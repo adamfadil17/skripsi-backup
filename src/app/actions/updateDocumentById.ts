@@ -123,7 +123,7 @@ export async function updateDocumentById(
     // Only create notification and trigger Pusher events if there were actual changes
     if (hasChanges) {
       // Create notification for document update
-      await prisma.notification.create({
+    await prisma.notification.create({
         data: {
           workspaceId,
           message: `${currentUser.name} updated document information of "${updatedDocument.title}"`,

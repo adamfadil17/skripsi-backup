@@ -61,7 +61,7 @@ function InviteForm({
     },
   });
 
-  const handleSubmit = async (values: InviteFormValues) => {
+  const onCreateInvitation = async (values: InviteFormValues) => {
     setLoading(true);
 
     try {
@@ -95,7 +95,7 @@ function InviteForm({
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+      <form onSubmit={form.handleSubmit(onCreateInvitation)} className="space-y-4">
         <FormField
           control={form.control}
           name="email"

@@ -96,7 +96,7 @@ const EditWorkspace = ({ children, workspace }: EditWorkspaceProps) => {
     form.reset();
   };
 
-  async function onSubmit(values: z.infer<typeof formSchema>) {
+  async function onEditWorkspace(values: z.infer<typeof formSchema>) {
     try {
       setIsSubmitting(true);
 
@@ -136,7 +136,7 @@ const EditWorkspace = ({ children, workspace }: EditWorkspaceProps) => {
         )}
       >
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)}>
+          <form onSubmit={form.handleSubmit(onEditWorkspace)}>
             <div className="flex h-full">
               <div
                 className={cn(

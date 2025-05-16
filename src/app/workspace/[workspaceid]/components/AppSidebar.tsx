@@ -250,7 +250,7 @@ export function AppSidebar({
     console.log('workspaceInfo updated:', workspaceInfo);
   }, [workspaceInfo]);
 
-  const handleCreateDocument = useCallback(async () => {
+  const onCreateDocument = useCallback(async () => {
     setLoading(true);
     try {
       const response = await axios.post(
@@ -375,36 +375,6 @@ export function AppSidebar({
       </SidebarHeader>
 
       <SidebarContent className="px-4 flex flex-col flex-1">
-        {/* Meeting Section */}
-        {/* <SidebarMenu>
-          <SidebarMenuItem className="my-1">
-            <MeetingDialog
-              workspaceId={workspaceId}
-              members={members}
-              currentUser={currentUser}
-            >
-              <SidebarMenuButton className="w-full justify-between text-md hover:bg-accent hover:text-accent-foreground py-5">
-                <div className="flex items-center gap-2">
-                  <PiVideoConference className="h-5 w-5" />
-                  <span>Meet</span>
-                </div>
-                <Badge
-                  style={{
-                    width: '38px',
-                    height: '28px',
-                    alignItems: 'center',
-                  }}
-                  variant="secondary"
-                  className="justify-center bg-gray-50 text-gray-500 border-gray-300 rounded-lg hover:bg-gray-50"
-                >
-                  10
-                </Badge>
-              </SidebarMenuButton>
-            </MeetingDialog>
-          </SidebarMenuItem>
-          <Separator />
-        </SidebarMenu> */}
-
         {/* Accounts Section */}
         <SidebarGroup className="py-0 px-0 my-0 mx-0">
           <SidebarMenuItem className="flex w-full justify-between py-2 px-2 mb-1">
@@ -481,7 +451,7 @@ export function AppSidebar({
             <Button
               size={'sm'}
               className="w-6 h-6 "
-              onClick={handleCreateDocument}
+              onClick={onCreateDocument}
               disabled={loading}
             >
               {loading ? (

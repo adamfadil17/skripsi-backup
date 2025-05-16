@@ -35,7 +35,7 @@ const DocumentWrapper = ({ workspaceId, documentId }: DocumentWrapperProps) => {
   const [modelResponse, setModelResponse] = useState<any>(null);
 
   useEffect(() => {
-    const fetchDocument = async () => {
+    const fetchDocumentInfo = async () => {
       try {
         setIsLoading(true);
         const response = await axios.get(
@@ -66,7 +66,7 @@ const DocumentWrapper = ({ workspaceId, documentId }: DocumentWrapperProps) => {
       }
     };
 
-    fetchDocument();
+    fetchDocumentInfo();
   }, [workspaceId, documentId, router]);
 
   useEffect(() => {
@@ -112,7 +112,7 @@ const DocumentWrapper = ({ workspaceId, documentId }: DocumentWrapperProps) => {
     };
   }, [workspaceChannel, documentId, titleChanged]);
 
-  const updateDocument = async (data: Partial<WorkspaceDocument>) => {
+  const onUpdateDocument = async (data: Partial<WorkspaceDocument>) => {
     try {
       console.log('Attempting to update document with data:', data);
 
@@ -145,13 +145,13 @@ const DocumentWrapper = ({ workspaceId, documentId }: DocumentWrapperProps) => {
   const handleCoverChange = (newCover: string) => {
     if (newCover === coverImage) return; // Skip if unchanged
     setCoverImage(newCover);
-    updateDocument({ coverImage: newCover });
+    onUpdateDocument({ coverImage: newCover });
   };
 
   const handleEmojiChange = (newEmoji: string) => {
     if (newEmoji === emoji) return; // Skip if unchanged
     setEmoji(newEmoji);
-    updateDocument({ emoji: newEmoji });
+    onUpdateDocument({ emoji: newEmoji });
   };
 
   const handleTitleChange = (newTitle: string) => {
@@ -162,7 +162,7 @@ const DocumentWrapper = ({ workspaceId, documentId }: DocumentWrapperProps) => {
   const handleTitleBlur = () => {
     // Don't check if title is unchanged - let the API handle that decision
     console.log('Title blur event, sending update with title:', documentTitle);
-    updateDocument({ title: documentTitle });
+    onUpdateDocument({ title: documentTitle });
   };
 
   if (isLoading) {
