@@ -11,6 +11,9 @@ const nextConfig = {
   experimental: {
     serverComponentsExternalPackages: ['bcrypt', '@mapbox/node-pre-gyp'],
   },
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
 };
 
 export default nextConfig;

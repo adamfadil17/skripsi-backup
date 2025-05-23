@@ -13,7 +13,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Model User
 model User {
   id             String    @id @default(auto()) @map("_id") @db.ObjectId
   name           String
@@ -59,7 +58,6 @@ model Account {
   @@unique([provider, providerAccountId])
 }
 
-// Model Workspace
 model Workspace {
   id         String   @id @default(auto()) @map("_id") @db.ObjectId
   name       String
@@ -78,7 +76,6 @@ model Workspace {
   @@unique([name])
 }
 
-// Model WorkspaceMember
 model WorkspaceMember {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
   userId      String   @db.ObjectId
@@ -98,7 +95,7 @@ enum Role {
   MEMBER
 }
 
-// Model Invitation
+
 model Invitation {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
   email       String
@@ -115,7 +112,7 @@ model Invitation {
   @@index([expiredAt])
 }
 
-// Model Document
+
 model Document {
   id               String            @id @default(auto()) @map("_id") @db.ObjectId
   title            String
@@ -133,7 +130,7 @@ model Document {
   updatedBy User?     @relation("DocumentEditor", fields: [updatedById], references: [id])
 }
 
-// Model DocumentHistory
+
 model DocumentContent {
   id         String   @id @default(auto()) @map("_id") @db.ObjectId
   documentId String   @db.ObjectId
@@ -145,20 +142,20 @@ model DocumentContent {
   editedBy User     @relation(fields: [editedById], references: [id], onDelete: Cascade)
 }
 
-// Model Conversation (One group chat per Workspace)
+
 model Conversation {
   id            String    @id @default(auto()) @map("_id") @db.ObjectId
-  workspaceId   String    @unique @db.ObjectId // Maintains one-to-one relationship with workspace
-  lastMessageAt DateTime  @default(now()) // For sorting and displaying last activity
+  workspaceId   String    @unique @db.ObjectId
+  lastMessageAt DateTime  @default(now())
   messages      Message[]
   workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
-// Modified Model Message
+
 model Message {
   id             String   @id @default(auto()) @map("_id") @db.ObjectId
-  body           String? // Optional to allow image-only messages
-  image          String? // Allow images in messages
+  body           String? 
+  image          String? 
   conversationId String   @db.ObjectId
   senderId       String   @db.ObjectId
   createdAt      DateTime @default(now())
@@ -167,23 +164,23 @@ model Message {
   editedAt     DateTime?
   isDeleted    Boolean      @default(false)
   deletedAt    DateTime?
-  // Users who have seen this message
+  
   seenIds      String[]     @db.ObjectId
   seenBy       User[]       @relation("MessageSeen", fields: [seenIds], references: [id])
   sender       User         @relation(fields: [senderId], references: [id])
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 }
 
-// Model Notification
-// Model Notification
+
+
 model Notification {
   id          String             @id @default(auto()) @map("_id") @db.ObjectId
   workspaceId String             @db.ObjectId
   message     String
   type        NotificationType
   createdAt   DateTime           @default(now())
-  userId      String?            @db.ObjectId // The user who triggered the notification
-  documentId  String?            @db.ObjectId // Optional reference to a document
+  userId      String?            @db.ObjectId 
+  documentId  String?            @db.ObjectId 
   readBy      NotificationRead[]
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -192,7 +189,7 @@ model Notification {
   @@index([userId])
 }
 
-//model NotificationRead
+
 model NotificationRead {
   id             String   @id @default(auto()) @map("_id") @db.ObjectId
   notificationId String   @db.ObjectId
@@ -225,7 +222,7 @@ enum NotificationType {
   MESSAGE_RECEIVED
 }
 
-// Model Meeting
+
 model Meeting {
   id               String   @id @default(auto()) @map("_id") @db.ObjectId
   title            String

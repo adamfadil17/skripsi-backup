@@ -1,5 +1,4 @@
 import prisma from '@/lib/prismadb';
-import { getCurrentUser } from './getCurrentUser';
 import { UserWorkspace } from '@/types/types';
 import { User } from '@prisma/client';
 

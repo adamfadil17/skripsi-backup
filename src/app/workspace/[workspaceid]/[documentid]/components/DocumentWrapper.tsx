@@ -143,32 +143,30 @@ const DocumentWrapper = ({ workspaceId, documentId }: DocumentWrapperProps) => {
   };
 
   const handleCoverChange = (newCover: string) => {
-    if (newCover === coverImage) return; // Skip if unchanged
+    if (newCover === coverImage) return;
     setCoverImage(newCover);
     onUpdateDocument({ coverImage: newCover });
   };
 
   const handleEmojiChange = (newEmoji: string) => {
-    if (newEmoji === emoji) return; // Skip if unchanged
+    if (newEmoji === emoji) return;
     setEmoji(newEmoji);
     onUpdateDocument({ emoji: newEmoji });
   };
 
   const handleTitleChange = (newTitle: string) => {
     setDocumentTitle(newTitle);
-    setTitleChanged(true); // Mark that we've made local changes to the title
+    setTitleChanged(true);
   };
 
   const handleTitleBlur = () => {
-    // Don't check if title is unchanged - let the API handle that decision
-    console.log('Title blur event, sending update with title:', documentTitle);
     onUpdateDocument({ title: documentTitle });
   };
 
   if (isLoading) {
     return (
       <div className="h-full flex items-center justify-center">
-        <div className="animate-pulse text-lg">Loading document...</div>
+        <div className="animate-pulse text-lg">Loading Document...</div>
       </div>
     );
   }
