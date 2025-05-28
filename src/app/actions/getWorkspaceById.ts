@@ -31,6 +31,7 @@ export async function getWorkspaceById(
         name: true,
         emoji: true,
         coverImage: true,
+        googleMeetUrl: true,
       },
     });
 

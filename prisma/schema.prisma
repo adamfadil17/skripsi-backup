@@ -28,8 +28,6 @@ model User {
   invitations       Invitation[]
   messages          Message[]
   documentContents  DocumentContent[]
-  meetings          Meeting[]          @relation("MeetingCreator")
-  meetingAttendees  MeetingAttendee[]
   notificationReads NotificationRead[]
 
   seenMessageIds String[]  @db.ObjectId
@@ -59,19 +57,19 @@ model Account {
 }
 
 model Workspace {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
-  name       String
-  emoji      String?
-  coverImage String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
+  emoji         String?
+  coverImage    String?
+  googleMeetUrl String? // Google Meet link yang permanen untuk workspace
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   members       WorkspaceMember[]
   documents     Document[]
   conversation  Conversation?
   invitations   Invitation[]
   notifications Notification[]
-  meetings      Meeting[]
 
   @@unique([name])
 }
@@ -95,7 +93,6 @@ enum Role {
   MEMBER
 }
 
-
 model Invitation {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
   email       String
@@ -111,7 +108,6 @@ model Invitation {
   @@unique([email, workspaceId])
   @@index([expiredAt])
 }
-
 
 model Document {
   id               String            @id @default(auto()) @map("_id") @db.ObjectId
@@ -130,7 +126,6 @@ model Document {
   updatedBy User?     @relation("DocumentEditor", fields: [updatedById], references: [id])
 }
 
-
 model DocumentContent {
   id         String   @id @default(auto()) @map("_id") @db.ObjectId
   documentId String   @db.ObjectId
@@ -142,7 +137,6 @@ model DocumentContent {
   editedBy User     @relation(fields: [editedById], references: [id], onDelete: Cascade)
 }
 
-
 model Conversation {
   id            String    @id @default(auto()) @map("_id") @db.ObjectId
   workspaceId   String    @unique @db.ObjectId
@@ -151,27 +145,24 @@ model Conversation {
   workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
-
 model Message {
   id             String   @id @default(auto()) @map("_id") @db.ObjectId
-  body           String? 
-  image          String? 
+  body           String?
+  image          String?
   conversationId String   @db.ObjectId
   senderId       String   @db.ObjectId
   createdAt      DateTime @default(now())
 
-  isEdited     Boolean      @default(false)
-  editedAt     DateTime?
-  isDeleted    Boolean      @default(false)
-  deletedAt    DateTime?
-  
+  isEdited  Boolean   @default(false)
+  editedAt  DateTime?
+  isDeleted Boolean   @default(false)
+  deletedAt DateTime?
+
   seenIds      String[]     @db.ObjectId
   seenBy       User[]       @relation("MessageSeen", fields: [seenIds], references: [id])
   sender       User         @relation(fields: [senderId], references: [id])
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 }
-
-
 
 model Notification {
   id          String             @id @default(auto()) @map("_id") @db.ObjectId
@@ -179,8 +170,8 @@ model Notification {
   message     String
   type        NotificationType
   createdAt   DateTime           @default(now())
-  userId      String?            @db.ObjectId 
-  documentId  String?            @db.ObjectId 
+  userId      String?            @db.ObjectId
+  documentId  String?            @db.ObjectId
   readBy      NotificationRead[]
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -188,7 +179,6 @@ model Notification {
   @@index([workspaceId])
   @@index([userId])
 }
-
 
 model NotificationRead {
   id             String   @id @default(auto()) @map("_id") @db.ObjectId
@@ -216,52 +206,5 @@ enum NotificationType {
   DOCUMENT_UPDATE
   DOCUMENT_DELETE
   DOCUMENT_CONTENT_UPDATE
-  MEETING_CREATE
-  MEETING_UPDATE
-  MEETING_DELETE
   MESSAGE_RECEIVED
-}
-
-
-model Meeting {
-  id               String   @id @default(auto()) @map("_id") @db.ObjectId
-  title            String
-  description      String?
-  startDateTime    DateTime
-  endDateTime      DateTime
-  meetingLink      String?
-  googleCalendarId String?  @unique
-  googleEventId    String?  @unique
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  workspaceId      String   @db.ObjectId
-  createdById      String   @db.ObjectId
-
-  workspace Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  createdBy User              @relation("MeetingCreator", fields: [createdById], references: [id])
-  attendees MeetingAttendee[]
-
-  @@index([workspaceId])
-  @@index([createdById])
-}
-
-// Model MeetingAttendee
-model MeetingAttendee {
-  id        String         @id @default(auto()) @map("_id") @db.ObjectId
-  meetingId String         @db.ObjectId
-  userId    String         @db.ObjectId
-  status    AttendeeStatus @default(PENDING)
-  addedAt   DateTime       @default(now())
-
-  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([meetingId, userId])
-}
-
-enum AttendeeStatus {
-  PENDING
-  ACCEPTED
-  DECLINED
-  TENTATIVE
 }

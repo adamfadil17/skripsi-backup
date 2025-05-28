@@ -1,5 +1,7 @@
 'use client';
 
+import type React from 'react';
+
 import { notFound } from 'next/navigation';
 import type { User } from '@prisma/client';
 import { useWorkspaceData } from '@/hooks/use-workspace-data';
@@ -21,10 +23,10 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { PusherChannelProvider } from './PusherChannelProvider';
 import { signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { UserWorkspace } from '@/types/types';
+import type { UserWorkspace } from '@/types/types';
 import NotificationWrapper from './NotificationWrapper';
 import ChatWidget from './ChatWidget';
-// import dynamic from 'next/dynamic';
+import MeetingDialog from './MeetingDialog';
 
 interface WorkspaceWrapperProps {
   workspaceId: string;
@@ -32,10 +34,6 @@ interface WorkspaceWrapperProps {
   workspaces: UserWorkspace[];
   children: React.ReactNode;
 }
-
-// const ChatWidgetPortal = dynamic(() => import('./ChatWidgetPortal'), {
-//   ssr: false,
-// });
 
 export default function WorkspaceWrapper({
   workspaceId,
@@ -86,6 +84,14 @@ export default function WorkspaceWrapper({
           </div>
 
           <div className="flex items-center gap-4">
+            {/* Meeting Room */}
+            <MeetingDialog
+              workspaceId={workspaceId}
+              workspaceName={workspaceInfo.name}
+              currentUserEmail={currentUser.email}
+              googleMeetUrl={workspaceInfo.googleMeetUrl}
+            />
+
             {/* Notifications */}
             <PusherChannelProvider channelName={`notification-${workspaceId}`}>
               <NotificationWrapper

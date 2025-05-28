@@ -116,4 +116,5 @@ export type WorkspaceInfo = {
   name: string;
   emoji: string | null;
   coverImage: string | null;
+  googleMeetUrl: string | null;
 };

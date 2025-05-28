@@ -1,6 +1,7 @@
 // lib/createWorkspace.ts
 import prisma from '@/lib/prismadb';
-import { User, Workspace } from '@prisma/client';
+import { User } from '@prisma/client';
+import { google } from 'googleapis';
 
 interface CreateWorkspaceInput {
   name: string;
@@ -48,12 +49,22 @@ export async function createWorkspace(
       };
     }
 
+    // Generate a Google Meet link for the workspace
+    let googleMeetUrl = null;
+    try {
+      googleMeetUrl = await generateGoogleMeetLink(name, currentUser.email);
+    } catch (error) {
+      console.error('Error generating Google Meet link:', error);
+      // Continue without Google Meet link if generation fails
+    }
+
     // Create new workspace with document, chat, and member
     const newWorkspace = await prisma.workspace.create({
       data: {
         name,
         emoji,
         coverImage,
+        googleMeetUrl: googleMeetUrl,
         members: {
           create: {
             userId: currentUser.id,
@@ -139,5 +150,85 @@ export async function createWorkspace(
   } catch (error) {
     console.error('Error creating workspace:', error);
     throw error;
+  }
+}
+
+async function generateGoogleMeetLink(
+  workspaceName: string,
+  userEmail: string
+): Promise<string | null> {
+  try {
+    // Get user account with Google access
+    const userAccount = await prisma.account.findFirst({
+      where: {
+        user: {
+          email: userEmail,
+        },
+        provider: 'google',
+      },
+      select: {
+        access_token: true,
+      },
+    });
+
+    if (!userAccount?.access_token) {
+      console.error('No Google account found for user');
+      return null;
+    }
+
+    // Set up OAuth2 client
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      process.env.NEXTAUTH_URL
+    );
+
+    // Use the access token from the user's Google account
+    oauth2Client.setCredentials({
+      access_token: userAccount.access_token,
+    });
+
+    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+
+    // Create a permanent meeting
+    const event = {
+      summary: `${workspaceName} Permanent Meeting Room`,
+      description: `Permanent meeting room for ${workspaceName} workspace`,
+      start: {
+        dateTime: new Date(
+          Date.now() + 365 * 24 * 60 * 60 * 1000
+        ).toISOString(), // 1 year from now
+        timeZone: 'UTC',
+      },
+      end: {
+        dateTime: new Date(
+          Date.now() + 366 * 24 * 60 * 60 * 1000
+        ).toISOString(), // 1 year + 1 day from now
+        timeZone: 'UTC',
+      },
+      conferenceData: {
+        createRequest: {
+          requestId: `workspace-${workspaceName}-${Date.now()}`,
+          conferenceSolutionKey: {
+            type: 'hangoutsMeet',
+          },
+        },
+      },
+    };
+
+    const response = await calendar.events.insert({
+      calendarId: 'primary',
+      requestBody: event,
+      conferenceDataVersion: 1,
+    });
+
+    const meetLink = response.data.conferenceData?.entryPoints?.find(
+      (entry) => entry.entryPointType === 'video'
+    )?.uri;
+
+    return meetLink || null;
+  } catch (error) {
+    console.error('Error generating Google Meet link:', error);
+    return null;
   }
 }
