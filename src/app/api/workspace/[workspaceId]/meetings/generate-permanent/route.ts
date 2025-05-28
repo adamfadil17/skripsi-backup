@@ -11,11 +11,9 @@ export async function POST(
   try {
     const session = await getServerSession(authOptions);
 
-    if (!session?.user?.email || !session?.accessToken) {
+    if (!session?.user?.email) {
       return NextResponse.json(
-        {
-          error: 'You must be signed in with Google to generate meeting links',
-        },
+        { error: 'You must be signed in to generate meeting links' },
         { status: 401 }
       );
     }
@@ -55,6 +53,46 @@ export async function POST(
       });
     }
 
+    // Get the user's Google account with fresh tokens
+    const userAccount = await prisma.account.findFirst({
+      where: {
+        user: {
+          email: session.user.email,
+        },
+        provider: 'google',
+      },
+      select: {
+        access_token: true,
+        refresh_token: true,
+        expires_at: true,
+      },
+    });
+
+    if (!userAccount) {
+      return NextResponse.json(
+        {
+          error:
+            'No Google account found. Please sign in with Google to generate meeting links.',
+        },
+        { status: 401 }
+      );
+    }
+
+    // Check if token is expired
+    const now = Math.floor(Date.now() / 1000);
+    const isTokenExpired =
+      userAccount.expires_at && userAccount.expires_at < now;
+
+    if (isTokenExpired && !userAccount.refresh_token) {
+      return NextResponse.json(
+        {
+          error:
+            'Google access token expired and no refresh token available. Please sign in again.',
+        },
+        { status: 401 }
+      );
+    }
+
     // Set up OAuth2 client
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
@@ -62,10 +100,50 @@ export async function POST(
       process.env.NEXTAUTH_URL
     );
 
-    // Use the access token from the session
+    // Set credentials
     oauth2Client.setCredentials({
-      access_token: session.accessToken as string,
+      access_token: userAccount.access_token,
+      refresh_token: userAccount.refresh_token,
     });
+
+    // If token is expired, try to refresh it
+    if (isTokenExpired && userAccount.refresh_token) {
+      try {
+        const { credentials } = await oauth2Client.refreshAccessToken();
+
+        // Update the database with new tokens
+        await prisma.account.updateMany({
+          where: {
+            userId: (
+              await prisma.user.findUnique({
+                where: { email: session.user.email },
+              })
+            )?.id,
+            provider: 'google',
+          },
+          data: {
+            access_token: credentials.access_token,
+            expires_at: credentials.expiry_date
+              ? Math.floor(credentials.expiry_date / 1000)
+              : null,
+            refresh_token:
+              credentials.refresh_token || userAccount.refresh_token,
+          },
+        });
+
+        // Update OAuth2 client with new credentials
+        oauth2Client.setCredentials(credentials);
+      } catch (refreshError) {
+        console.error('Error refreshing token:', refreshError);
+        return NextResponse.json(
+          {
+            error:
+              'Failed to refresh Google access token. Please sign in again.',
+          },
+          { status: 401 }
+        );
+      }
+    }
 
     const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
 
@@ -138,6 +216,32 @@ export async function POST(
     });
   } catch (error) {
     console.error('Error generating permanent meeting link:', error);
+
+    // Provide more specific error messages
+    if (error instanceof Error) {
+      if (
+        error.message.includes('Invalid Credentials') ||
+        error.message.includes('invalid_token')
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              'Google authentication failed. Please sign out and sign in again with Google.',
+          },
+          { status: 401 }
+        );
+      }
+      if (error.message.includes('insufficient permissions')) {
+        return NextResponse.json(
+          {
+            error:
+              "Insufficient permissions to create calendar events. Please ensure you've granted calendar access.",
+          },
+          { status: 403 }
+        );
+      }
+    }
+
     return NextResponse.json(
       {
         error:

@@ -6,9 +6,9 @@ import {
   Copy,
   ExternalLink,
   Calendar,
-  Clock,
   Users,
   RefreshCw,
+  AlertCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -25,7 +25,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { useSession } from 'next-auth/react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useSession, signIn } from 'next-auth/react';
 
 interface MeetingDialogProps {
   workspaceId: string;
@@ -40,6 +41,13 @@ interface MeetingData {
   title: string;
   startTime: string;
   endTime: string;
+}
+
+interface GoogleAuthStatus {
+  hasGoogleAuth: boolean;
+  hasCalendarScope: boolean;
+  isTokenExpired: boolean;
+  hasRefreshToken: boolean;
 }
 
 export default function MeetingDialog({
@@ -57,8 +65,18 @@ export default function MeetingDialog({
   const [meetingDescription, setMeetingDescription] = useState('');
   const [duration, setDuration] = useState(60); // minutes
   const [googleMeetUrl, setGoogleMeetUrl] = useState(initialGoogleMeetUrl);
+  const [googleAuthStatus, setGoogleAuthStatus] =
+    useState<GoogleAuthStatus | null>(null);
   const { toast } = useToast();
   const { data: session } = useSession();
+  const [activeTab, setActiveTab] = useState<'permanent' | 'new'>('permanent');
+
+  // Check Google auth status when dialog opens
+  useEffect(() => {
+    if (isOpen) {
+      checkGoogleAuthStatus();
+    }
+  }, [isOpen]);
 
   // If there's a permanent Google Meet URL, use it
   useEffect(() => {
@@ -73,12 +91,33 @@ export default function MeetingDialog({
     }
   }, [googleMeetUrl, isOpen, workspaceName]);
 
+  const checkGoogleAuthStatus = async () => {
+    try {
+      const response = await fetch('/api/auth/check-google-auth');
+      if (response.ok) {
+        const data = await response.json();
+        setGoogleAuthStatus(data);
+      }
+    } catch (error) {
+      console.error('Error checking Google auth status:', error);
+    }
+  };
+
+  const handleGoogleSignIn = () => {
+    signIn('google', {
+      callbackUrl: window.location.href,
+      scope: 'openid email profile https://www.googleapis.com/auth/calendar',
+    });
+  };
+
   const generatePermanentMeetLink = async () => {
-    if (!session?.accessToken) {
+    if (
+      !googleAuthStatus?.hasGoogleAuth ||
+      !googleAuthStatus?.hasCalendarScope
+    ) {
       toast({
-        title: 'Authentication Error',
-        description:
-          'You need to be logged in with Google to generate meeting links.',
+        title: 'Authentication Required',
+        description: 'Please sign in with Google and grant calendar access.',
         variant: 'destructive',
       });
       return;
@@ -136,10 +175,13 @@ export default function MeetingDialog({
   };
 
   const createMeeting = async () => {
-    if (!session?.accessToken) {
+    if (
+      !googleAuthStatus?.hasGoogleAuth ||
+      !googleAuthStatus?.hasCalendarScope
+    ) {
       toast({
-        title: 'Authentication Error',
-        description: 'You need to be logged in with Google to create meetings.',
+        title: 'Authentication Required',
+        description: 'Please sign in with Google and grant calendar access.',
         variant: 'destructive',
       });
       return;
@@ -169,7 +211,12 @@ export default function MeetingDialog({
       }
 
       const data = await response.json();
+
+      // Store the new meeting data
       setMeetingData(data);
+
+      // Switch to showing the new meeting
+      setActiveTab('permanent');
 
       toast({
         title: 'Meeting Created',
@@ -279,6 +326,21 @@ export default function MeetingDialog({
     });
   };
 
+  // Show authentication warning if needed - Fixed boolean typing
+  const showAuthWarning = Boolean(
+    googleAuthStatus &&
+      (!googleAuthStatus.hasGoogleAuth ||
+        !googleAuthStatus.hasCalendarScope ||
+        googleAuthStatus.isTokenExpired)
+  );
+
+  // Helper function to check if user can create meetings
+  const canCreateMeetings = Boolean(
+    googleAuthStatus?.hasGoogleAuth &&
+      googleAuthStatus?.hasCalendarScope &&
+      !googleAuthStatus?.isTokenExpired
+  );
+
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
@@ -301,6 +363,31 @@ export default function MeetingDialog({
         </DialogHeader>
 
         <div className="space-y-6">
+          {/* Authentication Warning */}
+          {showAuthWarning && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                {!googleAuthStatus?.hasGoogleAuth &&
+                  'You need to sign in with Google to create meetings.'}
+                {googleAuthStatus?.hasGoogleAuth &&
+                  !googleAuthStatus?.hasCalendarScope &&
+                  'Calendar access is required to create meetings.'}
+                {googleAuthStatus?.hasGoogleAuth &&
+                  googleAuthStatus?.hasCalendarScope &&
+                  googleAuthStatus?.isTokenExpired &&
+                  'Your Google access has expired. Please sign in again.'}
+                <Button
+                  variant="link"
+                  className="p-0 h-auto ml-2"
+                  onClick={handleGoogleSignIn}
+                >
+                  Sign in with Google
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+
           {!googleMeetUrl && !meetingData ? (
             // No permanent meeting link exists
             <div className="space-y-4">
@@ -315,7 +402,7 @@ export default function MeetingDialog({
                 </p>
                 <Button
                   onClick={generatePermanentMeetLink}
-                  disabled={isLoading}
+                  disabled={isLoading || !canCreateMeetings}
                   className="w-full"
                 >
                   {isLoading
@@ -363,7 +450,9 @@ export default function MeetingDialog({
 
                 <Button
                   onClick={createMeeting}
-                  disabled={isLoading || !meetingTitle.trim()}
+                  disabled={
+                    isLoading || !meetingTitle.trim() || !canCreateMeetings
+                  }
                   className="w-full"
                 >
                   {isLoading
@@ -410,104 +499,153 @@ export default function MeetingDialog({
 
               <Button
                 onClick={createMeeting}
-                disabled={isLoading || !meetingTitle.trim()}
+                disabled={
+                  isLoading || !meetingTitle.trim() || !canCreateMeetings
+                }
                 className="w-full"
               >
                 {isLoading ? 'Creating Meeting...' : 'Create Google Meet'}
               </Button>
             </div>
           ) : (
-            // Meeting Details
+            // Meeting Details or Create New Meeting
             <div className="space-y-4">
-              <div className="rounded-lg border p-4 space-y-3">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="font-semibold">{meetingData.title}</h3>
-                    {meetingData.eventId !== 'permanent' &&
-                      meetingData.eventId !== 'permanent-regenerated' && (
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
-                          <div className="flex items-center gap-1">
-                            <Calendar className="h-4 w-4" />
-                            {formatDate(meetingData.startTime)}
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Clock className="h-4 w-4" />
-                            {formatTime(meetingData.startTime)} -{' '}
-                            {formatTime(meetingData.endTime)}
-                          </div>
+              {/* Tab Navigation */}
+              <div className="flex border-b">
+                <button
+                  className={`px-4 py-2 font-medium text-sm ${
+                    activeTab === 'permanent'
+                      ? 'border-b-2 border-primary text-primary'
+                      : 'text-muted-foreground'
+                  }`}
+                  onClick={() => setActiveTab('permanent')}
+                >
+                  Permanent Room
+                </button>
+                <button
+                  className={`px-4 py-2 font-medium text-sm ${
+                    activeTab === 'new'
+                      ? 'border-b-2 border-primary text-primary'
+                      : 'text-muted-foreground'
+                  }`}
+                  onClick={() => setActiveTab('new')}
+                >
+                  New Meeting
+                </button>
+              </div>
+
+              {activeTab === 'permanent' ? (
+                // Permanent Meeting Details
+                <div className="space-y-4">
+                  <div className="rounded-lg border p-4 space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h3 className="font-semibold">{meetingData.title}</h3>
+                        <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
+                          <Calendar className="h-4 w-4" />
+                          <span>Permanent Meeting Room</span>
                         </div>
-                      )}
-                    {(meetingData.eventId === 'permanent' ||
-                      meetingData.eventId === 'permanent-regenerated') && (
-                      <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
-                        <Calendar className="h-4 w-4" />
-                        <span>Permanent Meeting Room</span>
                       </div>
-                    )}
+                      <Badge
+                        variant="secondary"
+                        className="flex items-center gap-1"
+                      >
+                        <Users className="h-3 w-3" />
+                        Permanent
+                      </Badge>
+                    </div>
+
+                    <Separator />
+
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">
+                        Google Meet Link
+                      </Label>
+                      <div className="flex gap-2">
+                        <Input
+                          value={meetingData.meetLink}
+                          readOnly
+                          className="font-mono text-sm"
+                        />
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={copyMeetLink}
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
                   </div>
-                  <Badge
-                    variant="secondary"
-                    className="flex items-center gap-1"
-                  >
-                    <Users className="h-3 w-3" />
-                    {meetingData.eventId === 'permanent' ||
-                    meetingData.eventId === 'permanent-regenerated'
-                      ? 'Permanent'
-                      : 'Live'}
-                  </Badge>
-                </div>
 
-                <Separator />
-
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">
-                    Google Meet Link
-                  </Label>
                   <div className="flex gap-2">
-                    <Input
-                      value={meetingData.meetLink}
-                      readOnly
-                      className="font-mono text-sm"
-                    />
+                    <Button onClick={joinMeeting} className="flex-1">
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      Join Meeting
+                    </Button>
                     <Button
                       variant="outline"
-                      size="icon"
-                      onClick={copyMeetLink}
+                      onClick={regenerateMeetLink}
+                      disabled={isLoading}
                     >
-                      <Copy className="h-4 w-4" />
+                      <RefreshCw
+                        className={`h-4 w-4 mr-2 ${
+                          isLoading ? 'animate-spin' : ''
+                        }`}
+                      />
+                      Regenerate Link
                     </Button>
                   </div>
                 </div>
-              </div>
-
-              <div className="flex gap-2">
-                <Button onClick={joinMeeting} className="flex-1">
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  Join Meeting
-                </Button>
-                {meetingData.eventId === 'permanent' ||
-                meetingData.eventId === 'permanent-regenerated' ? (
-                  <Button
-                    variant="outline"
-                    onClick={regenerateMeetLink}
-                    disabled={isLoading}
-                  >
-                    <RefreshCw
-                      className={`h-4 w-4 mr-2 ${
-                        isLoading ? 'animate-spin' : ''
-                      }`}
+              ) : (
+                // Create New Meeting Form
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="title">Meeting Title</Label>
+                    <Input
+                      id="title"
+                      value={meetingTitle}
+                      onChange={(e) => setMeetingTitle(e.target.value)}
+                      placeholder="Enter meeting title"
                     />
-                    Regenerate Link
-                  </Button>
-                ) : (
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="description">Description (Optional)</Label>
+                    <Textarea
+                      id="description"
+                      value={meetingDescription}
+                      onChange={(e) => setMeetingDescription(e.target.value)}
+                      placeholder="Meeting agenda or description"
+                      rows={3}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="duration">Duration (minutes)</Label>
+                    <Input
+                      id="duration"
+                      type="number"
+                      value={duration}
+                      onChange={(e) => setDuration(Number(e.target.value))}
+                      min={15}
+                      max={480}
+                    />
+                  </div>
+
                   <Button
-                    variant="outline"
-                    onClick={() => setMeetingData(null)}
+                    onClick={createMeeting}
+                    disabled={
+                      isLoading || !meetingTitle.trim() || !canCreateMeetings
+                    }
+                    className="w-full"
                   >
-                    Create New
+                    {isLoading
+                      ? 'Creating Meeting...'
+                      : 'Create One-Time Meeting'}
                   </Button>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           )}
         </div>
