@@ -46,7 +46,7 @@ export default function MeetingDialog({
   workspaceId,
   workspaceName,
   currentUserEmail,
-  googleMeetUrl,
+  googleMeetUrl: initialGoogleMeetUrl,
 }: MeetingDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -56,6 +56,7 @@ export default function MeetingDialog({
   );
   const [meetingDescription, setMeetingDescription] = useState('');
   const [duration, setDuration] = useState(60); // minutes
+  const [googleMeetUrl, setGoogleMeetUrl] = useState(initialGoogleMeetUrl);
   const { toast } = useToast();
   const { data: session } = useSession();
 
@@ -71,6 +72,68 @@ export default function MeetingDialog({
       });
     }
   }, [googleMeetUrl, isOpen, workspaceName]);
+
+  const generatePermanentMeetLink = async () => {
+    if (!session?.accessToken) {
+      toast({
+        title: 'Authentication Error',
+        description:
+          'You need to be logged in with Google to generate meeting links.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await fetch(
+        `/api/workspace/${workspaceId}/meetings/generate-permanent`,
+        {
+          method: 'POST',
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.error || 'Failed to generate permanent meeting link'
+        );
+      }
+
+      const data = await response.json();
+
+      if (data.googleMeetUrl) {
+        setGoogleMeetUrl(data.googleMeetUrl);
+        setMeetingData({
+          meetLink: data.googleMeetUrl,
+          eventId: 'permanent',
+          title: `${workspaceName} Permanent Meeting Room`,
+          startTime: new Date().toISOString(),
+          endTime: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+        });
+
+        toast({
+          title: 'Success',
+          description:
+            data.message || 'Permanent meeting link generated successfully.',
+        });
+      } else {
+        throw new Error('No meeting link was generated');
+      }
+    } catch (error) {
+      console.error('Error generating permanent meeting link:', error);
+      toast({
+        title: 'Error',
+        description:
+          error instanceof Error
+            ? error.message
+            : 'Failed to generate permanent meeting link.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const createMeeting = async () => {
     if (!session?.accessToken) {
@@ -169,6 +232,7 @@ export default function MeetingDialog({
       const data = await response.json();
 
       if (data.googleMeetUrl) {
+        setGoogleMeetUrl(data.googleMeetUrl);
         setMeetingData({
           meetLink: data.googleMeetUrl,
           eventId: 'permanent-regenerated',
@@ -232,13 +296,84 @@ export default function MeetingDialog({
           <DialogDescription>
             {googleMeetUrl
               ? "Join your workspace's permanent meeting room or create a new session."
-              : 'Create or join a Google Meet session for your workspace.'}
+              : 'Generate a permanent meeting room for your workspace or create a one-time meeting.'}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
-          {!meetingData ? (
-            // Meeting Creation Form
+          {!googleMeetUrl && !meetingData ? (
+            // No permanent meeting link exists
+            <div className="space-y-4">
+              <div className="text-center py-6">
+                <Video className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-lg font-semibold mb-2">
+                  No Permanent Meeting Room
+                </h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Generate a permanent meeting room for this workspace that all
+                  members can use anytime.
+                </p>
+                <Button
+                  onClick={generatePermanentMeetLink}
+                  disabled={isLoading}
+                  className="w-full"
+                >
+                  {isLoading
+                    ? 'Generating...'
+                    : 'Generate Permanent Meeting Room'}
+                </Button>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-4">
+                <h4 className="font-medium">Or create a one-time meeting:</h4>
+                <div className="space-y-2">
+                  <Label htmlFor="title">Meeting Title</Label>
+                  <Input
+                    id="title"
+                    value={meetingTitle}
+                    onChange={(e) => setMeetingTitle(e.target.value)}
+                    placeholder="Enter meeting title"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description (Optional)</Label>
+                  <Textarea
+                    id="description"
+                    value={meetingDescription}
+                    onChange={(e) => setMeetingDescription(e.target.value)}
+                    placeholder="Meeting agenda or description"
+                    rows={3}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="duration">Duration (minutes)</Label>
+                  <Input
+                    id="duration"
+                    type="number"
+                    value={duration}
+                    onChange={(e) => setDuration(Number(e.target.value))}
+                    min={15}
+                    max={480}
+                  />
+                </div>
+
+                <Button
+                  onClick={createMeeting}
+                  disabled={isLoading || !meetingTitle.trim()}
+                  className="w-full"
+                >
+                  {isLoading
+                    ? 'Creating Meeting...'
+                    : 'Create One-Time Meeting'}
+                </Button>
+              </div>
+            </div>
+          ) : !meetingData ? (
+            // Has permanent meeting link but not currently displayed
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="title">Meeting Title</Label>
