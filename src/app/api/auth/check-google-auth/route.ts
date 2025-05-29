@@ -1,23 +1,45 @@
-import { type NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import prisma from '@/lib/prismadb';
+import { type NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import prisma from "@/lib/prismadb";
 
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
 
     if (!session?.user?.email) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+      return NextResponse.json(
+        {
+          hasGoogleAuth: false,
+          hasCalendarScope: false,
+          isTokenExpired: true,
+          hasRefreshToken: false,
+        },
+        { status: 200 }
+      );
     }
 
-    // Get the user's Google account
+    // Check if there's a token refresh error in the session
+    if (session.error === "RefreshAccessTokenError") {
+      return NextResponse.json(
+        {
+          hasGoogleAuth: true,
+          hasCalendarScope: false,
+          isTokenExpired: true,
+          hasRefreshToken: false,
+          error: "Token refresh failed, please sign in again",
+        },
+        { status: 200 }
+      );
+    }
+
+    // Get the user's Google account from database for scope checking
     const userAccount = await prisma.account.findFirst({
       where: {
         user: {
           email: session.user.email,
         },
-        provider: 'google',
+        provider: "google",
       },
       select: {
         access_token: true,
@@ -28,32 +50,42 @@ export async function GET(request: NextRequest) {
     });
 
     if (!userAccount) {
-      return NextResponse.json({
-        hasGoogleAuth: false,
-        message: 'No Google account connected',
-      });
+      return NextResponse.json(
+        {
+          hasGoogleAuth: false,
+          hasCalendarScope: false,
+          isTokenExpired: true,
+          hasRefreshToken: false,
+        },
+        { status: 200 }
+      );
     }
 
-    // Check if token is expired
+    // Check if calendar scope is included
+    const hasCalendarScope =
+      userAccount.scope?.includes("https://www.googleapis.com/auth/calendar") ||
+      false;
+
+    // Check if token is expired (JWT callback should handle refresh automatically)
     const now = Math.floor(Date.now() / 1000);
     const isTokenExpired =
       userAccount.expires_at && userAccount.expires_at < now;
 
-    // Check if calendar scope is included
-    const hasCalendarScope = userAccount.scope?.includes('calendar') || false;
-
-    return NextResponse.json({
-      hasGoogleAuth: true,
-      hasCalendarScope,
-      isTokenExpired,
-      hasRefreshToken: !!userAccount.refresh_token,
-      expiresAt: userAccount.expires_at,
-      scopes: userAccount.scope,
-    });
-  } catch (error) {
-    console.error('Error checking Google auth:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      {
+        hasGoogleAuth: true,
+        hasCalendarScope,
+        isTokenExpired: !session.accessToken || isTokenExpired,
+        hasRefreshToken: !!userAccount.refresh_token,
+      },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error("Error checking Google auth:", error);
+    return NextResponse.json(
+      {
+        error: "Internal server error",
+      },
       { status: 500 }
     );
   }

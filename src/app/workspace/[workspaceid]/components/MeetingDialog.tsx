@@ -149,6 +149,13 @@ export default function MeetingDialog({
 
       if (!response.ok) {
         const errorData = await response.json();
+
+        // Check if we need to re-authenticate
+        if (errorData.authRequired) {
+          handleGoogleSignIn();
+          return;
+        }
+
         throw new Error(
           errorData.error || "Failed to generate permanent meeting link"
         );
@@ -225,6 +232,13 @@ export default function MeetingDialog({
 
       if (!response.ok) {
         const errorData = await response.json();
+
+        // Check if we need to re-authenticate
+        if (errorData.authRequired) {
+          handleGoogleSignIn();
+          return;
+        }
+
         throw new Error(errorData.error || "Failed to create meeting");
       }
 
@@ -300,6 +314,13 @@ export default function MeetingDialog({
 
       if (!response.ok) {
         const errorData = await response.json();
+
+        // Check if we need to re-authenticate
+        if (errorData.authRequired) {
+          handleGoogleSignIn();
+          return;
+        }
+
         throw new Error(errorData.error || "Failed to regenerate meeting link");
       }
 
@@ -406,7 +427,7 @@ export default function MeetingDialog({
           <span className="sr-only">Meeting Room</span>
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px] max-h-[80vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Video className="h-5 w-5" />
@@ -419,7 +440,7 @@ export default function MeetingDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6">
+        <div className="overflow-y-auto space-y-6">
           {/* Authentication Warning */}
           {showAuthWarning && (
             <Alert>
@@ -687,7 +708,7 @@ export default function MeetingDialog({
                           </p>
                         </div>
                       ) : (
-                        <div className="space-y-3">
+                        <div className="max-h-[250px] overflow-y-auto space-y-3">
                           {sessionMeetings.map((meeting) => (
                             <div
                               key={meeting.id}

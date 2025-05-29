@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import prisma from "@/lib/prismadb";
 import { google } from "googleapis";
+import { getFreshGoogleTokens } from "@/lib/auth-helpers";
 
 // GET - Fetch all session meetings for a workspace
 export async function GET(
@@ -107,47 +108,22 @@ export async function POST(
       );
     }
 
-    // Get the user's Google account with fresh tokens
-    const userAccount = await prisma.account.findFirst({
-      where: {
-        user: {
-          email: session.user.email,
-        },
-        provider: "google",
-      },
-      select: {
-        access_token: true,
-        refresh_token: true,
-        expires_at: true,
-      },
-    });
-
-    if (!userAccount) {
+    // Get fresh Google tokens using our helper function
+    let tokens;
+    try {
+      tokens = await getFreshGoogleTokens(session.user.email);
+    } catch (error) {
       return NextResponse.json(
         {
           error:
-            "No Google account found. Please sign in with Google to create meetings.",
+            "Failed to get valid Google credentials. Please sign in again with Google.",
+          authRequired: true,
         },
         { status: 401 }
       );
     }
 
-    // Check if token is expired
-    const now = Math.floor(Date.now() / 1000);
-    const isTokenExpired =
-      userAccount.expires_at && userAccount.expires_at < now;
-
-    if (isTokenExpired && !userAccount.refresh_token) {
-      return NextResponse.json(
-        {
-          error:
-            "Google access token expired and no refresh token available. Please sign in again.",
-        },
-        { status: 401 }
-      );
-    }
-
-    // Set up OAuth2 client
+    // Set up OAuth2 client with fresh tokens
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,
@@ -156,48 +132,9 @@ export async function POST(
 
     // Set credentials
     oauth2Client.setCredentials({
-      access_token: userAccount.access_token,
-      refresh_token: userAccount.refresh_token,
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
     });
-
-    // If token is expired, try to refresh it
-    if (isTokenExpired && userAccount.refresh_token) {
-      try {
-        const { credentials } = await oauth2Client.refreshAccessToken();
-
-        // Update the database with new tokens
-        await prisma.account.updateMany({
-          where: {
-            userId: (
-              await prisma.user.findUnique({
-                where: { email: session.user.email },
-              })
-            )?.id,
-            provider: "google",
-          },
-          data: {
-            access_token: credentials.access_token,
-            expires_at: credentials.expiry_date
-              ? Math.floor(credentials.expiry_date / 1000)
-              : null,
-            refresh_token:
-              credentials.refresh_token || userAccount.refresh_token,
-          },
-        });
-
-        // Update OAuth2 client with new credentials
-        oauth2Client.setCredentials(credentials);
-      } catch (refreshError) {
-        console.error("Error refreshing token:", refreshError);
-        return NextResponse.json(
-          {
-            error:
-              "Failed to refresh Google access token. Please sign in again.",
-          },
-          { status: 401 }
-        );
-      }
-    }
 
     const calendar = google.calendar({ version: "v3", auth: oauth2Client });
 
@@ -297,6 +234,7 @@ export async function POST(
           {
             error:
               "Google authentication failed. Please sign out and sign in again with Google.",
+            authRequired: true,
           },
           { status: 401 }
         );
