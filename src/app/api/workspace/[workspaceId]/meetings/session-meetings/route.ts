@@ -1,9 +1,69 @@
-import { type NextRequest, NextResponse } from 'next/server';
-import { google } from 'googleapis';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import prisma from '@/lib/prismadb';
+import { type NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import prisma from "@/lib/prismadb";
+import { google } from "googleapis";
 
+// GET - Fetch all session meetings for a workspace
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { workspaceId: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user?.email) {
+      return NextResponse.json(
+        { error: "You must be signed in to access session meetings" },
+        { status: 401 }
+      );
+    }
+
+    const { workspaceId } = params;
+
+    // Check if user has access to this workspace
+    const workspaceMember = await prisma.workspaceMember.findFirst({
+      where: {
+        workspaceId,
+        user: {
+          email: session.user.email,
+        },
+      },
+    });
+
+    if (!workspaceMember) {
+      return NextResponse.json(
+        { error: "You don't have access to this workspace" },
+        { status: 403 }
+      );
+    }
+
+    // Fetch all session meetings for this workspace
+    const sessionMeetings = await prisma.sessionMeeting.findMany({
+      where: {
+        workspaceId,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    return NextResponse.json(sessionMeetings);
+  } catch (error) {
+    console.error("Error fetching session meetings:", error);
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to fetch session meetings",
+      },
+      { status: 500 }
+    );
+  }
+}
+
+// POST - Create a new session meeting with Google Meet integration
 export async function POST(
   request: NextRequest,
   { params }: { params: { workspaceId: string } }
@@ -13,7 +73,7 @@ export async function POST(
 
     if (!session?.user?.email) {
       return NextResponse.json(
-        { error: 'You must be signed in to create meetings' },
+        { error: "You must be signed in to create meetings" },
         { status: 401 }
       );
     }
@@ -25,7 +85,7 @@ export async function POST(
     // Validate required fields
     if (!title || !duration) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: "Missing required fields" },
         { status: 400 }
       );
     }
@@ -53,7 +113,7 @@ export async function POST(
         user: {
           email: session.user.email,
         },
-        provider: 'google',
+        provider: "google",
       },
       select: {
         access_token: true,
@@ -66,7 +126,7 @@ export async function POST(
       return NextResponse.json(
         {
           error:
-            'No Google account found. Please sign in with Google to create meetings.',
+            "No Google account found. Please sign in with Google to create meetings.",
         },
         { status: 401 }
       );
@@ -81,7 +141,7 @@ export async function POST(
       return NextResponse.json(
         {
           error:
-            'Google access token expired and no refresh token available. Please sign in again.',
+            "Google access token expired and no refresh token available. Please sign in again.",
         },
         { status: 401 }
       );
@@ -106,12 +166,14 @@ export async function POST(
         const { credentials } = await oauth2Client.refreshAccessToken();
 
         // Update the database with new tokens
-        await prisma.account.update({
+        await prisma.account.updateMany({
           where: {
-            provider_providerAccountId: {
-              provider: 'google',
-              providerAccountId: userAccount.access_token || '', // This might need adjustment based on your schema
-            },
+            userId: (
+              await prisma.user.findUnique({
+                where: { email: session.user.email },
+              })
+            )?.id,
+            provider: "google",
           },
           data: {
             access_token: credentials.access_token,
@@ -126,18 +188,18 @@ export async function POST(
         // Update OAuth2 client with new credentials
         oauth2Client.setCredentials(credentials);
       } catch (refreshError) {
-        console.error('Error refreshing token:', refreshError);
+        console.error("Error refreshing token:", refreshError);
         return NextResponse.json(
           {
             error:
-              'Failed to refresh Google access token. Please sign in again.',
+              "Failed to refresh Google access token. Please sign in again.",
           },
           { status: 401 }
         );
       }
     }
 
-    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+    const calendar = google.calendar({ version: "v3", auth: oauth2Client });
 
     // Calculate start and end times
     const startTime = new Date();
@@ -149,75 +211,97 @@ export async function POST(
       description: description || `Meeting for workspace: ${workspaceId}`,
       start: {
         dateTime: startTime.toISOString(),
-        timeZone: 'UTC',
+        timeZone: "UTC",
       },
       end: {
         dateTime: endTime.toISOString(),
-        timeZone: 'UTC',
+        timeZone: "UTC",
       },
       attendees: [{ email: organizerEmail }],
       conferenceData: {
         createRequest: {
           requestId: `meet-${workspaceId}-${Date.now()}`,
           conferenceSolutionKey: {
-            type: 'hangoutsMeet',
+            type: "hangoutsMeet",
           },
         },
       },
     };
 
     const response = await calendar.events.insert({
-      calendarId: 'primary',
+      calendarId: "primary",
       requestBody: event,
       conferenceDataVersion: 1,
     });
 
     const meetLink = response.data.conferenceData?.entryPoints?.find(
-      (entry) => entry.entryPointType === 'video'
+      (entry) => entry.entryPointType === "video"
     )?.uri;
 
     if (!meetLink) {
-      throw new Error('Failed to generate Google Meet link');
+      throw new Error("Failed to generate Google Meet link");
     }
+
+    // Get the user ID
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+    });
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // Save the meeting to the SessionMeeting model
+    const sessionMeeting = await prisma.sessionMeeting.create({
+      data: {
+        title,
+        description: description || `Meeting for workspace: ${workspaceId}`,
+        meetLink,
+        startTime: startTime,
+        endTime: endTime,
+        workspaceId,
+        createdById: user.id,
+      },
+    });
 
     // Create a notification about the new meeting
     await prisma.notification.create({
       data: {
         workspaceId,
-        message: `New meeting created: ${title}`,
-        type: 'WORKSPACE_UPDATE',
-        userId: (
-          await prisma.user.findUnique({ where: { email: session.user.email } })
-        )?.id,
+        message: `New session meeting created: ${title}`,
+        type: "WORKSPACE_UPDATE",
+        userId: user.id,
       },
     });
 
     return NextResponse.json({
+      id: sessionMeeting.id,
       meetLink,
       eventId: response.data.id,
       title: response.data.summary,
       startTime: response.data.start?.dateTime,
       endTime: response.data.end?.dateTime,
       isPermanent: false,
+      sessionMeetingId: sessionMeeting.id,
     });
   } catch (error) {
-    console.error('Error creating meeting:', error);
+    console.error("Error creating session meeting:", error);
 
     // Provide more specific error messages
     if (error instanceof Error) {
       if (
-        error.message.includes('Invalid Credentials') ||
-        error.message.includes('invalid_token')
+        error.message.includes("Invalid Credentials") ||
+        error.message.includes("invalid_token")
       ) {
         return NextResponse.json(
           {
             error:
-              'Google authentication failed. Please sign out and sign in again with Google.',
+              "Google authentication failed. Please sign out and sign in again with Google.",
           },
           { status: 401 }
         );
       }
-      if (error.message.includes('insufficient permissions')) {
+      if (error.message.includes("insufficient permissions")) {
         return NextResponse.json(
           {
             error:
@@ -231,7 +315,9 @@ export async function POST(
     return NextResponse.json(
       {
         error:
-          error instanceof Error ? error.message : 'Failed to create meeting',
+          error instanceof Error
+            ? error.message
+            : "Failed to create session meeting",
       },
       { status: 500 }
     );
