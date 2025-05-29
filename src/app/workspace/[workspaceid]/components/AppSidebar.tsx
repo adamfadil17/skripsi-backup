@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Check,
   ChevronsUpDown,
@@ -8,18 +8,18 @@ import {
   MoreVertical,
   Loader2,
   Trash,
-} from 'lucide-react';
+} from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
-import { ScrollArea } from '@/components/ui/scroll-area';
+} from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 import {
   Sidebar,
@@ -32,14 +32,14 @@ import {
   SidebarRail,
   SidebarGroup,
   SidebarGroupContent,
-} from '@/components/ui/sidebar';
+} from "@/components/ui/sidebar";
 
 // Icons
-import { PiVideoConference } from 'react-icons/pi';
-import { GrGroup } from 'react-icons/gr';
-import { MdManageAccounts } from 'react-icons/md';
-import { LuNotebookPen, LuNotebookTabs } from 'react-icons/lu';
-import { FaPlus } from 'react-icons/fa';
+import { PiVideoConference } from "react-icons/pi";
+import { GrGroup } from "react-icons/gr";
+import { MdManageAccounts } from "react-icons/md";
+import { LuNotebookPen, LuNotebookTabs } from "react-icons/lu";
+import { FaPlus } from "react-icons/fa";
 
 import type {
   WorkspaceInfo,
@@ -47,18 +47,18 @@ import type {
   WorkspaceDocument,
   WorkspaceInvitation,
   UserWorkspace,
-} from '@/types/types';
-import type { User } from '@prisma/client';
-import Image from 'next/image';
-import toast from 'react-hot-toast';
-import axios from 'axios';
-import { useParams, useRouter } from 'next/navigation';
-import { usePusherChannelContext } from './PusherChannelProvider';
-import MeetingDialog from './MeetingDialog';
-import WorkspaceSettingsDialog from './workspacesettings/WorkspaceSettingsDialog';
-import { DeleteDocument } from '../[documentid]/components/DeleteDocument';
-import { ShareDocument } from '../[documentid]/components/ShareDocument';
-import Link from 'next/link';
+} from "@/types/types";
+import type { User } from "@prisma/client";
+import Image from "next/image";
+import toast from "react-hot-toast";
+import axios from "axios";
+import { useParams, useRouter } from "next/navigation";
+import { usePusherChannelContext } from "./PusherChannelProvider";
+import MeetingDialog from "./MeetingDialog";
+import WorkspaceSettingsDialog from "./workspacesettings/WorkspaceSettingsDialog";
+import { DeleteDocument } from "../[documentid]/components/DeleteDocument";
+import { ShareDocument } from "../[documentid]/components/ShareDocument";
+import Link from "next/link";
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   workspaceId: string;
@@ -119,10 +119,10 @@ export function AppSidebar({
     } else if (workspaceInfo) {
       // Fallback to the provided workspaceInfo if no workspaces are available
       setSelectedWorkspace({
-        id: workspaceInfo.id || '',
-        name: workspaceInfo.name || '',
-        emoji: workspaceInfo.emoji || '',
-        coverImage: '',
+        id: workspaceInfo.id || "",
+        name: workspaceInfo.name || "",
+        emoji: workspaceInfo.emoji || "",
+        coverImage: "",
         documentCount: 0,
         members: [],
       });
@@ -133,12 +133,12 @@ export function AppSidebar({
   useEffect(() => {
     if (!workspaceChannel) return;
 
-    console.log('Setting up Pusher listeners for workspace:', workspaceId);
+    console.log("Setting up Pusher listeners for workspace:", workspaceId);
 
     // Workspace events
     const handleWorkspaceUpdated = (updatedWorkspace: any) => {
       console.log(
-        '🔥 EVENT RECEIVED workspace-updated in SidebarNav:',
+        "🔥 EVENT RECEIVED workspace-updated in SidebarNav:",
         updatedWorkspace
       );
 
@@ -151,14 +151,14 @@ export function AppSidebar({
           ...updatedWorkspace,
         };
 
-        console.log('Updated workspace info:', updated);
+        console.log("Updated workspace info:", updated);
         return updated;
       });
     };
 
     // Member events
     const handleMemberAdded = (member: WorkspaceMember) => {
-      console.log('Pusher event received: member-added', member);
+      console.log("Pusher event received: member-added", member);
       setMembers((prev) => {
         // Check if member already exists to prevent duplicates
         const exists = prev.some((m) => m.user.id === member.user.id);
@@ -168,22 +168,22 @@ export function AppSidebar({
     };
 
     const handleMemberRemoved = (userId: string) => {
-      console.log('Pusher event received: member-removed', userId);
+      console.log("Pusher event received: member-removed", userId);
       setMembers((prev) => prev.filter((member) => member.user.id !== userId));
     };
 
     const handleMemberLeaved = (userId: string) => {
-      console.log('Pusher event received: member-leaved', userId);
+      console.log("Pusher event received: member-leaved", userId);
       setMembers((prev) => prev.filter((member) => member.user.id !== userId));
 
       // If current user is removed, redirect to dashboard
       if (userId === currentUser.id) {
-        router.push('/dashboard');
+        router.push("/dashboard");
       }
     };
 
     const handleMemberUpdated = (updatedMember: WorkspaceMember) => {
-      console.log('Pusher event received: member-updated', updatedMember);
+      console.log("Pusher event received: member-updated", updatedMember);
       setMembers((prev) =>
         prev.map((member) =>
           member.user.id === updatedMember.user.id ? updatedMember : member
@@ -199,7 +199,7 @@ export function AppSidebar({
 
     // Document events
     const handleDocumentAdded = (document: WorkspaceDocument) => {
-      console.log('Pusher event received: document-added', document);
+      console.log("Pusher event received: document-added", document);
       setDocuments((prev) => {
         // Check if document already exists to prevent duplicates
         const exists = prev.some((d) => d.id === document.id);
@@ -209,12 +209,12 @@ export function AppSidebar({
     };
 
     const handleDocumentRemoved = (documentId: string) => {
-      console.log('Pusher event received: document-removed', documentId);
+      console.log("Pusher event received: document-removed", documentId);
       setDocuments((prev) => prev.filter((doc) => doc.id !== documentId));
     };
 
     const handleDocumentUpdated = (updatedDocument: WorkspaceDocument) => {
-      console.log('Pusher event received: document-updated', updatedDocument);
+      console.log("Pusher event received: document-updated", updatedDocument);
       setDocuments((prev) =>
         prev.map((doc) =>
           doc.id === updatedDocument.id ? updatedDocument : doc
@@ -223,31 +223,31 @@ export function AppSidebar({
     };
 
     // Subscribe to events
-    workspaceChannel.bind('workspace-updated', handleWorkspaceUpdated);
-    workspaceChannel.bind('member-added', handleMemberAdded);
-    workspaceChannel.bind('member-removed', handleMemberRemoved);
-    workspaceChannel.bind('member-leaved', handleMemberLeaved);
-    workspaceChannel.bind('member-updated', handleMemberUpdated);
-    workspaceChannel.bind('document-added', handleDocumentAdded);
-    workspaceChannel.bind('document-removed', handleDocumentRemoved);
-    workspaceChannel.bind('document-updated', handleDocumentUpdated);
+    workspaceChannel.bind("workspace-updated", handleWorkspaceUpdated);
+    workspaceChannel.bind("member-added", handleMemberAdded);
+    workspaceChannel.bind("member-removed", handleMemberRemoved);
+    workspaceChannel.bind("member-leaved", handleMemberLeaved);
+    workspaceChannel.bind("member-updated", handleMemberUpdated);
+    workspaceChannel.bind("document-added", handleDocumentAdded);
+    workspaceChannel.bind("document-removed", handleDocumentRemoved);
+    workspaceChannel.bind("document-updated", handleDocumentUpdated);
 
     // Cleanup
     return () => {
-      console.log('Cleaning up Pusher listeners');
-      workspaceChannel.unbind('workspace-updated', handleWorkspaceUpdated);
-      workspaceChannel.unbind('member-added', handleMemberAdded);
-      workspaceChannel.unbind('member-removed', handleMemberRemoved);
-      workspaceChannel.unbind('member-leaved', handleMemberLeaved);
-      workspaceChannel.unbind('member-updated', handleMemberUpdated);
-      workspaceChannel.unbind('document-added', handleDocumentAdded);
-      workspaceChannel.unbind('document-removed', handleDocumentRemoved);
-      workspaceChannel.unbind('document-updated', handleDocumentUpdated);
+      console.log("Cleaning up Pusher listeners");
+      workspaceChannel.unbind("workspace-updated", handleWorkspaceUpdated);
+      workspaceChannel.unbind("member-added", handleMemberAdded);
+      workspaceChannel.unbind("member-removed", handleMemberRemoved);
+      workspaceChannel.unbind("member-leaved", handleMemberLeaved);
+      workspaceChannel.unbind("member-updated", handleMemberUpdated);
+      workspaceChannel.unbind("document-added", handleDocumentAdded);
+      workspaceChannel.unbind("document-removed", handleDocumentRemoved);
+      workspaceChannel.unbind("document-updated", handleDocumentUpdated);
     };
   }, [workspaceChannel, workspaceId, currentUser.id, router, workspaceInfo]);
 
   useEffect(() => {
-    console.log('workspaceInfo updated:', workspaceInfo);
+    console.log("workspaceInfo updated:", workspaceInfo);
   }, [workspaceInfo]);
 
   const onCreateDocument = useCallback(async () => {
@@ -256,9 +256,9 @@ export function AppSidebar({
       const response = await axios.post(
         `/api/workspace/${workspaceId}/document`,
         {
-          title: 'Untitled Document',
-          emoji: '📝',
-          coverImage: '/images/cover.png',
+          title: "Untitled Document",
+          emoji: "📝",
+          coverImage: "/images/cover.png",
         }
       );
 
@@ -267,12 +267,12 @@ export function AppSidebar({
         console.log(newDocument.id);
         router.push(`/workspace/${workspaceId}/${newDocument?.id}`);
         // No need to call router.refresh() since Pusher will handle the real-time update
-        toast.success('Document has been created');
+        toast.success("Document has been created");
       }
     } catch (error: any) {
-      console.error('Failed to create document:', error);
+      console.error("Failed to create document:", error);
       toast.error(
-        error.response?.data?.message || 'Failed to create document.'
+        error.response?.data?.message || "Failed to create document."
       );
     } finally {
       setLoading(false);
@@ -291,7 +291,7 @@ export function AppSidebar({
   };
 
   function handleLogoClick() {
-    router.push('/dashboard');
+    router.push("/dashboard");
     router.refresh();
   }
 
@@ -308,7 +308,7 @@ export function AppSidebar({
           onClick={handleLogoClick}
           className="flex items-center gap-2 px-2 cursor-pointer mb-4"
         >
-          <Image src={'/images/logo.png'} alt="logo" width={32} height={32} />
+          <Image src={"/images/logo.png"} alt="logo" width={32} height={32} />
           <div>
             <h2 className="text-lg font-semibold">Catatan Cerdas</h2>
           </div>
@@ -324,11 +324,11 @@ export function AppSidebar({
                   className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
                 >
                   <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                    <span className="font-bold">
+                    <span className="font-bold ">
                       {selectedWorkspace?.emoji || workspaceInfo.emoji}
                     </span>
                   </div>
-                  <div className="flex flex-col gap-0.5 leading-none">
+                  <div className="w-[140px] flex flex-col gap-0.5 leading-none">
                     <span className="font-semibold truncate">
                       {selectedWorkspace?.name || workspaceInfo.name}
                     </span>
@@ -408,8 +408,8 @@ export function AppSidebar({
                     <div className="flex items-center gap-2 max-w-[120px]">
                       <Avatar className="h-6 w-6 flex-shrink-0">
                         <AvatarImage
-                          src={member.user.image || '/placeholder.svg'}
-                          alt={member.user.name || 'avatar'}
+                          src={member.user.image || "/placeholder.svg"}
+                          alt={member.user.name || "avatar"}
                         />
                         <AvatarFallback>
                           {member.user.name?.charAt(0)}
@@ -420,19 +420,19 @@ export function AppSidebar({
                     <Badge
                       variant="secondary"
                       className={`justify-center rounded-lg px-2 text-xs ${
-                        member.role === 'SUPER_ADMIN'
-                          ? 'bg-purple-50 text-purple-500 border-purple-500 hover:bg-purple-50'
-                          : member.role === 'ADMIN'
-                          ? 'bg-blue-50 text-blue-500 border-blue-500 hover:bg-blue-50'
-                          : 'bg-green-50 text-green-500 border-green-500 hover:bg-green-50'
+                        member.role === "SUPER_ADMIN"
+                          ? "bg-purple-50 text-purple-500 border-purple-500 hover:bg-purple-50"
+                          : member.role === "ADMIN"
+                          ? "bg-blue-50 text-blue-500 border-blue-500 hover:bg-blue-50"
+                          : "bg-green-50 text-green-500 border-green-500 hover:bg-green-50"
                       }`}
-                      style={{ width: '64px' }}
+                      style={{ width: "64px" }}
                     >
-                      {member.role === 'SUPER_ADMIN'
-                        ? 'Owner'
-                        : member.role === 'ADMIN'
-                        ? 'Admin'
-                        : 'Member'}
+                      {member.role === "SUPER_ADMIN"
+                        ? "Owner"
+                        : member.role === "ADMIN"
+                        ? "Admin"
+                        : "Member"}
                     </Badge>
                   </SidebarMenuItem>
                 ))}
@@ -449,7 +449,7 @@ export function AppSidebar({
               <span>Documents</span>
             </div>
             <Button
-              size={'sm'}
+              size={"sm"}
               className="w-6 h-6 "
               onClick={onCreateDocument}
               disabled={loading}
@@ -474,7 +474,7 @@ export function AppSidebar({
                       <SidebarMenuButton
                         className={`w-full justify-between group hover:bg-accent hover:text-accent-foreground py-5 ${
                           document.id === params?.documentid &&
-                          'w-full bg-primary text-white hover:bg-primary hover:text-white'
+                          "w-full bg-primary text-white hover:bg-primary hover:text-white"
                         }`}
                       >
                         <div className="flex items-center gap-2 max-w-[160px]">
