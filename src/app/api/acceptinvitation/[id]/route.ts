@@ -1,4 +1,4 @@
-import { type NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
 import { acceptInvitation } from '@/app/actions/acceptInvitation';
 

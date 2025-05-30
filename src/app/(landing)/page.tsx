@@ -1,5 +1,21 @@
-import Image from 'next/image';
-import AuthForm from '../../components/shared/AuthForm';
+import { Suspense } from "react";
+import Image from "next/image";
+import AuthForm from "../../components/shared/AuthForm";
+
+// Loading component untuk AuthForm
+function AuthFormSkeleton() {
+  return (
+    <div className="sm:mx-auto sm:w-full sm:max-w-md mt-8">
+      <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+        <div className="space-y-6">
+          <div className="h-10 bg-gray-200 rounded animate-pulse"></div>
+          <div className="h-10 bg-gray-200 rounded animate-pulse"></div>
+          <div className="h-10 bg-gray-200 rounded animate-pulse"></div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function Home() {
   return (
@@ -22,9 +38,9 @@ export default function Home() {
               priority
               sizes="(max-width: 1280px) 100vw, 50vw"
               style={{
-                width: '100%',
-                height: 'auto',
-                maxWidth: '600px',
+                width: "100%",
+                height: "auto",
+                maxWidth: "600px",
               }}
               className="object-cover rounded-lg"
             />
@@ -40,7 +56,7 @@ export default function Home() {
               fill
               sizes="64px"
               style={{
-                objectFit: 'contain',
+                objectFit: "contain",
               }}
               className="w-auto"
             />
@@ -53,7 +69,12 @@ export default function Home() {
             your team
           </p>
         </div>
-        <AuthForm />
+
+        {/* Bungkus AuthForm dengan Suspense */}
+        <Suspense fallback={<AuthFormSkeleton />}>
+          <AuthForm />
+        </Suspense>
+
         <div className="mt-8">
           <p className="text-center text-md font-normal tracking-normal text-gray-500">
             2024 Catatan Cerdas, All right reserved

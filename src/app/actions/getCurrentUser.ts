@@ -1,6 +1,5 @@
-import prisma from '@/lib/prismadb';
-
-import getSession from './getSession';
+import prisma from "@/lib/prismadb";
+import getSession from "./getSession";
 
 export const getCurrentUser = async () => {
   try {
@@ -16,8 +15,10 @@ export const getCurrentUser = async () => {
 
     if (!currentUser) return null;
 
-    return currentUser;
+    // Simple serialization - converts Dates to strings and removes non-serializable properties
+    return JSON.parse(JSON.stringify(currentUser));
   } catch (error: any) {
-    return error;
+    console.error("Error in getCurrentUser:", error);
+    return null;
   }
 };
