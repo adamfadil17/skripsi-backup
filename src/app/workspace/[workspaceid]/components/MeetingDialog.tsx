@@ -112,10 +112,12 @@ export default function MeetingDialog({
       if (response.ok) {
         const data = await response.json();
         setGoogleAuthStatus(data);
+        return data;
       }
     } catch (error) {
       console.error("Error checking Google auth status:", error);
     }
+    return null;
   };
 
   const handleGoogleSignIn = () => {
@@ -197,6 +199,12 @@ export default function MeetingDialog({
   };
 
   const createMeeting = async () => {
+    console.log(
+      "Creating meeting with auth status:",
+      googleAuthStatus,
+      "and session:",
+      session
+    );
     if (
       !googleAuthStatus?.hasGoogleAuth ||
       !googleAuthStatus?.hasCalendarScope
@@ -235,8 +243,24 @@ export default function MeetingDialog({
 
         // Check if we need to re-authenticate
         if (errorData.authRequired) {
-          handleGoogleSignIn();
-          return;
+          // Only redirect to Google auth if we're sure it's needed
+          if (!session || !session.accessToken) {
+            handleGoogleSignIn();
+            return;
+          } else {
+            // If we have a session but still got authRequired, the token might be invalid
+            // Let's check the auth status again before redirecting
+            const authStatus = await checkGoogleAuthStatus();
+            if (
+              authStatus &&
+              (!authStatus.hasGoogleAuth ||
+                !authStatus.hasCalendarScope ||
+                authStatus.isTokenExpired)
+            ) {
+              handleGoogleSignIn();
+              return;
+            }
+          }
         }
 
         throw new Error(errorData.error || "Failed to create meeting");

@@ -66,16 +66,20 @@ export async function GET(request: NextRequest) {
       userAccount.scope?.includes("https://www.googleapis.com/auth/calendar") ||
       false;
 
-    // Check if token is expired (JWT callback should handle refresh automatically)
+    // Check if token is expired
     const now = Math.floor(Date.now() / 1000);
     const isTokenExpired =
       userAccount.expires_at && userAccount.expires_at < now;
+
+    // If we have a session accessToken but the database shows expired,
+    // trust the session since it might have been refreshed
+    const tokenStatus = session.accessToken ? false : isTokenExpired;
 
     return NextResponse.json(
       {
         hasGoogleAuth: true,
         hasCalendarScope,
-        isTokenExpired: !session.accessToken || isTokenExpired,
+        isTokenExpired: tokenStatus,
         hasRefreshToken: !!userAccount.refresh_token,
       },
       { status: 200 }
