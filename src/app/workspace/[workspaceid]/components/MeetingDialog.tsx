@@ -464,7 +464,7 @@ export default function MeetingDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="overflow-y-auto space-y-6">
+        <div className="overflow-y-auto space-y-6 px-2 py-1">
           {/* Authentication Warning */}
           {showAuthWarning && (
             <Alert>
