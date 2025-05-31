@@ -219,11 +219,7 @@ export default function MeetingDialog({
 
     setIsLoading(true);
     try {
-      // Use different endpoints based on whether we're creating a session meeting or permanent meeting
-      const endpoint =
-        activeTab === "oneSession" && isCreatingSession
-          ? `/api/workspace/${workspaceId}/meetings/session-meetings`
-          : `/api/workspace/${workspaceId}/meetings/create`;
+      const endpoint = `/api/workspace/${workspaceId}/meetings/session-meetings`;
 
       const response = await fetch(endpoint, {
         method: "POST",
@@ -516,7 +512,7 @@ export default function MeetingDialog({
               <Separator />
 
               <div className="space-y-4">
-                <h4 className="font-medium">Or create a one-time meeting:</h4>
+                <h4 className="font-medium">Or create a session meeting:</h4>
                 <div className="space-y-2">
                   <Label htmlFor="title">Meeting Title</Label>
                   <Input
