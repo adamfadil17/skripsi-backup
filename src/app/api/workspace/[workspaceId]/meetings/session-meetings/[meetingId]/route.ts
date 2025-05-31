@@ -94,7 +94,7 @@ export async function PUT(
     }
 
     const { workspaceId, meetingId } = params;
-    const { title, description, duration, eventId } = await request.json();
+    const { title, description, duration } = await request.json();
 
     // Validate required fields
     if (!title || !duration) {
@@ -138,119 +138,86 @@ export async function PUT(
 
     // Get fresh Google tokens
     let tokens;
+    let calendarSynced = false;
     try {
       tokens = await getFreshGoogleTokens(session.user.email);
     } catch (error) {
-      return NextResponse.json(
-        {
-          error:
-            "Failed to get valid Google credentials. Please sign in again with Google.",
-          authRequired: true,
-        },
-        { status: 401 }
+      console.warn("Could not get Google tokens for calendar update:", error);
+      // Continue with database update even if we can't update calendar
+    }
+
+    // Try to update Google Calendar event
+    if (tokens && existingMeeting.googleEventId) {
+      try {
+        const oauth2Client = new google.auth.OAuth2(
+          process.env.GOOGLE_CLIENT_ID,
+          process.env.GOOGLE_CLIENT_SECRET,
+          process.env.NEXTAUTH_URL
+        );
+
+        oauth2Client.setCredentials({
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token,
+        });
+
+        const calendar = google.calendar({ version: "v3", auth: oauth2Client });
+
+        // Calculate new start and end times
+        const startTime = new Date();
+        const endTime = new Date(startTime.getTime() + duration * 60000);
+
+        // Update the Google Calendar event
+        const updatedEvent = {
+          summary: title,
+          description:
+            description || `Updated meeting for workspace: ${workspaceId}`,
+          start: {
+            dateTime: startTime.toISOString(),
+            timeZone: "UTC",
+          },
+          end: {
+            dateTime: endTime.toISOString(),
+            timeZone: "UTC",
+          },
+        };
+
+        console.log(
+          `Updating Google Calendar event: ${existingMeeting.googleEventId}`
+        );
+        await calendar.events.update({
+          calendarId: "primary",
+          eventId: existingMeeting.googleEventId,
+          requestBody: updatedEvent,
+        });
+
+        calendarSynced = true;
+        console.log("Google Calendar event updated successfully");
+      } catch (calendarError) {
+        console.error("Error updating Google Calendar event:", calendarError);
+        // Continue with database update even if calendar update fails
+      }
+    } else {
+      console.log(
+        "No Google Event ID found or no tokens available for calendar update"
       );
     }
 
-    // Set up OAuth2 client with fresh tokens
-    const oauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      process.env.NEXTAUTH_URL
-    );
-
-    oauth2Client.setCredentials({
-      access_token: tokens.access_token,
-      refresh_token: tokens.refresh_token,
-    });
-
-    const calendar = google.calendar({ version: "v3", auth: oauth2Client });
-
-    // Calculate new start and end times
+    // Calculate new start and end times for database
     const startTime = new Date();
     const endTime = new Date(startTime.getTime() + duration * 60000);
 
-    // Update the Google Calendar event
-    const updatedEvent = {
-      summary: title,
-      description:
-        description || `Updated meeting for workspace: ${workspaceId}`,
-      start: {
-        dateTime: startTime.toISOString(),
-        timeZone: "UTC",
-      },
-      end: {
-        dateTime: endTime.toISOString(),
-        timeZone: "UTC",
-      },
-    };
-
-    let calendarResponse;
-    try {
-      // Extract event ID from the meet link if not provided
-      let googleEventId = eventId;
-      if (!googleEventId && existingMeeting.meetLink) {
-        // Try to extract event ID from the meet link
-        const meetLinkMatch = existingMeeting.meetLink.match(
-          /\/([a-zA-Z0-9-_]+)(?:\?|$)/
-        );
-        if (meetLinkMatch) {
-          googleEventId = meetLinkMatch[1];
-        }
-      }
-
-      if (googleEventId) {
-        calendarResponse = await calendar.events.update({
-          calendarId: "primary",
-          eventId: googleEventId,
-          requestBody: updatedEvent,
-        });
-      } else {
-        // If we can't find the event ID, create a new event
-        calendarResponse = await calendar.events.insert({
-          calendarId: "primary",
-          requestBody: {
-            ...updatedEvent,
-            conferenceData: {
-              createRequest: {
-                requestId: `meet-${workspaceId}-${Date.now()}`,
-                conferenceSolutionKey: {
-                  type: "hangoutsMeet",
-                },
-              },
-            },
-          },
-          conferenceDataVersion: 1,
-        });
-      }
-    } catch (calendarError) {
-      console.error("Error updating Google Calendar event:", calendarError);
-      // Continue with database update even if calendar update fails
-    }
-
     // Update the meeting in the database
-    const updateData: any = {
-      title,
-      description:
-        description || `Updated meeting for workspace: ${workspaceId}`,
-      startTime,
-      endTime,
-    };
-
-    // Only add meetLink if we have a valid one
-    const newMeetLink =
-      calendarResponse?.data?.conferenceData?.entryPoints?.find(
-        (entry) => entry.entryPointType === "video"
-      )?.uri;
-
-    if (newMeetLink) {
-      updateData.meetLink = newMeetLink;
-    }
-
     const updatedMeeting = await prisma.sessionMeeting.update({
       where: {
         id: meetingId,
       },
-      data: updateData,
+      data: {
+        title,
+        description:
+          description || `Updated meeting for workspace: ${workspaceId}`,
+        startTime,
+        endTime,
+      },
       include: {
         createdBy: {
           select: {
@@ -281,7 +248,7 @@ export async function PUT(
 
     return NextResponse.json({
       ...updatedMeeting,
-      eventId: calendarResponse?.data?.id,
+      calendarSynced,
     });
   } catch (error) {
     console.error("Error updating session meeting:", error);
@@ -374,6 +341,8 @@ export async function DELETE(
 
     // Get fresh Google tokens
     let tokens;
+    let calendarSynced = false;
+
     try {
       tokens = await getFreshGoogleTokens(session.user.email);
     } catch (error) {
@@ -382,7 +351,7 @@ export async function DELETE(
     }
 
     // Try to delete from Google Calendar
-    if (tokens) {
+    if (tokens && existingMeeting.googleEventId) {
       try {
         const oauth2Client = new google.auth.OAuth2(
           process.env.GOOGLE_CLIENT_ID,
@@ -397,27 +366,24 @@ export async function DELETE(
 
         const calendar = google.calendar({ version: "v3", auth: oauth2Client });
 
-        // Try to extract event ID from the meet link
-        let googleEventId;
-        if (existingMeeting.meetLink) {
-          const meetLinkMatch = existingMeeting.meetLink.match(
-            /\/([a-zA-Z0-9-_]+)(?:\?|$)/
-          );
-          if (meetLinkMatch) {
-            googleEventId = meetLinkMatch[1];
-          }
-        }
+        console.log(
+          `Deleting Google Calendar event: ${existingMeeting.googleEventId}`
+        );
+        await calendar.events.delete({
+          calendarId: "primary",
+          eventId: existingMeeting.googleEventId,
+        });
 
-        if (googleEventId) {
-          await calendar.events.delete({
-            calendarId: "primary",
-            eventId: googleEventId,
-          });
-        }
+        calendarSynced = true;
+        console.log("Google Calendar event deleted successfully");
       } catch (calendarError) {
         console.error("Error deleting Google Calendar event:", calendarError);
         // Continue with database deletion even if calendar deletion fails
       }
+    } else {
+      console.log(
+        "No Google Event ID found or no tokens available for calendar deletion"
+      );
     }
 
     // Delete the meeting from the database
@@ -447,6 +413,7 @@ export async function DELETE(
     return NextResponse.json({
       message: "Session meeting deleted successfully",
       deletedMeeting: existingMeeting,
+      calendarSynced,
     });
   } catch (error) {
     console.error("Error deleting session meeting:", error);

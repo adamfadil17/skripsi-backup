@@ -4,7 +4,6 @@ import prisma from "@/lib/prismadb";
 import { google } from "googleapis";
 import { getFreshGoogleTokens } from "@/lib/auth-helpers";
 import { authOptions } from "@/lib/auth-options";
-import { pusherServer } from "@/lib/pusher";
 
 // GET - Fetch all session meetings for a workspace
 export async function GET(
@@ -44,6 +43,15 @@ export async function GET(
     const sessionMeetings = await prisma.sessionMeeting.findMany({
       where: {
         workspaceId,
+      },
+      include: {
+        createdBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
       },
       orderBy: {
         createdAt: "desc",
@@ -189,16 +197,26 @@ export async function POST(
       throw new Error("User not found");
     }
 
-    // Save the meeting to the SessionMeeting model
+    // Save the meeting to the SessionMeeting model with Google Event ID
     const sessionMeeting = await prisma.sessionMeeting.create({
       data: {
         title,
         description: description || `Meeting for workspace: ${workspaceId}`,
         meetLink,
+        googleEventId: response.data.id, // Store the Google Calendar event ID
         startTime: startTime,
         endTime: endTime,
         workspaceId,
         createdById: user.id,
+      },
+      include: {
+        createdBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
       },
     });
 
@@ -207,20 +225,15 @@ export async function POST(
       data: {
         workspaceId,
         userId: user.id,
-        type: "WORKSPACE_UPDATE",
+        type: "MEETING_CREATE",
         message: `${user.name} created new session meeting: ${title}`,
       },
     });
 
     return NextResponse.json({
-      id: sessionMeeting.id,
-      meetLink,
+      ...sessionMeeting,
       eventId: response.data.id,
-      title: response.data.summary,
-      startTime: response.data.start?.dateTime,
-      endTime: response.data.end?.dateTime,
       isPermanent: false,
-      sessionMeetingId: sessionMeeting.id,
     });
   } catch (error) {
     console.error("Error creating session meeting:", error);

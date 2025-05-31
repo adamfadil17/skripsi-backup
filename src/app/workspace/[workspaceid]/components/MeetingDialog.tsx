@@ -29,16 +29,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -128,8 +118,6 @@ export default function MeetingDialog({
 
   // Edit and delete states
   const [editingMeeting, setEditingMeeting] =
-    useState<SessionMeetingData | null>(null);
-  const [deletingMeeting, setDeletingMeeting] =
     useState<SessionMeetingData | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -366,17 +354,22 @@ export default function MeetingDialog({
         )
       );
 
-      // Reset states
+      // Reset states and return to session list
       setEditingMeeting(null);
       setSessionMeetingForm({
         title: `${workspaceName} Team Meeting`,
         description: "",
         duration: 60,
       });
+      setIsCreatingSession(false); // Return to session list
 
       toast({
         title: "Meeting Updated",
-        description: "Session meeting has been updated successfully.",
+        description: `Session meeting has been updated successfully.${
+          response.data.calendarSynced
+            ? " Google Calendar event was also updated."
+            : " (Google Calendar sync failed)"
+        }`,
       });
     } catch (error) {
       console.error("Error updating session meeting:", error);
@@ -398,26 +391,19 @@ export default function MeetingDialog({
     }
   };
 
-  const deleteSessionMeeting = async () => {
-    if (!deletingMeeting) return;
-
+  const deleteSessionMeeting = async (meeting: SessionMeetingData) => {
     setIsDeleting(true);
     try {
-      await api.delete(
-        `/api/workspace/${workspaceId}/meetings/session-meetings/${deletingMeeting.id}`
+      const response = await api.delete(
+        `/api/workspace/${workspaceId}/meetings/session-meetings/${meeting.id}`
       );
 
       // Remove the meeting from the list
-      setSessionMeetings((prev) =>
-        prev.filter((meeting) => meeting.id !== deletingMeeting.id)
-      );
-
-      // Reset state
-      setDeletingMeeting(null);
+      setSessionMeetings((prev) => prev.filter((m) => m.id !== meeting.id));
 
       // Check if we still have session meetings
       const remainingMeetings = sessionMeetings.filter(
-        (meeting) => meeting.id !== deletingMeeting.id
+        (m) => m.id !== meeting.id
       );
       if (remainingMeetings.length === 0) {
         setHasSessionMeetings(false);
@@ -425,7 +411,13 @@ export default function MeetingDialog({
 
       toast({
         title: "Meeting Deleted",
-        description: "Session meeting has been deleted successfully.",
+        description: `Session meeting "${
+          meeting.title
+        }" has been deleted successfully.${
+          response.data.calendarSynced
+            ? " Google Calendar event was also removed."
+            : " (Google Calendar sync failed)"
+        }`,
       });
     } catch (error) {
       console.error("Error deleting session meeting:", error);
@@ -950,12 +942,15 @@ export default function MeetingDialog({
                                         </DropdownMenuItem>
                                         <DropdownMenuItem
                                           onClick={() =>
-                                            setDeletingMeeting(meeting)
+                                            deleteSessionMeeting(meeting)
                                           }
                                           className="text-destructive"
+                                          disabled={isDeleting}
                                         >
                                           <Trash2 className="h-4 w-4 mr-2" />
-                                          Delete
+                                          {isDeleting
+                                            ? "Deleting..."
+                                            : "Delete"}
                                         </DropdownMenuItem>
                                       </DropdownMenuContent>
                                     </DropdownMenu>
@@ -1096,33 +1091,6 @@ export default function MeetingDialog({
           </div>
         </DialogContent>
       </Dialog>
-
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog
-        open={!!deletingMeeting}
-        onOpenChange={() => setDeletingMeeting(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Session Meeting</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete "{deletingMeeting?.title}"? This
-              will also remove the meeting from Google Calendar. This action
-              cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={deleteSessionMeeting}
-              disabled={isDeleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {isDeleting ? "Deleting..." : "Delete Meeting"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   );
 }
