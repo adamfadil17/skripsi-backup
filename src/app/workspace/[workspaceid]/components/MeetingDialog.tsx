@@ -102,6 +102,9 @@ export default function MeetingDialog({
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [isLoadingMeetings, setIsLoadingMeetings] = useState(false);
 
+  // Track if we have created at least one session meeting
+  const [hasSessionMeetings, setHasSessionMeetings] = useState(false);
+
   const [googleAuthStatus, setGoogleAuthStatus] =
     useState<GoogleAuthStatus | null>(null);
   const { toast } = useToast();
@@ -114,6 +117,12 @@ export default function MeetingDialog({
   useEffect(() => {
     if (isOpen) {
       checkGoogleAuthStatus();
+      // Check if we have any session meetings
+      fetchSessionMeetings().then((meetings) => {
+        if (meetings && meetings.length > 0) {
+          setHasSessionMeetings(true);
+        }
+      });
     }
   }, [isOpen]);
 
@@ -250,10 +259,10 @@ export default function MeetingDialog({
         duration: 60,
       });
 
-      setIsCreatingSession(false);
-
-      // Switch to session meetings tab to show the newly created meeting
+      // Mark that we have session meetings and switch to session tab
+      setHasSessionMeetings(true);
       setActiveTab("oneSession");
+      setIsCreatingSession(false);
 
       toast({
         title: "Session Meeting Created",
@@ -362,7 +371,9 @@ export default function MeetingDialog({
       const response = await api.get(
         `/api/workspace/${workspaceId}/meetings/session-meetings`
       );
-      setSessionMeetings(response.data);
+      const meetings = response.data;
+      setSessionMeetings(meetings);
+      return meetings;
     } catch (error) {
       console.error("Error fetching session meetings:", error);
       toast({
@@ -370,6 +381,7 @@ export default function MeetingDialog({
         description: "Failed to load session meetings",
         variant: "destructive",
       });
+      return [];
     } finally {
       setIsLoadingMeetings(false);
     }
@@ -411,6 +423,9 @@ export default function MeetingDialog({
       fetchSessionMeetings();
     }
   }, [isOpen, activeTab, isCreatingSession]);
+
+  // Determine if we should show the tabbed interface
+  const showTabbedInterface = permanentMeetingData || hasSessionMeetings;
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -459,8 +474,8 @@ export default function MeetingDialog({
             </Alert>
           )}
 
-          {!googleMeetUrl && !permanentMeetingData ? (
-            // No permanent meeting link exists
+          {!showTabbedInterface ? (
+            // No permanent meeting link or session meetings exist
             <div className="space-y-4">
               <div className="text-center py-6">
                 <Video className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
@@ -537,10 +552,7 @@ export default function MeetingDialog({
                 </div>
 
                 <Button
-                  onClick={async () => {
-                    await createSessionMeeting();
-                    // The tab switch is now handled inside createSessionMeeting
-                  }}
+                  onClick={createSessionMeeting}
                   disabled={
                     isLoading ||
                     !sessionMeetingForm.title.trim() ||
@@ -566,6 +578,7 @@ export default function MeetingDialog({
                       : "text-muted-foreground"
                   }`}
                   onClick={() => setActiveTab("permanent")}
+                  disabled={!permanentMeetingData}
                 >
                   Permanent Room
                 </button>
@@ -744,80 +757,97 @@ export default function MeetingDialog({
                     </div>
                   )}
                 </div>
-              ) : (
-                // Permanent Meeting Details
-                permanentMeetingData && (
-                  <div className="space-y-4">
-                    <div className="rounded-lg border p-4 space-y-3">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <h3 className="font-semibold">
-                            {permanentMeetingData.title}
-                          </h3>
-                          <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
-                            <Calendar className="h-4 w-4" />
-                            <span>Permanent Meeting Room</span>
-                          </div>
-                        </div>
-                        <Badge
-                          variant="secondary"
-                          className="flex items-center gap-1"
-                        >
-                          <Users className="h-3 w-3" />
-                          Permanent
-                        </Badge>
-                      </div>
-
-                      <Separator />
-
-                      <div className="space-y-2">
-                        <Label className="text-sm font-medium">
-                          Google Meet Link
-                        </Label>
-                        <div className="flex gap-2">
-                          <Input
-                            value={permanentMeetingData.meetLink}
-                            readOnly
-                            className="font-mono text-sm"
-                          />
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() =>
-                              copyMeetLink(permanentMeetingData.meetLink)
-                            }
-                          >
-                            <Copy className="h-4 w-4" />
-                          </Button>
+              ) : // Permanent Meeting Details
+              permanentMeetingData ? (
+                <div className="space-y-4">
+                  <div className="rounded-lg border p-4 space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h3 className="font-semibold">
+                          {permanentMeetingData.title}
+                        </h3>
+                        <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
+                          <Calendar className="h-4 w-4" />
+                          <span>Permanent Meeting Room</span>
                         </div>
                       </div>
+                      <Badge
+                        variant="secondary"
+                        className="flex items-center gap-1"
+                      >
+                        <Users className="h-3 w-3" />
+                        Permanent
+                      </Badge>
                     </div>
 
-                    <div className="flex gap-2">
-                      <Button
-                        onClick={() =>
-                          joinMeeting(permanentMeetingData.meetLink)
-                        }
-                        className="flex-1"
-                      >
-                        <ExternalLink className="h-4 w-4 mr-2" />
-                        Join Meeting
-                      </Button>
-                      <Button
-                        variant="outline"
-                        onClick={regeneratePermanentMeetLink}
-                        disabled={isLoading}
-                      >
-                        <RefreshCw
-                          className={`h-4 w-4 mr-2 ${
-                            isLoading ? "animate-spin" : ""
-                          }`}
+                    <Separator />
+
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">
+                        Google Meet Link
+                      </Label>
+                      <div className="flex gap-2">
+                        <Input
+                          value={permanentMeetingData.meetLink}
+                          readOnly
+                          className="font-mono text-sm"
                         />
-                        Regenerate Link
-                      </Button>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() =>
+                            copyMeetLink(permanentMeetingData.meetLink)
+                          }
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                )
+
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => joinMeeting(permanentMeetingData.meetLink)}
+                      className="flex-1"
+                    >
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      Join Meeting
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={regeneratePermanentMeetLink}
+                      disabled={isLoading}
+                    >
+                      <RefreshCw
+                        className={`h-4 w-4 mr-2 ${
+                          isLoading ? "animate-spin" : ""
+                        }`}
+                      />
+                      Regenerate Link
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                // No permanent meeting but we have session meetings
+                <div className="text-center py-6">
+                  <Video className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">
+                    No Permanent Meeting Room
+                  </h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Generate a permanent meeting room for this workspace that
+                    all members can use anytime.
+                  </p>
+                  <Button
+                    onClick={generatePermanentMeetLink}
+                    disabled={isLoading || !canCreateMeetings}
+                    className="w-full"
+                  >
+                    {isLoading
+                      ? "Generating..."
+                      : "Generate Permanent Meeting Room"}
+                  </Button>
+                </div>
               )}
             </div>
           )}
