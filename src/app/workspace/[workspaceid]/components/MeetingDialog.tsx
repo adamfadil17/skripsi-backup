@@ -252,6 +252,9 @@ export default function MeetingDialog({
 
       setIsCreatingSession(false);
 
+      // Switch to session meetings tab to show the newly created meeting
+      setActiveTab("oneSession");
+
       toast({
         title: "Session Meeting Created",
         description: "New session meeting has been created successfully.",
@@ -534,7 +537,10 @@ export default function MeetingDialog({
                 </div>
 
                 <Button
-                  onClick={createSessionMeeting}
+                  onClick={async () => {
+                    await createSessionMeeting();
+                    // The tab switch is now handled inside createSessionMeeting
+                  }}
                   disabled={
                     isLoading ||
                     !sessionMeetingForm.title.trim() ||
