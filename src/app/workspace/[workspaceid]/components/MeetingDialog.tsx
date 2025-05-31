@@ -936,6 +936,7 @@ export default function MeetingDialog({
                                           onClick={() =>
                                             startEditingMeeting(meeting)
                                           }
+                                          className="hover:cursor-pointer"
                                         >
                                           <Edit className="h-4 w-4 mr-2" />
                                           Edit
@@ -944,7 +945,7 @@ export default function MeetingDialog({
                                           onClick={() =>
                                             deleteSessionMeeting(meeting)
                                           }
-                                          className="text-destructive"
+                                          className="text-destructive hover:cursor-pointer"
                                           disabled={isDeleting}
                                         >
                                           <Trash2 className="h-4 w-4 mr-2" />
