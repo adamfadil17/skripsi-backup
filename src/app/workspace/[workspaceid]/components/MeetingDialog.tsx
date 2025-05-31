@@ -186,6 +186,9 @@ export default function MeetingDialog({
           endTime: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
         });
 
+        // Ensure we're on the permanent tab to see the new meeting room
+        setActiveTab("permanent");
+
         toast({
           title: "Success",
           description:
@@ -578,7 +581,6 @@ export default function MeetingDialog({
                       : "text-muted-foreground"
                   }`}
                   onClick={() => setActiveTab("permanent")}
-                  disabled={!permanentMeetingData}
                 >
                   Permanent Room
                 </button>
@@ -757,96 +759,103 @@ export default function MeetingDialog({
                     </div>
                   )}
                 </div>
-              ) : // Permanent Meeting Details
-              permanentMeetingData ? (
+              ) : (
+                // Permanent Meeting Tab Content
                 <div className="space-y-4">
-                  <div className="rounded-lg border p-4 space-y-3">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h3 className="font-semibold">
-                          {permanentMeetingData.title}
-                        </h3>
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
-                          <Calendar className="h-4 w-4" />
-                          <span>Permanent Meeting Room</span>
+                  {permanentMeetingData ? (
+                    // Permanent Meeting Details
+                    <div>
+                      <div className="rounded-lg border p-4 space-y-3">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <h3 className="font-semibold">
+                              {permanentMeetingData.title}
+                            </h3>
+                            <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
+                              <Calendar className="h-4 w-4" />
+                              <span>Permanent Meeting Room</span>
+                            </div>
+                          </div>
+                          <Badge
+                            variant="secondary"
+                            className="flex items-center gap-1"
+                          >
+                            <Users className="h-3 w-3" />
+                            Permanent
+                          </Badge>
+                        </div>
+
+                        <Separator />
+
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">
+                            Google Meet Link
+                          </Label>
+                          <div className="flex gap-2">
+                            <Input
+                              value={permanentMeetingData.meetLink}
+                              readOnly
+                              className="font-mono text-sm"
+                            />
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() =>
+                                copyMeetLink(permanentMeetingData.meetLink)
+                              }
+                            >
+                              <Copy className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
                       </div>
-                      <Badge
-                        variant="secondary"
-                        className="flex items-center gap-1"
-                      >
-                        <Users className="h-3 w-3" />
-                        Permanent
-                      </Badge>
-                    </div>
 
-                    <Separator />
-
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium">
-                        Google Meet Link
-                      </Label>
-                      <div className="flex gap-2">
-                        <Input
-                          value={permanentMeetingData.meetLink}
-                          readOnly
-                          className="font-mono text-sm"
-                        />
+                      <div className="flex gap-2 mt-4">
+                        <Button
+                          onClick={() =>
+                            joinMeeting(permanentMeetingData.meetLink)
+                          }
+                          className="flex-1"
+                        >
+                          <ExternalLink className="h-4 w-4 mr-2" />
+                          Join Meeting
+                        </Button>
                         <Button
                           variant="outline"
-                          size="icon"
-                          onClick={() =>
-                            copyMeetLink(permanentMeetingData.meetLink)
-                          }
+                          onClick={regeneratePermanentMeetLink}
+                          disabled={isLoading}
                         >
-                          <Copy className="h-4 w-4" />
+                          <RefreshCw
+                            className={`h-4 w-4 mr-2 ${
+                              isLoading ? "animate-spin" : ""
+                            }`}
+                          />
+                          Regenerate Link
                         </Button>
                       </div>
                     </div>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={() => joinMeeting(permanentMeetingData.meetLink)}
-                      className="flex-1"
-                    >
-                      <ExternalLink className="h-4 w-4 mr-2" />
-                      Join Meeting
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={regeneratePermanentMeetLink}
-                      disabled={isLoading}
-                    >
-                      <RefreshCw
-                        className={`h-4 w-4 mr-2 ${
-                          isLoading ? "animate-spin" : ""
-                        }`}
-                      />
-                      Regenerate Link
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                // No permanent meeting but we have session meetings
-                <div className="text-center py-6">
-                  <Video className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">
-                    No Permanent Meeting Room
-                  </h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Generate a permanent meeting room for this workspace that
-                    all members can use anytime.
-                  </p>
-                  <Button
-                    onClick={generatePermanentMeetLink}
-                    disabled={isLoading || !canCreateMeetings}
-                    className="w-full"
-                  >
-                    {isLoading
-                      ? "Generating..."
-                      : "Generate Permanent Meeting Room"}
-                  </Button>
+                  ) : (
+                    // Form to create permanent meeting room
+                    <div className="text-center py-6">
+                      <Video className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                      <h3 className="text-lg font-semibold mb-2">
+                        No Permanent Meeting Room
+                      </h3>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Generate a permanent meeting room for this workspace
+                        that all members can use anytime.
+                      </p>
+                      <Button
+                        onClick={generatePermanentMeetLink}
+                        disabled={isLoading || !canCreateMeetings}
+                        className="w-full"
+                      >
+                        {isLoading
+                          ? "Generating..."
+                          : "Generate Permanent Meeting Room"}
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
