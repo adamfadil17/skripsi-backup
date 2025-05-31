@@ -1,42 +1,44 @@
-'use client';
+"use client";
 
-import type React from 'react';
-import { useSession } from 'next-auth/react';
-import { useRef, useEffect, useCallback, useState } from 'react';
+import type React from "react";
+import { useSession } from "next-auth/react";
+import { useRef, useEffect, useCallback, useState } from "react";
 import EditorJS, {
   type ToolConstructable,
   type OutputData,
-} from '@editorjs/editorjs';
-import Header from '@editorjs/header';
-import Delimiter from '@editorjs/delimiter';
-import Paragraph from '@editorjs/paragraph';
-import Table from '@editorjs/table';
-import List from '@editorjs/list';
-import Checklist from '@editorjs/checklist';
-import CodeTool from '@editorjs/code';
-import axios from 'axios';
-import toast from 'react-hot-toast';
-import { usePusherChannelContext } from '../../components/PusherChannelProvider';
+} from "@editorjs/editorjs";
+import Header from "@editorjs/header";
+import Delimiter from "@editorjs/delimiter";
+import Paragraph from "@editorjs/paragraph";
+import Table from "@editorjs/table";
+import List from "@editorjs/list";
+import Checklist from "@editorjs/checklist";
+import CodeTool from "@editorjs/code";
+import axios from "axios";
+import toast from "react-hot-toast";
+import { usePusherChannelContext } from "../../components/PusherChannelProvider";
 
 interface DocumentNoteEditorProps {
   workspaceId: string;
   documentId: string;
   modelResponse?: any;
+  placeholder?: string; // Tambahkan prop placeholder
 }
 
 const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
   workspaceId,
   documentId,
   modelResponse,
+  placeholder = "Mulai menulis catatan Anda di sini...", // Default placeholder
 }) => {
   const { data: session } = useSession();
-  const userEmail = session?.user?.email; // Use email instead of ID
+  const userEmail = session?.user?.email;
 
   const editorRef = useRef<EditorJS | null>(null);
   const isFetchedRef = useRef(false);
   const hasInitialized = useRef(false);
   const prevModelResponseRef = useRef<any>(null);
-  const lastSavedContentRef = useRef<string>('');
+  const lastSavedContentRef = useRef<string>("");
   const isProcessingExternalUpdateRef = useRef(false);
   const [editorReady, setEditorReady] = useState(false);
 
@@ -79,18 +81,18 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
           `/api/workspace/${workspaceId}/document/${documentId}/content/`,
           {
             content: formattedContent,
-            userEmail: userEmail, // Send email instead of ID
+            userEmail: userEmail,
           }
         );
 
-        if (response.data?.status !== 'success') {
+        if (response.data?.status !== "success") {
           toast.error(
-            response.data?.message || 'Failed to save document content'
+            response.data?.message || "Failed to save document content"
           );
         }
       } catch (error: any) {
         toast.error(
-          error.response?.data?.message || 'An unexpected error occurred.'
+          error.response?.data?.message || "An unexpected error occurred."
         );
       }
     }
@@ -112,7 +114,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
         );
 
         if (
-          response.data?.status === 'success' &&
+          response.data?.status === "success" &&
           response.data.data?.content
         ) {
           const content = response.data.data.content;
@@ -121,14 +123,14 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
           lastSavedContentRef.current = JSON.stringify(content);
         } else {
           toast.error(
-            response.data?.message || 'Failed to load document content.'
+            response.data?.message || "Failed to load document content."
           );
         }
         isFetchedRef.current = true;
         setEditorReady(true);
       } catch (error: any) {
         toast.error(
-          error.response?.data?.message || 'An unexpected error occurred.'
+          error.response?.data?.message || "An unexpected error occurred."
         );
       }
     }
@@ -138,44 +140,48 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     if (!hasInitialized.current) {
       hasInitialized.current = true;
       editorRef.current = new EditorJS({
+        placeholder: placeholder, // Tambahkan placeholder di sini
         onChange: () => {
           debouncedSave();
         },
         onReady: () => {
           getDocumentContent();
         },
-        holder: 'editorjs',
+        holder: "editorjs",
         tools: {
           header: Header,
           delimiter: Delimiter,
           paragraph: {
             class: Paragraph as unknown as ToolConstructable,
             inlineToolbar: true,
+            config: {
+              placeholder: placeholder, // Placeholder untuk paragraph tool
+            },
           },
           table: Table,
           list: {
             class: List as unknown as ToolConstructable,
             inlineToolbar: true,
-            shortcut: 'CMD+SHIFT+L',
-            config: { defaultStyle: 'unordered' },
+            shortcut: "CMD+SHIFT+L",
+            config: { defaultStyle: "unordered" },
           },
           checklist: {
             class: Checklist,
-            shortcut: 'CMD+SHIFT+C',
+            shortcut: "CMD+SHIFT+C",
             inlineToolbar: true,
           },
-          code: { class: CodeTool, shortcut: 'CMD+SHIFT+P' },
+          code: { class: CodeTool, shortcut: "CMD+SHIFT+P" },
         },
       });
     }
-  }, [debouncedSave, getDocumentContent]);
+  }, [debouncedSave, getDocumentContent, placeholder]);
 
   // Set up Pusher event listeners for real-time updates
   useEffect(() => {
     if (!workspaceChannel || !userEmail || !editorReady) return;
 
     console.log(
-      'Setting up Pusher listeners for document content:',
+      "Setting up Pusher listeners for document content:",
       documentId
     );
 
@@ -183,9 +189,9 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     const handleDocumentContentUpdated = async (data: {
       content: OutputData;
       documentId: string;
-      editorEmail: string; // Changed from editorId to editorEmail
+      editorEmail: string;
     }) => {
-      console.log('🔥 EVENT RECEIVED document-content-updated:', data);
+      console.log("🔥 EVENT RECEIVED document-content-updated:", data);
 
       // Only update if it's the current document and not from the current user
       if (data.documentId === documentId && data.editorEmail !== userEmail) {
@@ -197,7 +203,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
             // Store cursor position
             const currentBlockIndex =
               editorRef.current.blocks.getCurrentBlockIndex();
-            const cursorPosition = 'end';
+            const cursorPosition = "end";
 
             // Update the editor content
             await editorRef.current.render(data.content);
@@ -219,7 +225,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
                     );
                   }
                 } catch (e) {
-                  console.log('Could not restore cursor position', e);
+                  console.log("Could not restore cursor position", e);
                 }
 
                 // Reset the flag after a short delay to ensure rendering is complete
@@ -229,7 +235,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
               }
             }, 100);
           } catch (error) {
-            console.error('Error updating editor content:', error);
+            console.error("Error updating editor content:", error);
             isProcessingExternalUpdateRef.current = false;
           }
         }
@@ -238,15 +244,15 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
 
     // Subscribe to document content events
     workspaceChannel.bind(
-      'document-content-updated',
+      "document-content-updated",
       handleDocumentContentUpdated
     );
 
     // Cleanup
     return () => {
-      console.log('Cleaning up Pusher listeners for document content');
+      console.log("Cleaning up Pusher listeners for document content");
       workspaceChannel.unbind(
-        'document-content-updated',
+        "document-content-updated",
         handleDocumentContentUpdated
       );
     };
@@ -262,7 +268,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
 
         if (response && response.blocks) {
           newBlock = response.blocks.map((block: any) => {
-            if (block.type === 'paragraph' && block.data.text) {
+            if (block.type === "paragraph" && block.data.text) {
               let text = block.data.text;
               const inlineTools = [];
 
@@ -276,7 +282,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
                 inlineTools.push({
                   offset: startIndex,
                   length: boldText.length,
-                  type: 'bold',
+                  type: "bold",
                 });
                 text = text.replace(`**${boldText}**`, boldText); // Remove the markdown bold characters
               }
@@ -295,10 +301,10 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
         } else {
           newBlock = [
             {
-              type: 'paragraph',
+              type: "paragraph",
               data: {
                 text:
-                  typeof response === 'string'
+                  typeof response === "string"
                     ? response
                     : JSON.stringify(response),
               },
@@ -309,7 +315,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
         const updatedContent: OutputData = {
           time: new Date().getTime(),
           blocks: [...(currentContent.blocks || []), ...newBlock],
-          version: currentContent.version || '2.30.8',
+          version: currentContent.version || "2.30.8",
         };
 
         await editorRef.current.render(updatedContent);
@@ -317,13 +323,13 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
         setTimeout(() => {
           if (editorRef.current) {
             const lastBlockIndex = updatedContent.blocks.length - 1;
-            editorRef.current.caret.setToBlock(lastBlockIndex, 'end');
+            editorRef.current.caret.setToBlock(lastBlockIndex, "end");
           }
         }, 300);
 
         onSaveDocumentContent();
       } catch (error) {
-        console.error('Error appending model response:', error);
+        console.error("Error appending model response:", error);
       }
     },
     [onSaveDocumentContent]
@@ -350,7 +356,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
   function convertEditorDataToHtml(data: OutputData): OutputData {
     const newData = { ...data };
     newData.blocks = newData.blocks.map((block) => {
-      if (block.type === 'paragraph' && block.data.inlineToolbar) {
+      if (block.type === "paragraph" && block.data.inlineToolbar) {
         let text = block.data.text;
         const inlineTools = [...block.data.inlineToolbar];
 
@@ -358,9 +364,9 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
         inlineTools.sort((a: any, b: any) => b.offset - a.offset);
 
         inlineTools.forEach((tool: any) => {
-          if (tool.type === 'bold') {
-            const startTag = '<b>';
-            const endTag = '</b>';
+          if (tool.type === "bold") {
+            const startTag = "<b>";
+            const endTag = "</b>";
             text =
               text.slice(0, tool.offset) +
               startTag +
@@ -385,7 +391,38 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     return newData;
   }
 
-  return <div id="editorjs" className="prose max-w-none w-full"></div>;
+  return (
+    <div className="w-full">
+      <div id="editorjs" className="prose max-w-none w-full"></div>
+
+      {/* Custom CSS untuk styling placeholder */}
+      <style jsx>{`
+        :global(.codex-editor__redactor) {
+          padding-bottom: 300px !important;
+        }
+
+        :global(.ce-paragraph[data-placeholder]:empty::before) {
+          content: attr(data-placeholder);
+          color: #a1a1aa;
+          font-style: italic;
+          opacity: 0.7;
+        }
+
+        :global(.ce-paragraph:empty:focus::before) {
+          opacity: 0.5;
+        }
+
+        :global(
+            .codex-editor--empty .ce-paragraph[data-placeholder]:empty::before
+          ) {
+          content: "${placeholder}";
+          color: #a1a1aa;
+          font-style: italic;
+          opacity: 0.7;
+        }
+      `}</style>
+    </div>
+  );
 };
 
 export default DocumentNoteEditor;
