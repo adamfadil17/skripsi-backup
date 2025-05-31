@@ -4,6 +4,7 @@ import prisma from "@/lib/prismadb";
 import { google } from "googleapis";
 import { getFreshGoogleTokens } from "@/lib/auth-helpers";
 import { authOptions } from "@/lib/auth-options";
+import { pusherServer } from "@/lib/pusher";
 
 // GET - Fetch all session meetings for a workspace
 export async function GET(
@@ -205,9 +206,9 @@ export async function POST(
     await prisma.notification.create({
       data: {
         workspaceId,
-        message: `New session meeting created: ${title}`,
-        type: "WORKSPACE_UPDATE",
         userId: user.id,
+        type: "WORKSPACE_UPDATE",
+        message: `${user.name} created new session meeting: ${title}`,
       },
     });
 
