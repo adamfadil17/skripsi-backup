@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import axios from "axios";
 import {
   Video,
   Copy,
@@ -35,7 +36,7 @@ interface MeetingDialogProps {
   googleMeetUrl?: string | null;
 }
 
-interface MeetingData {
+interface PermanentMeetingData {
   meetLink: string;
   eventId: string;
   title: string;
@@ -43,14 +44,7 @@ interface MeetingData {
   endTime: string;
 }
 
-interface GoogleAuthStatus {
-  hasGoogleAuth: boolean;
-  hasCalendarScope: boolean;
-  isTokenExpired: boolean;
-  hasRefreshToken: boolean;
-}
-
-interface SessionMeeting {
+interface SessionMeetingData {
   id: string;
   title: string;
   description?: string;
@@ -60,6 +54,27 @@ interface SessionMeeting {
   createdAt: string;
 }
 
+interface GoogleAuthStatus {
+  hasGoogleAuth: boolean;
+  hasCalendarScope: boolean;
+  isTokenExpired: boolean;
+  hasRefreshToken: boolean;
+}
+
+interface SessionMeetingForm {
+  title: string;
+  description: string;
+  duration: number;
+}
+
+// Create axios instance with default config
+const api = axios.create({
+  timeout: 30000,
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
+
 export default function MeetingDialog({
   workspaceId,
   workspaceName,
@@ -68,13 +83,25 @@ export default function MeetingDialog({
 }: MeetingDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [meetingData, setMeetingData] = useState<MeetingData | null>(null);
-  const [meetingTitle, setMeetingTitle] = useState(
-    `${workspaceName} Team Meeting`
-  );
-  const [meetingDescription, setMeetingDescription] = useState("");
-  const [duration, setDuration] = useState(60); // minutes
+
+  // Separate states for permanent and session meetings
+  const [permanentMeetingData, setPermanentMeetingData] =
+    useState<PermanentMeetingData | null>(null);
   const [googleMeetUrl, setGoogleMeetUrl] = useState(initialGoogleMeetUrl);
+
+  // Session meeting states
+  const [sessionMeetings, setSessionMeetings] = useState<SessionMeetingData[]>(
+    []
+  );
+  const [sessionMeetingForm, setSessionMeetingForm] =
+    useState<SessionMeetingForm>({
+      title: `${workspaceName} Team Meeting`,
+      description: "",
+      duration: 60,
+    });
+  const [isCreatingSession, setIsCreatingSession] = useState(false);
+  const [isLoadingMeetings, setIsLoadingMeetings] = useState(false);
+
   const [googleAuthStatus, setGoogleAuthStatus] =
     useState<GoogleAuthStatus | null>(null);
   const { toast } = useToast();
@@ -82,9 +109,6 @@ export default function MeetingDialog({
   const [activeTab, setActiveTab] = useState<"permanent" | "oneSession">(
     "permanent"
   );
-  const [sessionMeetings, setSessionMeetings] = useState<SessionMeeting[]>([]);
-  const [isCreatingSession, setIsCreatingSession] = useState(false);
-  const [isLoadingMeetings, setIsLoadingMeetings] = useState(false);
 
   // Check Google auth status when dialog opens
   useEffect(() => {
@@ -96,28 +120,25 @@ export default function MeetingDialog({
   // If there's a permanent Google Meet URL, use it
   useEffect(() => {
     if (googleMeetUrl && isOpen) {
-      setMeetingData({
+      setPermanentMeetingData({
         meetLink: googleMeetUrl,
         eventId: "permanent",
         title: `${workspaceName} Permanent Meeting Room`,
         startTime: new Date().toISOString(),
-        endTime: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // 1 hour from now
+        endTime: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
       });
     }
   }, [googleMeetUrl, isOpen, workspaceName]);
 
   const checkGoogleAuthStatus = async () => {
     try {
-      const response = await fetch("/api/auth/check-google-auth");
-      if (response.ok) {
-        const data = await response.json();
-        setGoogleAuthStatus(data);
-        return data;
-      }
+      const response = await api.get("/api/auth/check-google-auth");
+      setGoogleAuthStatus(response.data);
+      return response.data;
     } catch (error) {
       console.error("Error checking Google auth status:", error);
+      return null;
     }
-    return null;
   };
 
   const handleGoogleSignIn = () => {
@@ -142,33 +163,14 @@ export default function MeetingDialog({
 
     setIsLoading(true);
     try {
-      const response = await fetch(
-        `/api/workspace/${workspaceId}/meetings/generate-permanent`,
-        {
-          method: "POST",
-        }
+      const response = await api.post(
+        `/api/workspace/${workspaceId}/meetings/generate-permanent`
       );
 
-      if (!response.ok) {
-        const errorData = await response.json();
-
-        // Check if we need to re-authenticate
-        if (errorData.authRequired) {
-          handleGoogleSignIn();
-          return;
-        }
-
-        throw new Error(
-          errorData.error || "Failed to generate permanent meeting link"
-        );
-      }
-
-      const data = await response.json();
-
-      if (data.googleMeetUrl) {
-        setGoogleMeetUrl(data.googleMeetUrl);
-        setMeetingData({
-          meetLink: data.googleMeetUrl,
+      if (response.data.googleMeetUrl) {
+        setGoogleMeetUrl(response.data.googleMeetUrl);
+        setPermanentMeetingData({
+          meetLink: response.data.googleMeetUrl,
           eventId: "permanent",
           title: `${workspaceName} Permanent Meeting Room`,
           startTime: new Date().toISOString(),
@@ -178,19 +180,25 @@ export default function MeetingDialog({
         toast({
           title: "Success",
           description:
-            data.message || "Permanent meeting link generated successfully.",
+            response.data.message ||
+            "Permanent meeting link generated successfully.",
         });
       } else {
         throw new Error("No meeting link was generated");
       }
     } catch (error) {
       console.error("Error generating permanent meeting link:", error);
+
+      if (axios.isAxiosError(error) && error.response?.data?.authRequired) {
+        handleGoogleSignIn();
+        return;
+      }
+
       toast({
         title: "Error",
-        description:
-          error instanceof Error
-            ? error.message
-            : "Failed to generate permanent meeting link.",
+        description: axios.isAxiosError(error)
+          ? error.response?.data?.error || error.message
+          : "Failed to generate permanent meeting link.",
         variant: "destructive",
       });
     } finally {
@@ -198,13 +206,7 @@ export default function MeetingDialog({
     }
   };
 
-  const createMeeting = async () => {
-    console.log(
-      "Creating meeting with auth status:",
-      googleAuthStatus,
-      "and session:",
-      session
-    );
+  const createSessionMeeting = async () => {
     if (
       !googleAuthStatus?.hasGoogleAuth ||
       !googleAuthStatus?.hasCalendarScope
@@ -217,80 +219,69 @@ export default function MeetingDialog({
       return;
     }
 
+    if (!sessionMeetingForm.title.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Meeting title is required.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
     try {
-      const endpoint = `/api/workspace/${workspaceId}/meetings/session-meetings`;
-
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          title: meetingTitle,
-          description: meetingDescription,
-          duration,
+      const response = await api.post(
+        `/api/workspace/${workspaceId}/meetings/session-meetings`,
+        {
+          title: sessionMeetingForm.title,
+          description: sessionMeetingForm.description,
+          duration: sessionMeetingForm.duration,
           organizerEmail: currentUserEmail,
-        }),
+        }
+      );
+
+      // Add the new session meeting to the list
+      setSessionMeetings((prev) => [response.data, ...prev]);
+
+      // Reset form
+      setSessionMeetingForm({
+        title: `${workspaceName} Team Meeting`,
+        description: "",
+        duration: 60,
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
+      setIsCreatingSession(false);
 
-        // Check if we need to re-authenticate
-        if (errorData.authRequired) {
-          // Only redirect to Google auth if we're sure it's needed
-          if (!session || !session.accessToken) {
+      toast({
+        title: "Session Meeting Created",
+        description: "New session meeting has been created successfully.",
+      });
+    } catch (error) {
+      console.error("Error creating session meeting:", error);
+
+      if (axios.isAxiosError(error) && error.response?.data?.authRequired) {
+        if (!session || !session.accessToken) {
+          handleGoogleSignIn();
+          return;
+        } else {
+          const authStatus = await checkGoogleAuthStatus();
+          if (
+            authStatus &&
+            (!authStatus.hasGoogleAuth ||
+              !authStatus.hasCalendarScope ||
+              authStatus.isTokenExpired)
+          ) {
             handleGoogleSignIn();
             return;
-          } else {
-            // If we have a session but still got authRequired, the token might be invalid
-            // Let's check the auth status again before redirecting
-            const authStatus = await checkGoogleAuthStatus();
-            if (
-              authStatus &&
-              (!authStatus.hasGoogleAuth ||
-                !authStatus.hasCalendarScope ||
-                authStatus.isTokenExpired)
-            ) {
-              handleGoogleSignIn();
-              return;
-            }
           }
         }
-
-        throw new Error(errorData.error || "Failed to create meeting");
       }
 
-      const data = await response.json();
-
-      // Store the new meeting data
-      setMeetingData(data);
-
-      // If we're creating a session meeting, refresh the list and go back to list view
-      if (activeTab === "oneSession" && isCreatingSession) {
-        setIsCreatingSession(false);
-        fetchSessionMeetings();
-        toast({
-          title: "Session Meeting Created",
-          description: "New session meeting has been created successfully.",
-        });
-      } else {
-        // For permanent tab, switch to showing the new meeting
-        setActiveTab("permanent");
-        toast({
-          title: "Meeting Created",
-          description: "Google Meet link has been generated successfully.",
-        });
-      }
-    } catch (error) {
-      console.error("Error creating meeting:", error);
       toast({
         title: "Error",
-        description:
-          error instanceof Error
-            ? error.message
-            : "Failed to create meeting. Please try again.",
+        description: axios.isAxiosError(error)
+          ? error.response?.data?.error || error.message
+          : "Failed to create session meeting. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -298,58 +289,37 @@ export default function MeetingDialog({
     }
   };
 
-  const copyMeetLink = async () => {
-    if (meetingData?.meetLink) {
-      try {
-        await navigator.clipboard.writeText(meetingData.meetLink);
-        toast({
-          title: "Copied!",
-          description: "Meeting link copied to clipboard.",
-        });
-      } catch (error) {
-        toast({
-          title: "Error",
-          description: "Failed to copy link.",
-          variant: "destructive",
-        });
-      }
+  const copyMeetLink = async (meetLink: string) => {
+    try {
+      await navigator.clipboard.writeText(meetLink);
+      toast({
+        title: "Copied!",
+        description: "Meeting link copied to clipboard.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to copy link.",
+        variant: "destructive",
+      });
     }
   };
 
-  const joinMeeting = () => {
-    if (meetingData?.meetLink) {
-      window.open(meetingData.meetLink, "_blank");
-    }
+  const joinMeeting = (meetLink: string) => {
+    window.open(meetLink, "_blank");
   };
 
-  const regenerateMeetLink = async () => {
+  const regeneratePermanentMeetLink = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(
-        `/api/workspace/${workspaceId}/meetings/regenerate`,
-        {
-          method: "POST",
-        }
+      const response = await api.post(
+        `/api/workspace/${workspaceId}/meetings/regenerate`
       );
 
-      if (!response.ok) {
-        const errorData = await response.json();
-
-        // Check if we need to re-authenticate
-        if (errorData.authRequired) {
-          handleGoogleSignIn();
-          return;
-        }
-
-        throw new Error(errorData.error || "Failed to regenerate meeting link");
-      }
-
-      const data = await response.json();
-
-      if (data.googleMeetUrl) {
-        setGoogleMeetUrl(data.googleMeetUrl);
-        setMeetingData({
-          meetLink: data.googleMeetUrl,
+      if (response.data.googleMeetUrl) {
+        setGoogleMeetUrl(response.data.googleMeetUrl);
+        setPermanentMeetingData({
+          meetLink: response.data.googleMeetUrl,
           eventId: "permanent-regenerated",
           title: `${workspaceName} Permanent Meeting Room`,
           startTime: new Date().toISOString(),
@@ -365,16 +335,40 @@ export default function MeetingDialog({
       }
     } catch (error) {
       console.error("Error regenerating meeting link:", error);
+
+      if (axios.isAxiosError(error) && error.response?.data?.authRequired) {
+        handleGoogleSignIn();
+        return;
+      }
+
       toast({
         title: "Error",
-        description:
-          error instanceof Error
-            ? error.message
-            : "Failed to regenerate meeting link.",
+        description: axios.isAxiosError(error)
+          ? error.response?.data?.error || error.message
+          : "Failed to regenerate meeting link.",
         variant: "destructive",
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchSessionMeetings = async () => {
+    setIsLoadingMeetings(true);
+    try {
+      const response = await api.get(
+        `/api/workspace/${workspaceId}/meetings/session-meetings`
+      );
+      setSessionMeetings(response.data);
+    } catch (error) {
+      console.error("Error fetching session meetings:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load session meetings",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingMeetings(false);
     }
   };
 
@@ -394,31 +388,7 @@ export default function MeetingDialog({
     });
   };
 
-  const fetchSessionMeetings = async () => {
-    setIsLoadingMeetings(true);
-    try {
-      const response = await fetch(
-        `/api/workspace/${workspaceId}/meetings/session-meetings`
-      );
-      if (response.ok) {
-        const data = await response.json();
-        setSessionMeetings(data);
-      } else {
-        throw new Error("Failed to fetch session meetings");
-      }
-    } catch (error) {
-      console.error("Error fetching session meetings:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load session meetings",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoadingMeetings(false);
-    }
-  };
-
-  // Show authentication warning if needed - Fixed boolean typing
+  // Show authentication warning if needed
   const showAuthWarning = Boolean(
     googleAuthStatus &&
       (!googleAuthStatus.hasGoogleAuth ||
@@ -486,7 +456,7 @@ export default function MeetingDialog({
             </Alert>
           )}
 
-          {!googleMeetUrl && !meetingData ? (
+          {!googleMeetUrl && !permanentMeetingData ? (
             // No permanent meeting link exists
             <div className="space-y-4">
               <div className="text-center py-6">
@@ -514,42 +484,61 @@ export default function MeetingDialog({
               <div className="space-y-4">
                 <h4 className="font-medium">Or create a session meeting:</h4>
                 <div className="space-y-2">
-                  <Label htmlFor="title">Meeting Title</Label>
+                  <Label htmlFor="session-title">Meeting Title</Label>
                   <Input
-                    id="title"
-                    value={meetingTitle}
-                    onChange={(e) => setMeetingTitle(e.target.value)}
+                    id="session-title"
+                    value={sessionMeetingForm.title}
+                    onChange={(e) =>
+                      setSessionMeetingForm((prev) => ({
+                        ...prev,
+                        title: e.target.value,
+                      }))
+                    }
                     placeholder="Enter meeting title"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="description">Description (Optional)</Label>
+                  <Label htmlFor="session-description">
+                    Description (Optional)
+                  </Label>
                   <Textarea
-                    id="description"
-                    value={meetingDescription}
-                    onChange={(e) => setMeetingDescription(e.target.value)}
+                    id="session-description"
+                    value={sessionMeetingForm.description}
+                    onChange={(e) =>
+                      setSessionMeetingForm((prev) => ({
+                        ...prev,
+                        description: e.target.value,
+                      }))
+                    }
                     placeholder="Meeting agenda or description"
                     rows={3}
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="duration">Duration (minutes)</Label>
+                  <Label htmlFor="session-duration">Duration (minutes)</Label>
                   <Input
-                    id="duration"
+                    id="session-duration"
                     type="number"
-                    value={duration}
-                    onChange={(e) => setDuration(Number(e.target.value))}
+                    value={sessionMeetingForm.duration}
+                    onChange={(e) =>
+                      setSessionMeetingForm((prev) => ({
+                        ...prev,
+                        duration: Number(e.target.value),
+                      }))
+                    }
                     min={15}
                     max={480}
                   />
                 </div>
 
                 <Button
-                  onClick={createMeeting}
+                  onClick={createSessionMeeting}
                   disabled={
-                    isLoading || !meetingTitle.trim() || !canCreateMeetings
+                    isLoading ||
+                    !sessionMeetingForm.title.trim() ||
+                    !canCreateMeetings
                   }
                   className="w-full"
                 >
@@ -558,52 +547,6 @@ export default function MeetingDialog({
                     : "Create One-Time Meeting"}
                 </Button>
               </div>
-            </div>
-          ) : !meetingData ? (
-            // Has permanent meeting link but not currently displayed
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="title">Meeting Title</Label>
-                <Input
-                  id="title"
-                  value={meetingTitle}
-                  onChange={(e) => setMeetingTitle(e.target.value)}
-                  placeholder="Enter meeting title"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="description">Description (Optional)</Label>
-                <Textarea
-                  id="description"
-                  value={meetingDescription}
-                  onChange={(e) => setMeetingDescription(e.target.value)}
-                  placeholder="Meeting agenda or description"
-                  rows={3}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="duration">Duration (minutes)</Label>
-                <Input
-                  id="duration"
-                  type="number"
-                  value={duration}
-                  onChange={(e) => setDuration(Number(e.target.value))}
-                  min={15}
-                  max={480}
-                />
-              </div>
-
-              <Button
-                onClick={createMeeting}
-                disabled={
-                  isLoading || !meetingTitle.trim() || !canCreateMeetings
-                }
-                className="w-full"
-              >
-                {isLoading ? "Creating Meeting..." : "Create Google Meet"}
-              </Button>
             </div>
           ) : (
             // Meeting Details or Create New Meeting
@@ -639,24 +582,32 @@ export default function MeetingDialog({
                     // Create Session Form
                     <div className="space-y-4">
                       <div className="space-y-2">
-                        <Label htmlFor="title">Meeting Title</Label>
+                        <Label htmlFor="new-session-title">Meeting Title</Label>
                         <Input
-                          id="title"
-                          value={meetingTitle}
-                          onChange={(e) => setMeetingTitle(e.target.value)}
+                          id="new-session-title"
+                          value={sessionMeetingForm.title}
+                          onChange={(e) =>
+                            setSessionMeetingForm((prev) => ({
+                              ...prev,
+                              title: e.target.value,
+                            }))
+                          }
                           placeholder="Enter meeting title"
                         />
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="description">
+                        <Label htmlFor="new-session-description">
                           Description (Optional)
                         </Label>
                         <Textarea
-                          id="description"
-                          value={meetingDescription}
+                          id="new-session-description"
+                          value={sessionMeetingForm.description}
                           onChange={(e) =>
-                            setMeetingDescription(e.target.value)
+                            setSessionMeetingForm((prev) => ({
+                              ...prev,
+                              description: e.target.value,
+                            }))
                           }
                           placeholder="Meeting agenda or description"
                           rows={3}
@@ -664,12 +615,19 @@ export default function MeetingDialog({
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="duration">Duration (minutes)</Label>
+                        <Label htmlFor="new-session-duration">
+                          Duration (minutes)
+                        </Label>
                         <Input
-                          id="duration"
+                          id="new-session-duration"
                           type="number"
-                          value={duration}
-                          onChange={(e) => setDuration(Number(e.target.value))}
+                          value={sessionMeetingForm.duration}
+                          onChange={(e) =>
+                            setSessionMeetingForm((prev) => ({
+                              ...prev,
+                              duration: Number(e.target.value),
+                            }))
+                          }
                           min={15}
                           max={480}
                         />
@@ -684,13 +642,10 @@ export default function MeetingDialog({
                           Cancel
                         </Button>
                         <Button
-                          onClick={async () => {
-                            await createMeeting();
-                            setIsCreatingSession(false);
-                          }}
+                          onClick={createSessionMeeting}
                           disabled={
                             isLoading ||
-                            !meetingTitle.trim() ||
+                            !sessionMeetingForm.title.trim() ||
                             !canCreateMeetings
                           }
                           className="flex-1"
@@ -762,18 +717,7 @@ export default function MeetingDialog({
                                   variant="outline"
                                   size="sm"
                                   className="flex-1"
-                                  onClick={() => {
-                                    if (meeting.meetLink) {
-                                      navigator.clipboard.writeText(
-                                        meeting.meetLink
-                                      );
-                                      toast({
-                                        title: "Copied!",
-                                        description:
-                                          "Meeting link copied to clipboard.",
-                                      });
-                                    }
-                                  }}
+                                  onClick={() => copyMeetLink(meeting.meetLink)}
                                 >
                                   <Copy className="h-4 w-4 mr-2" />
                                   Copy Link
@@ -781,11 +725,7 @@ export default function MeetingDialog({
                                 <Button
                                   size="sm"
                                   className="flex-1"
-                                  onClick={() => {
-                                    if (meeting.meetLink) {
-                                      window.open(meeting.meetLink, "_blank");
-                                    }
-                                  }}
+                                  onClick={() => joinMeeting(meeting.meetLink)}
                                 >
                                   <ExternalLink className="h-4 w-4 mr-2" />
                                   Join
@@ -799,68 +739,79 @@ export default function MeetingDialog({
                   )}
                 </div>
               ) : (
-                // Permanent Meeting Details - Keep this part unchanged
-                <div className="space-y-4">
-                  <div className="rounded-lg border p-4 space-y-3">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h3 className="font-semibold">{meetingData.title}</h3>
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
-                          <Calendar className="h-4 w-4" />
-                          <span>Permanent Meeting Room</span>
+                // Permanent Meeting Details
+                permanentMeetingData && (
+                  <div className="space-y-4">
+                    <div className="rounded-lg border p-4 space-y-3">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h3 className="font-semibold">
+                            {permanentMeetingData.title}
+                          </h3>
+                          <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
+                            <Calendar className="h-4 w-4" />
+                            <span>Permanent Meeting Room</span>
+                          </div>
+                        </div>
+                        <Badge
+                          variant="secondary"
+                          className="flex items-center gap-1"
+                        >
+                          <Users className="h-3 w-3" />
+                          Permanent
+                        </Badge>
+                      </div>
+
+                      <Separator />
+
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">
+                          Google Meet Link
+                        </Label>
+                        <div className="flex gap-2">
+                          <Input
+                            value={permanentMeetingData.meetLink}
+                            readOnly
+                            className="font-mono text-sm"
+                          />
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() =>
+                              copyMeetLink(permanentMeetingData.meetLink)
+                            }
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
                         </div>
                       </div>
-                      <Badge
-                        variant="secondary"
-                        className="flex items-center gap-1"
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={() =>
+                          joinMeeting(permanentMeetingData.meetLink)
+                        }
+                        className="flex-1"
                       >
-                        <Users className="h-3 w-3" />
-                        Permanent
-                      </Badge>
-                    </div>
-
-                    <Separator />
-
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium">
-                        Google Meet Link
-                      </Label>
-                      <div className="flex gap-2">
-                        <Input
-                          value={meetingData.meetLink}
-                          readOnly
-                          className="font-mono text-sm"
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                        Join Meeting
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={regeneratePermanentMeetLink}
+                        disabled={isLoading}
+                      >
+                        <RefreshCw
+                          className={`h-4 w-4 mr-2 ${
+                            isLoading ? "animate-spin" : ""
+                          }`}
                         />
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={copyMeetLink}
-                        >
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                      </div>
+                        Regenerate Link
+                      </Button>
                     </div>
                   </div>
-
-                  <div className="flex gap-2">
-                    <Button onClick={joinMeeting} className="flex-1">
-                      <ExternalLink className="h-4 w-4 mr-2" />
-                      Join Meeting
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={regenerateMeetLink}
-                      disabled={isLoading}
-                    >
-                      <RefreshCw
-                        className={`h-4 w-4 mr-2 ${
-                          isLoading ? "animate-spin" : ""
-                        }`}
-                      />
-                      Regenerate Link
-                    </Button>
-                  </div>
-                </div>
+                )
               )}
             </div>
           )}
