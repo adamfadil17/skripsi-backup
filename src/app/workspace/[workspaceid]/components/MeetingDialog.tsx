@@ -10,6 +10,9 @@ import {
   Users,
   RefreshCw,
   AlertCircle,
+  Edit,
+  Trash2,
+  MoreVertical,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,6 +23,22 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -52,6 +71,11 @@ interface SessionMeetingData {
   startTime: string;
   endTime: string;
   createdAt: string;
+  createdBy?: {
+    id: string;
+    name: string;
+    email: string;
+  };
 }
 
 interface GoogleAuthStatus {
@@ -101,6 +125,14 @@ export default function MeetingDialog({
     });
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [isLoadingMeetings, setIsLoadingMeetings] = useState(false);
+
+  // Edit and delete states
+  const [editingMeeting, setEditingMeeting] =
+    useState<SessionMeetingData | null>(null);
+  const [deletingMeeting, setDeletingMeeting] =
+    useState<SessionMeetingData | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Track if we have created at least one session meeting
   const [hasSessionMeetings, setHasSessionMeetings] = useState(false);
@@ -304,6 +336,132 @@ export default function MeetingDialog({
     }
   };
 
+  const updateSessionMeeting = async () => {
+    if (!editingMeeting) return;
+
+    if (!sessionMeetingForm.title.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Meeting title is required.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsUpdating(true);
+    try {
+      const response = await api.put(
+        `/api/workspace/${workspaceId}/meetings/session-meetings/${editingMeeting.id}`,
+        {
+          title: sessionMeetingForm.title,
+          description: sessionMeetingForm.description,
+          duration: sessionMeetingForm.duration,
+        }
+      );
+
+      // Update the meeting in the list
+      setSessionMeetings((prev) =>
+        prev.map((meeting) =>
+          meeting.id === editingMeeting.id ? response.data : meeting
+        )
+      );
+
+      // Reset states
+      setEditingMeeting(null);
+      setSessionMeetingForm({
+        title: `${workspaceName} Team Meeting`,
+        description: "",
+        duration: 60,
+      });
+
+      toast({
+        title: "Meeting Updated",
+        description: "Session meeting has been updated successfully.",
+      });
+    } catch (error) {
+      console.error("Error updating session meeting:", error);
+
+      if (axios.isAxiosError(error) && error.response?.data?.authRequired) {
+        handleGoogleSignIn();
+        return;
+      }
+
+      toast({
+        title: "Error",
+        description: axios.isAxiosError(error)
+          ? error.response?.data?.error || error.message
+          : "Failed to update session meeting.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const deleteSessionMeeting = async () => {
+    if (!deletingMeeting) return;
+
+    setIsDeleting(true);
+    try {
+      await api.delete(
+        `/api/workspace/${workspaceId}/meetings/session-meetings/${deletingMeeting.id}`
+      );
+
+      // Remove the meeting from the list
+      setSessionMeetings((prev) =>
+        prev.filter((meeting) => meeting.id !== deletingMeeting.id)
+      );
+
+      // Reset state
+      setDeletingMeeting(null);
+
+      // Check if we still have session meetings
+      const remainingMeetings = sessionMeetings.filter(
+        (meeting) => meeting.id !== deletingMeeting.id
+      );
+      if (remainingMeetings.length === 0) {
+        setHasSessionMeetings(false);
+      }
+
+      toast({
+        title: "Meeting Deleted",
+        description: "Session meeting has been deleted successfully.",
+      });
+    } catch (error) {
+      console.error("Error deleting session meeting:", error);
+
+      toast({
+        title: "Error",
+        description: axios.isAxiosError(error)
+          ? error.response?.data?.error || error.message
+          : "Failed to delete session meeting.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const startEditingMeeting = (meeting: SessionMeetingData) => {
+    setEditingMeeting(meeting);
+    setSessionMeetingForm({
+      title: meeting.title,
+      description: meeting.description || "",
+      duration: 60, // Default duration since we don't store it
+    });
+    setIsCreatingSession(true); // Reuse the same form
+  };
+
+  const cancelEditing = () => {
+    setEditingMeeting(null);
+    setSessionMeetingForm({
+      title: `${workspaceName} Team Meeting`,
+      description: "",
+      duration: 60,
+    });
+    setIsCreatingSession(false);
+  };
+
   const copyMeetLink = async (meetLink: string) => {
     try {
       await navigator.clipboard.writeText(meetLink);
@@ -431,437 +589,540 @@ export default function MeetingDialog({
   const showTabbedInterface = permanentMeetingData || hasSessionMeetings;
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative">
-          <Video className="h-5 w-5" />
-          <span className="sr-only">Meeting Room</span>
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px] max-h-[80vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+    <>
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogTrigger asChild>
+          <Button variant="ghost" size="icon" className="relative">
             <Video className="h-5 w-5" />
-            Meeting Room
-          </DialogTitle>
-          <DialogDescription>
-            {googleMeetUrl
-              ? "Join your workspace's permanent meeting room or create a new session."
-              : "Generate a permanent meeting room for your workspace or create a one-time meeting."}
-          </DialogDescription>
-        </DialogHeader>
+            <span className="sr-only">Meeting Room</span>
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-[500px] max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Video className="h-5 w-5" />
+              Meeting Room
+            </DialogTitle>
+            <DialogDescription>
+              {googleMeetUrl
+                ? "Join your workspace's permanent meeting room or create a new session."
+                : "Generate a permanent meeting room for your workspace or create a one-time meeting."}
+            </DialogDescription>
+          </DialogHeader>
 
-        <div className="overflow-y-auto space-y-6 px-2 py-1">
-          {/* Authentication Warning */}
-          {showAuthWarning && (
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                {!googleAuthStatus?.hasGoogleAuth &&
-                  "You need to sign in with Google to create meetings."}
-                {googleAuthStatus?.hasGoogleAuth &&
-                  !googleAuthStatus?.hasCalendarScope &&
-                  "Calendar access is required to create meetings."}
-                {googleAuthStatus?.hasGoogleAuth &&
-                  googleAuthStatus?.hasCalendarScope &&
-                  googleAuthStatus?.isTokenExpired &&
-                  "Your Google access has expired. Please sign in again."}
-                <Button
-                  variant="link"
-                  className="p-0 h-auto ml-2"
-                  onClick={handleGoogleSignIn}
-                >
-                  Sign in with Google
-                </Button>
-              </AlertDescription>
-            </Alert>
-          )}
+          <div className="overflow-y-auto space-y-6 px-2 py-1">
+            {/* Authentication Warning */}
+            {showAuthWarning && (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  {!googleAuthStatus?.hasGoogleAuth &&
+                    "You need to sign in with Google to create meetings."}
+                  {googleAuthStatus?.hasGoogleAuth &&
+                    !googleAuthStatus?.hasCalendarScope &&
+                    "Calendar access is required to create meetings."}
+                  {googleAuthStatus?.hasGoogleAuth &&
+                    googleAuthStatus?.hasCalendarScope &&
+                    googleAuthStatus?.isTokenExpired &&
+                    "Your Google access has expired. Please sign in again."}
+                  <Button
+                    variant="link"
+                    className="p-0 h-auto ml-2"
+                    onClick={handleGoogleSignIn}
+                  >
+                    Sign in with Google
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
 
-          {!showTabbedInterface ? (
-            // No permanent meeting link or session meetings exist
-            <div className="space-y-4">
-              <div className="text-center py-6">
-                <Video className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-semibold mb-2">
-                  No Permanent Meeting Room
-                </h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Generate a permanent meeting room for this workspace that all
-                  members can use anytime.
-                </p>
-                <Button
-                  onClick={generatePermanentMeetLink}
-                  disabled={isLoading || !canCreateMeetings}
-                  className="w-full"
-                >
-                  {isLoading
-                    ? "Generating..."
-                    : "Generate Permanent Meeting Room"}
-                </Button>
-              </div>
-
-              <Separator />
-
+            {!showTabbedInterface ? (
+              // No permanent meeting link or session meetings exist
               <div className="space-y-4">
-                <h4 className="font-medium">Or create a session meeting:</h4>
-                <div className="space-y-2">
-                  <Label htmlFor="session-title">Meeting Title</Label>
-                  <Input
-                    id="session-title"
-                    value={sessionMeetingForm.title}
-                    onChange={(e) =>
-                      setSessionMeetingForm((prev) => ({
-                        ...prev,
-                        title: e.target.value,
-                      }))
-                    }
-                    placeholder="Enter meeting title"
-                  />
+                <div className="text-center py-6">
+                  <Video className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">
+                    No Permanent Meeting Room
+                  </h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Generate a permanent meeting room for this workspace that
+                    all members can use anytime.
+                  </p>
+                  <Button
+                    onClick={generatePermanentMeetLink}
+                    disabled={isLoading || !canCreateMeetings}
+                    className="w-full"
+                  >
+                    {isLoading
+                      ? "Generating..."
+                      : "Generate Permanent Meeting Room"}
+                  </Button>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="session-description">
-                    Description (Optional)
-                  </Label>
-                  <Textarea
-                    id="session-description"
-                    value={sessionMeetingForm.description}
-                    onChange={(e) =>
-                      setSessionMeetingForm((prev) => ({
-                        ...prev,
-                        description: e.target.value,
-                      }))
-                    }
-                    placeholder="Meeting agenda or description"
-                    rows={3}
-                  />
-                </div>
+                <Separator />
 
-                <div className="space-y-2">
-                  <Label htmlFor="session-duration">Duration (minutes)</Label>
-                  <Input
-                    id="session-duration"
-                    type="number"
-                    value={sessionMeetingForm.duration}
-                    onChange={(e) =>
-                      setSessionMeetingForm((prev) => ({
-                        ...prev,
-                        duration: Number(e.target.value),
-                      }))
-                    }
-                    min={15}
-                    max={480}
-                  />
-                </div>
-
-                <Button
-                  onClick={createSessionMeeting}
-                  disabled={
-                    isLoading ||
-                    !sessionMeetingForm.title.trim() ||
-                    !canCreateMeetings
-                  }
-                  className="w-full"
-                >
-                  {isLoading
-                    ? "Creating Meeting..."
-                    : "Create One-Time Meeting"}
-                </Button>
-              </div>
-            </div>
-          ) : (
-            // Meeting Details or Create New Meeting
-            <div className="space-y-4">
-              {/* Tab Navigation */}
-              <div className="flex border-b">
-                <button
-                  className={`px-4 py-2 font-medium text-sm ${
-                    activeTab === "permanent"
-                      ? "border-b-2 border-primary text-primary"
-                      : "text-muted-foreground"
-                  }`}
-                  onClick={() => setActiveTab("permanent")}
-                >
-                  Permanent Room
-                </button>
-                <button
-                  className={`px-4 py-2 font-medium text-sm ${
-                    activeTab === "oneSession"
-                      ? "border-b-2 border-primary text-primary"
-                      : "text-muted-foreground"
-                  }`}
-                  onClick={() => setActiveTab("oneSession")}
-                >
-                  One Session
-                </button>
-              </div>
-
-              {activeTab === "oneSession" ? (
-                // One Session Tab Content
                 <div className="space-y-4">
-                  {isCreatingSession ? (
-                    // Create Session Form
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="new-session-title">Meeting Title</Label>
-                        <Input
-                          id="new-session-title"
-                          value={sessionMeetingForm.title}
-                          onChange={(e) =>
-                            setSessionMeetingForm((prev) => ({
-                              ...prev,
-                              title: e.target.value,
-                            }))
-                          }
-                          placeholder="Enter meeting title"
-                        />
-                      </div>
+                  <h4 className="font-medium">Or create a session meeting:</h4>
+                  <div className="space-y-2">
+                    <Label htmlFor="session-title">Meeting Title</Label>
+                    <Input
+                      id="session-title"
+                      value={sessionMeetingForm.title}
+                      onChange={(e) =>
+                        setSessionMeetingForm((prev) => ({
+                          ...prev,
+                          title: e.target.value,
+                        }))
+                      }
+                      placeholder="Enter meeting title"
+                    />
+                  </div>
 
-                      <div className="space-y-2">
-                        <Label htmlFor="new-session-description">
-                          Description (Optional)
-                        </Label>
-                        <Textarea
-                          id="new-session-description"
-                          value={sessionMeetingForm.description}
-                          onChange={(e) =>
-                            setSessionMeetingForm((prev) => ({
-                              ...prev,
-                              description: e.target.value,
-                            }))
-                          }
-                          placeholder="Meeting agenda or description"
-                          rows={3}
-                        />
-                      </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="session-description">
+                      Description (Optional)
+                    </Label>
+                    <Textarea
+                      id="session-description"
+                      value={sessionMeetingForm.description}
+                      onChange={(e) =>
+                        setSessionMeetingForm((prev) => ({
+                          ...prev,
+                          description: e.target.value,
+                        }))
+                      }
+                      placeholder="Meeting agenda or description"
+                      rows={3}
+                    />
+                  </div>
 
-                      <div className="space-y-2">
-                        <Label htmlFor="new-session-duration">
-                          Duration (minutes)
-                        </Label>
-                        <Input
-                          id="new-session-duration"
-                          type="number"
-                          value={sessionMeetingForm.duration}
-                          onChange={(e) =>
-                            setSessionMeetingForm((prev) => ({
-                              ...prev,
-                              duration: Number(e.target.value),
-                            }))
-                          }
-                          min={15}
-                          max={480}
-                        />
-                      </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="session-duration">Duration (minutes)</Label>
+                    <Input
+                      id="session-duration"
+                      type="number"
+                      value={sessionMeetingForm.duration}
+                      onChange={(e) =>
+                        setSessionMeetingForm((prev) => ({
+                          ...prev,
+                          duration: Number(e.target.value),
+                        }))
+                      }
+                      min={15}
+                      max={480}
+                    />
+                  </div>
 
-                      <div className="flex gap-2">
-                        <Button
-                          onClick={() => setIsCreatingSession(false)}
-                          variant="outline"
-                          className="flex-1"
-                        >
-                          Cancel
-                        </Button>
-                        <Button
-                          onClick={createSessionMeeting}
-                          disabled={
-                            isLoading ||
-                            !sessionMeetingForm.title.trim() ||
-                            !canCreateMeetings
-                          }
-                          className="flex-1"
-                        >
-                          {isLoading
-                            ? "Creating Meeting..."
-                            : "Create Session Meeting"}
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    // Session Meetings List
-                    <div className="space-y-4">
-                      <div className="flex justify-between items-center">
-                        <h4 className="font-medium">Session Meetings</h4>
-                        <Button
-                          onClick={() => setIsCreatingSession(true)}
-                          disabled={!canCreateMeetings}
-                          size="sm"
-                        >
-                          Create Session Meeting
-                        </Button>
-                      </div>
-
-                      {isLoadingMeetings ? (
-                        <div className="flex justify-center py-8">
-                          <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
-                        </div>
-                      ) : sessionMeetings.length === 0 ? (
-                        <div className="text-center py-8 text-muted-foreground">
-                          <Calendar className="h-12 w-12 mx-auto mb-2" />
-                          <p>No session meetings found</p>
-                          <p className="text-sm">
-                            Create a new session meeting to get started
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="max-h-[250px] overflow-y-auto space-y-3">
-                          {sessionMeetings.map((meeting) => (
-                            <div
-                              key={meeting.id}
-                              className="rounded-lg border p-3 space-y-2"
-                            >
-                              <div className="flex items-start justify-between">
-                                <div>
-                                  <h3 className="font-semibold">
-                                    {meeting.title}
-                                  </h3>
-                                  <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
-                                    <Calendar className="h-4 w-4" />
-                                    <span>
-                                      {new Date(
-                                        meeting.startTime
-                                      ).toLocaleDateString()}
-                                    </span>
-                                  </div>
-                                </div>
-                                <Badge
-                                  variant="secondary"
-                                  className="flex items-center gap-1"
-                                >
-                                  <Users className="h-3 w-3" />
-                                  Session
-                                </Badge>
-                              </div>
-
-                              <div className="flex gap-2">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="flex-1"
-                                  onClick={() => copyMeetLink(meeting.meetLink)}
-                                >
-                                  <Copy className="h-4 w-4 mr-2" />
-                                  Copy Link
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  className="flex-1"
-                                  onClick={() => joinMeeting(meeting.meetLink)}
-                                >
-                                  <ExternalLink className="h-4 w-4 mr-2" />
-                                  Join
-                                </Button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  <Button
+                    onClick={createSessionMeeting}
+                    disabled={
+                      isLoading ||
+                      !sessionMeetingForm.title.trim() ||
+                      !canCreateMeetings
+                    }
+                    className="w-full"
+                  >
+                    {isLoading
+                      ? "Creating Meeting..."
+                      : "Create One-Time Meeting"}
+                  </Button>
                 </div>
-              ) : (
-                // Permanent Meeting Tab Content
-                <div className="space-y-4">
-                  {permanentMeetingData ? (
-                    // Permanent Meeting Details
-                    <div>
-                      <div className="rounded-lg border p-4 space-y-3">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <h3 className="font-semibold">
-                              {permanentMeetingData.title}
-                            </h3>
-                            <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
-                              <Calendar className="h-4 w-4" />
-                              <span>Permanent Meeting Room</span>
-                            </div>
-                          </div>
-                          <Badge
-                            variant="secondary"
-                            className="flex items-center gap-1"
-                          >
-                            <Users className="h-3 w-3" />
-                            Permanent
-                          </Badge>
-                        </div>
+              </div>
+            ) : (
+              // Meeting Details or Create New Meeting
+              <div className="space-y-4">
+                {/* Tab Navigation */}
+                <div className="flex border-b">
+                  <button
+                    className={`px-4 py-2 font-medium text-sm ${
+                      activeTab === "permanent"
+                        ? "border-b-2 border-primary text-primary"
+                        : "text-muted-foreground"
+                    }`}
+                    onClick={() => setActiveTab("permanent")}
+                  >
+                    Permanent Room
+                  </button>
+                  <button
+                    className={`px-4 py-2 font-medium text-sm ${
+                      activeTab === "oneSession"
+                        ? "border-b-2 border-primary text-primary"
+                        : "text-muted-foreground"
+                    }`}
+                    onClick={() => setActiveTab("oneSession")}
+                  >
+                    One Session
+                  </button>
+                </div>
 
-                        <Separator />
-
-                        <div className="space-y-2">
-                          <Label className="text-sm font-medium">
-                            Google Meet Link
-                          </Label>
-                          <div className="flex gap-2">
-                            <Input
-                              value={permanentMeetingData.meetLink}
-                              readOnly
-                              className="font-mono text-sm"
-                            />
+                {activeTab === "oneSession" ? (
+                  // One Session Tab Content
+                  <div className="space-y-4">
+                    {isCreatingSession ? (
+                      // Create/Edit Session Form
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-medium">
+                            {editingMeeting
+                              ? "Edit Session Meeting"
+                              : "Create Session Meeting"}
+                          </h4>
+                          {editingMeeting && (
                             <Button
                               variant="outline"
-                              size="icon"
-                              onClick={() =>
-                                copyMeetLink(permanentMeetingData.meetLink)
-                              }
+                              size="sm"
+                              onClick={cancelEditing}
                             >
-                              <Copy className="h-4 w-4" />
+                              Cancel
                             </Button>
-                          </div>
+                          )}
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="new-session-title">
+                            Meeting Title
+                          </Label>
+                          <Input
+                            id="new-session-title"
+                            value={sessionMeetingForm.title}
+                            onChange={(e) =>
+                              setSessionMeetingForm((prev) => ({
+                                ...prev,
+                                title: e.target.value,
+                              }))
+                            }
+                            placeholder="Enter meeting title"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="new-session-description">
+                            Description (Optional)
+                          </Label>
+                          <Textarea
+                            id="new-session-description"
+                            value={sessionMeetingForm.description}
+                            onChange={(e) =>
+                              setSessionMeetingForm((prev) => ({
+                                ...prev,
+                                description: e.target.value,
+                              }))
+                            }
+                            placeholder="Meeting agenda or description"
+                            rows={3}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="new-session-duration">
+                            Duration (minutes)
+                          </Label>
+                          <Input
+                            id="new-session-duration"
+                            type="number"
+                            value={sessionMeetingForm.duration}
+                            onChange={(e) =>
+                              setSessionMeetingForm((prev) => ({
+                                ...prev,
+                                duration: Number(e.target.value),
+                              }))
+                            }
+                            min={15}
+                            max={480}
+                          />
+                        </div>
+
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={() => {
+                              if (editingMeeting) {
+                                cancelEditing();
+                              } else {
+                                setIsCreatingSession(false);
+                              }
+                            }}
+                            variant="outline"
+                            className="flex-1"
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            onClick={
+                              editingMeeting
+                                ? updateSessionMeeting
+                                : createSessionMeeting
+                            }
+                            disabled={
+                              (editingMeeting ? isUpdating : isLoading) ||
+                              !sessionMeetingForm.title.trim() ||
+                              !canCreateMeetings
+                            }
+                            className="flex-1"
+                          >
+                            {editingMeeting
+                              ? isUpdating
+                                ? "Updating..."
+                                : "Update Meeting"
+                              : isLoading
+                              ? "Creating Meeting..."
+                              : "Create Session Meeting"}
+                          </Button>
                         </div>
                       </div>
+                    ) : (
+                      // Session Meetings List
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center">
+                          <h4 className="font-medium">Session Meetings</h4>
+                          <Button
+                            onClick={() => setIsCreatingSession(true)}
+                            disabled={!canCreateMeetings}
+                            size="sm"
+                          >
+                            Create Session Meeting
+                          </Button>
+                        </div>
 
-                      <div className="flex gap-2 mt-4">
+                        {isLoadingMeetings ? (
+                          <div className="flex justify-center py-8">
+                            <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+                          </div>
+                        ) : sessionMeetings.length === 0 ? (
+                          <div className="text-center py-8 text-muted-foreground">
+                            <Calendar className="h-12 w-12 mx-auto mb-2" />
+                            <p>No session meetings found</p>
+                            <p className="text-sm">
+                              Create a new session meeting to get started
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="max-h-[250px] overflow-y-auto space-y-3">
+                            {sessionMeetings.map((meeting) => (
+                              <div
+                                key={meeting.id}
+                                className="rounded-lg border p-3 space-y-2"
+                              >
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1">
+                                    <h3 className="font-semibold">
+                                      {meeting.title}
+                                    </h3>
+                                    <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
+                                      <Calendar className="h-4 w-4" />
+                                      <span>
+                                        {new Date(
+                                          meeting.startTime
+                                        ).toLocaleDateString()}
+                                      </span>
+                                    </div>
+                                    {meeting.description && (
+                                      <p className="text-sm text-muted-foreground mt-1">
+                                        {meeting.description}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Badge
+                                      variant="secondary"
+                                      className="flex items-center gap-1"
+                                    >
+                                      <Users className="h-3 w-3" />
+                                      Session
+                                    </Badge>
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-8 w-8"
+                                        >
+                                          <MoreVertical className="h-4 w-4" />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="end">
+                                        <DropdownMenuItem
+                                          onClick={() =>
+                                            startEditingMeeting(meeting)
+                                          }
+                                        >
+                                          <Edit className="h-4 w-4 mr-2" />
+                                          Edit
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                          onClick={() =>
+                                            setDeletingMeeting(meeting)
+                                          }
+                                          className="text-destructive"
+                                        >
+                                          <Trash2 className="h-4 w-4 mr-2" />
+                                          Delete
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  </div>
+                                </div>
+
+                                <div className="flex gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="flex-1"
+                                    onClick={() =>
+                                      copyMeetLink(meeting.meetLink)
+                                    }
+                                  >
+                                    <Copy className="h-4 w-4 mr-2" />
+                                    Copy Link
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    className="flex-1"
+                                    onClick={() =>
+                                      joinMeeting(meeting.meetLink)
+                                    }
+                                  >
+                                    <ExternalLink className="h-4 w-4 mr-2" />
+                                    Join
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  // Permanent Meeting Tab Content
+                  <div className="space-y-4">
+                    {permanentMeetingData ? (
+                      // Permanent Meeting Details
+                      <div>
+                        <div className="rounded-lg border p-4 space-y-3">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <h3 className="font-semibold">
+                                {permanentMeetingData.title}
+                              </h3>
+                              <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
+                                <Calendar className="h-4 w-4" />
+                                <span>Permanent Meeting Room</span>
+                              </div>
+                            </div>
+                            <Badge
+                              variant="secondary"
+                              className="flex items-center gap-1"
+                            >
+                              <Users className="h-3 w-3" />
+                              Permanent
+                            </Badge>
+                          </div>
+
+                          <Separator />
+
+                          <div className="space-y-2">
+                            <Label className="text-sm font-medium">
+                              Google Meet Link
+                            </Label>
+                            <div className="flex gap-2">
+                              <Input
+                                value={permanentMeetingData.meetLink}
+                                readOnly
+                                className="font-mono text-sm"
+                              />
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={() =>
+                                  copyMeetLink(permanentMeetingData.meetLink)
+                                }
+                              >
+                                <Copy className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-2 mt-4">
+                          <Button
+                            onClick={() =>
+                              joinMeeting(permanentMeetingData.meetLink)
+                            }
+                            className="flex-1"
+                          >
+                            <ExternalLink className="h-4 w-4 mr-2" />
+                            Join Meeting
+                          </Button>
+                          <Button
+                            variant="outline"
+                            onClick={regeneratePermanentMeetLink}
+                            disabled={isLoading}
+                          >
+                            <RefreshCw
+                              className={`h-4 w-4 mr-2 ${
+                                isLoading ? "animate-spin" : ""
+                              }`}
+                            />
+                            Regenerate Link
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      // Form to create permanent meeting room
+                      <div className="text-center py-6">
+                        <Video className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                        <h3 className="text-lg font-semibold mb-2">
+                          No Permanent Meeting Room
+                        </h3>
+                        <p className="text-sm text-muted-foreground mb-4">
+                          Generate a permanent meeting room for this workspace
+                          that all members can use anytime.
+                        </p>
                         <Button
-                          onClick={() =>
-                            joinMeeting(permanentMeetingData.meetLink)
-                          }
-                          className="flex-1"
+                          onClick={generatePermanentMeetLink}
+                          disabled={isLoading || !canCreateMeetings}
+                          className="w-full"
                         >
-                          <ExternalLink className="h-4 w-4 mr-2" />
-                          Join Meeting
-                        </Button>
-                        <Button
-                          variant="outline"
-                          onClick={regeneratePermanentMeetLink}
-                          disabled={isLoading}
-                        >
-                          <RefreshCw
-                            className={`h-4 w-4 mr-2 ${
-                              isLoading ? "animate-spin" : ""
-                            }`}
-                          />
-                          Regenerate Link
+                          {isLoading
+                            ? "Generating..."
+                            : "Generate Permanent Meeting Room"}
                         </Button>
                       </div>
-                    </div>
-                  ) : (
-                    // Form to create permanent meeting room
-                    <div className="text-center py-6">
-                      <Video className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                      <h3 className="text-lg font-semibold mb-2">
-                        No Permanent Meeting Room
-                      </h3>
-                      <p className="text-sm text-muted-foreground mb-4">
-                        Generate a permanent meeting room for this workspace
-                        that all members can use anytime.
-                      </p>
-                      <Button
-                        onClick={generatePermanentMeetLink}
-                        disabled={isLoading || !canCreateMeetings}
-                        className="w-full"
-                      >
-                        {isLoading
-                          ? "Generating..."
-                          : "Generate Permanent Meeting Room"}
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog
+        open={!!deletingMeeting}
+        onOpenChange={() => setDeletingMeeting(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Session Meeting</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deletingMeeting?.title}"? This
+              will also remove the meeting from Google Calendar. This action
+              cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={deleteSessionMeeting}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? "Deleting..." : "Delete Meeting"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
