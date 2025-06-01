@@ -171,7 +171,7 @@ export default function MeetingDialog({
       !googleAuthStatus?.hasGoogleAuth ||
       !googleAuthStatus?.hasCalendarScope
     ) {
-      toast("Please Sign In with Google to create a permanent meeting.");
+      toast.error("Please Sign In with Google to create a permanent meeting.");
       return;
     }
 
@@ -193,7 +193,7 @@ export default function MeetingDialog({
 
         setActiveTab("permanent");
 
-        toast("Permanent meeting link generated successfully.");
+        toast.success("Permanent meeting link generated successfully.");
       } else {
         throw new Error("No meeting link was generated");
       }
@@ -204,13 +204,13 @@ export default function MeetingDialog({
       }
 
       if (axios.isAxiosError(error) && error.response?.status === 403) {
-        toast(
+        toast.error(
           "You do not have permission to generate a permanent meeting link."
         );
         return;
       }
 
-      toast("Failed to generate permanent meeting link.");
+      toast.error("Failed to generate permanent meeting link.");
     } finally {
       setIsLoading(false);
     }
@@ -221,12 +221,12 @@ export default function MeetingDialog({
       !googleAuthStatus?.hasGoogleAuth ||
       !googleAuthStatus?.hasCalendarScope
     ) {
-      toast("Please Sign In with Google to create a session meeting.");
+      toast.error("Please Sign In with Google to create a session meeting.");
       return;
     }
 
     if (!sessionMeetingForm.title.trim()) {
-      toast("Meeting title is required.");
+      toast.error("Meeting title is required.");
       return;
     }
 
@@ -254,7 +254,7 @@ export default function MeetingDialog({
       setActiveTab("oneSession");
       setIsCreatingSession(false);
 
-      toast("New session meeting has been created successfully.");
+      toast.success("New session meeting has been created successfully.");
     } catch (error) {
       console.error("Error creating session meeting:", error);
 
@@ -276,7 +276,7 @@ export default function MeetingDialog({
         }
       }
 
-      toast("Failed to create session meeting. Please try again.");
+      toast.error("Failed to create session meeting. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -286,7 +286,7 @@ export default function MeetingDialog({
     if (!editingMeeting) return;
 
     if (!sessionMeetingForm.title.trim()) {
-      toast("Meeting title is required.");
+      toast.error("Meeting title is required.");
       return;
     }
 
@@ -315,16 +315,14 @@ export default function MeetingDialog({
       });
       setIsCreatingSession(false);
 
-      toast("Session meeting has been updated successfully.");
+      toast.success("Session meeting has been updated successfully.");
     } catch (error) {
-      console.error("Error updating session meeting:", error);
-
       if (axios.isAxiosError(error) && error.response?.data?.authRequired) {
         handleGoogleSignIn();
         return;
       }
 
-      toast("Failed to update session meeting.");
+      toast.error("Failed to update session meeting.");
     } finally {
       setIsUpdating(false);
     }
@@ -346,11 +344,11 @@ export default function MeetingDialog({
         setHasSessionMeetings(false);
       }
 
-      toast("Session meeting has been deleted successfully.");
+      toast.success("Session meeting has been deleted successfully.");
     } catch (error) {
       console.error("Error deleting session meeting:", error);
 
-      toast("Failed to delete session meeting.");
+      toast.error("Failed to delete session meeting.");
     } finally {
       setIsDeleting(false);
     }
@@ -379,9 +377,9 @@ export default function MeetingDialog({
   const copyMeetLink = async (meetLink: string) => {
     try {
       await navigator.clipboard.writeText(meetLink);
-      toast("Meeting link copied to clipboard.");
+      toast.success("Meeting link copied to clipboard.");
     } catch (error) {
-      toast("Failed to copy link.");
+      toast.error("Failed to copy link.");
     }
   };
 
@@ -406,23 +404,24 @@ export default function MeetingDialog({
           endTime: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
         });
 
-        toast("Permanent meeting link has been updated.");
+        toast.success("Permanent meeting link has been updated.");
       } else {
         throw new Error("No meeting link was generated");
       }
     } catch (error) {
-
       if (axios.isAxiosError(error) && error.response?.data?.authRequired) {
         handleGoogleSignIn();
         return;
       }
 
       if (axios.isAxiosError(error) && error.response?.status === 403) {
-        toast("You don't have permission to regenerate the meeting link.");
+        toast.error(
+          "You don't have permission to regenerate the meeting link."
+        );
         return;
       }
 
-      toast("Failed to regenerate meeting link.");
+      toast.error("Failed to regenerate meeting link.");
     } finally {
       setIsLoading(false);
     }
@@ -438,8 +437,7 @@ export default function MeetingDialog({
       setSessionMeetings(meetings);
       return meetings;
     } catch (error) {
-      console.error("Error fetching session meetings:", error);
-      toast("Failed to load session meetings");
+      toast.error("Failed to load session meetings");
       return [];
     } finally {
       setIsLoadingMeetings(false);
