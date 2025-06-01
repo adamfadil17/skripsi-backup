@@ -15,7 +15,6 @@ export const getCurrentUser = async () => {
 
     if (!currentUser) return null;
 
-    // Simple serialization - converts Dates to strings and removes non-serializable properties
     return JSON.parse(JSON.stringify(currentUser));
   } catch (error: any) {
     console.error("Error in getCurrentUser:", error);

@@ -1,4 +1,3 @@
-// app/api/workspaces/[workspaceId]/messages/seen/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
 import { seenMessageById } from '@/app/actions/seenMessageById';
@@ -66,9 +65,7 @@ export async function POST(
       { status: 200 }
     );
   } catch (error: any) {
-    console.error('Error marking message as seen:', error);
 
-    // Handle specific error types
     if (error.error_type === 'Forbidden') {
       return NextResponse.json(
         {

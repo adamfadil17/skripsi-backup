@@ -1,4 +1,3 @@
-// app/actions/getDocumentContent.ts
 import prisma from '@/lib/prismadb';
 
 export async function getDocumentContentById(documentId: string) {
@@ -10,10 +9,9 @@ export async function getDocumentContentById(documentId: string) {
       };
     }
 
-    // Get the latest document content
     const documentContent = await prisma.documentContent.findFirst({
       where: { documentId },
-      orderBy: { editedAt: 'desc' }, // Ensure we get the most recent version
+      orderBy: { editedAt: 'desc' },
       select: { content: true },
     });
 

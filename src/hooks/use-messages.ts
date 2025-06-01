@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
-import type { ConversationMessage } from '@/types/types';
+import { useState, useEffect, useCallback } from "react";
+import axios from "axios";
+import type { ConversationMessage } from "@/types/types";
 
 export const useMessages = (workspaceId: string) => {
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
@@ -16,20 +16,17 @@ export const useMessages = (workspaceId: string) => {
           `/api/workspace/${workspaceId}/conversation/messages`
         );
 
-        // Axios automatically parses JSON and puts the response in data property
         const messagesArray = response.data.data.messages;
 
         if (Array.isArray(messagesArray)) {
-          // Process both deleted and edited messages for consistency
           const processedData = messagesArray.map(
             (message: ConversationMessage) => {
               if (message.isDeleted) {
                 return {
                   ...message,
-                  body: 'This message has been deleted',
+                  body: "This message has been deleted",
                 };
               }
-              // Keep edited messages as they are but ensure the properties are present
               return {
                 ...message,
                 isEdited: message.isEdited || false,
@@ -39,11 +36,11 @@ export const useMessages = (workspaceId: string) => {
           );
           setMessages(processedData);
         } else {
-          console.error('Expected messages array, got:', messagesArray);
+          console.error("Expected messages array, got:", messagesArray);
           setMessages([]);
         }
       } catch (error) {
-        console.error('Error fetching messages:', error);
+        console.error("Error fetching messages:", error);
         setMessages([]);
       } finally {
         setIsLoading(false);
@@ -64,17 +61,15 @@ export const useMessages = (workspaceId: string) => {
           { body, image }
         );
 
-        // Return the new message from the response
         return response.data.data.message;
       } catch (error) {
-        console.error('Error sending message:', error);
+        console.error("Error sending message:", error);
         return null;
       }
     },
     [workspaceId]
   );
 
-  // Edit message function
   const editMessage = useCallback(
     async (messageId: string, body: string) => {
       try {
@@ -83,10 +78,8 @@ export const useMessages = (workspaceId: string) => {
           { body }
         );
 
-        // Get the updated message from the response
         const updatedMessage = response.data.data.message;
 
-        // Update messages state to immediately display the edited message
         setMessages((prevMessages) =>
           prevMessages.map((msg) =>
             msg.id === messageId
@@ -102,14 +95,13 @@ export const useMessages = (workspaceId: string) => {
 
         return updatedMessage;
       } catch (error) {
-        console.error('Error editing message:', error);
+        console.error("Error editing message:", error);
         return null;
       }
     },
     [workspaceId]
   );
 
-  // Delete message function
   const deleteMessage = useCallback(
     async (messageId: string) => {
       try {
@@ -117,10 +109,8 @@ export const useMessages = (workspaceId: string) => {
           `/api/workspace/${workspaceId}/conversation/messages/${messageId}`
         );
 
-        // Get the deleted message from the response
         const deletedMessage = response.data.data.message;
 
-        // Update messages state to immediately display the deleted message
         setMessages((prevMessages) =>
           prevMessages.map((msg) =>
             msg.id === messageId
@@ -128,7 +118,7 @@ export const useMessages = (workspaceId: string) => {
                   ...msg,
                   isDeleted: true,
                   deletedAt: new Date(),
-                  body: 'This message has been deleted',
+                  body: "This message has been deleted",
                 }
               : msg
           )
@@ -136,7 +126,7 @@ export const useMessages = (workspaceId: string) => {
 
         return deletedMessage;
       } catch (error) {
-        console.error('Error deleting message:', error);
+        console.error("Error deleting message:", error);
         return null;
       }
     },

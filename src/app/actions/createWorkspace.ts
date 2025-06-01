@@ -1,4 +1,3 @@
-// lib/createWorkspace.ts
 import prisma from '@/lib/prismadb';
 import { User } from '@prisma/client';
 
@@ -29,7 +28,6 @@ export async function createWorkspace(
       };
     }
 
-    // Check if a workspace with the same name already exists for this user
     const existingWorkspace = await prisma.workspace.findFirst({
       where: {
         name,
@@ -48,7 +46,6 @@ export async function createWorkspace(
       };
     }
 
-    // Create new workspace with document, chat, and member
     const newWorkspace = await prisma.workspace.create({
       data: {
         name,
@@ -79,13 +76,10 @@ export async function createWorkspace(
         },
         documents: {
           create: {
-            // Default document with title 'Untitled Document'
             title: 'Untitled Document',
             emoji: '📝',
             coverImage: '/images/cover.png',
-            // Mark who created the document
             createdById: currentUser.id,
-            // Since it's a new document, updatedBy can be null
             documentContents: {
               create: {
                 content: {
@@ -94,13 +88,12 @@ export async function createWorkspace(
                     {
                       type: 'paragraph',
                       data: {
-                        text: 'Welcome to your new workspace! Start collaborating here.',
+                        text: '',
                       },
                     },
                   ],
                   version: '2.30.8',
                 },
-                // Use currentUser as initial editor
                 editedById: currentUser.id,
               },
             },

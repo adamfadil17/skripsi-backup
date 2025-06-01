@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from "react";
 
-import type { Notification as UINotification } from '@/lib/notification';
-import type { NotificationType } from '@prisma/client';
-import { usePusherChannelContext } from '@/app/workspace/[workspaceid]/components/PusherChannelProvider';
-import { formatNotificationMessage } from '@/lib/notification-formatter';
-import axios from 'axios';
+import type { Notification as UINotification } from "@/lib/notification";
+import type { NotificationType } from "@prisma/client";
+import { usePusherChannelContext } from "@/app/workspace/[workspaceid]/components/PusherChannelProvider";
+import { formatNotificationMessage } from "@/lib/notification-formatter";
+import axios from "axios";
 
 export function useNotifications(
   workspaceId: string,
@@ -19,53 +19,44 @@ export function useNotifications(
 
   const markAllAsRead = useCallback(async () => {
     try {
-      // Call API to mark all notifications as read
       await axios.patch(`/api/workspace/${workspaceId}/notification`, {
         markAllAsRead: true,
       });
 
-      // Update local state immediately
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     } catch (error) {
-      console.error('Error marking all notifications as read:', error);
+      console.error("Error marking all notifications as read:", error);
     }
   }, [workspaceId]);
 
-  // Function to add a new notification
   const addNotification = (notification: UINotification) => {
     setNotifications((prev) => [notification, ...prev]);
   };
 
-  // Function to mark a notification as read
   const markAsRead = async (notificationId: string) => {
     try {
-      // Call API to mark the notification as read
       await axios.patch(`/api/workspace/${workspaceId}/notification`, {
         notificationId,
       });
 
-      // Update local state
       setNotifications((prev) =>
         prev.map((n) => (n.id === notificationId ? { ...n, read: true } : n))
       );
     } catch (error) {
-      console.error('Error marking notification as read:', error);
+      console.error("Error marking notification as read:", error);
     }
   };
 
-  // Load initial notifications from the server
   useEffect(() => {
     const getWorkspaceNotifications = async () => {
       try {
         const response = await axios.get(
           `/api/workspace/${workspaceId}/notification`
         );
-        // const data = await response.json();
         if (
-          response.data.status === 'success' &&
+          response.data.status === "success" &&
           response.data.data?.notifications
         ) {
-          // Convert API notifications to our UI notification format
           const formattedNotifications = response.data.data.notifications.map(
             (n: any) => ({
               id: n.id,
@@ -75,15 +66,15 @@ export function useNotifications(
                 n.message ||
                 formatNotificationMessage(
                   n.type,
-                  n.userName || 'A user',
+                  n.userName || "A user",
                   n.documentName,
                   n.meetingTitle,
                   n.invitedEmail
                 ),
               user: {
-                name: n.userName || 'A user',
+                name: n.userName || "A user",
                 avatar:
-                  n.userAvatar || '/images/placeholder.svg?height=32&width=32',
+                  n.userAvatar || "/images/placeholder.svg?height=32&width=32",
               },
               ...(n.documentName && { documentName: n.documentName }),
               ...(n.meetingTitle && { meetingTitle: n.meetingTitle }),
@@ -95,7 +86,7 @@ export function useNotifications(
           setNotifications(formattedNotifications);
         }
       } catch (error) {
-        console.error('Error fetching notifications:', error);
+        console.error("Error fetching notifications:", error);
       }
     };
 
@@ -107,44 +98,42 @@ export function useNotifications(
   useEffect(() => {
     if (!workspaceNotificationChannel) return;
 
-    // Workspace notifications
     const handleWorkspaceUpdate = (data: any) => {
       const notification: UINotification = {
         id: `workspace-update-${Date.now()}`,
-        type: 'workspace',
-        activityType: 'workspace_update',
+        type: "workspace",
+        activityType: "workspace_update",
         message: formatNotificationMessage(
-          'WORKSPACE_UPDATE',
-          data.updatedBy?.name || 'A user'
+          "WORKSPACE_UPDATE",
+          data.updatedBy?.name || "A user"
         ),
         user: {
-          name: data.updatedBy?.name || 'A user',
+          name: data.updatedBy?.name || "A user",
           avatar:
             data.updatedBy?.image ||
-            '/images/placeholder.svg?height=32&width=32',
+            "/images/placeholder.svg?height=32&width=32",
         },
-        timestamp: 'Just now',
+        timestamp: "Just now",
         read: false,
       };
       addNotification(notification);
     };
 
-    // Member notifications
     const handleMemberAdded = (data: any) => {
       const notification: UINotification = {
         id: `member-added-${Date.now()}`,
-        type: 'member',
-        activityType: 'member_create',
+        type: "member",
+        activityType: "member_create",
         message: formatNotificationMessage(
-          'MEMBER_CREATE',
-          data.member?.name || 'A user'
+          "MEMBER_CREATE",
+          data.member?.name || "A user"
         ),
         user: {
-          name: data.member?.name || 'A user',
+          name: data.member?.name || "A user",
           avatar:
-            data.member?.image || '/images/placeholder.svg?height=32&width=32',
+            data.member?.image || "/images/placeholder.svg?height=32&width=32",
         },
-        timestamp: 'Just now',
+        timestamp: "Just now",
         read: false,
       };
       addNotification(notification);
@@ -153,18 +142,18 @@ export function useNotifications(
     const handleMemberUpdated = (data: any) => {
       const notification: UINotification = {
         id: `member-updated-${Date.now()}`,
-        type: 'member',
-        activityType: 'member_update',
+        type: "member",
+        activityType: "member_update",
         message: formatNotificationMessage(
-          'MEMBER_UPDATE',
-          data.member?.name || 'A user'
+          "MEMBER_UPDATE",
+          data.member?.name || "A user"
         ),
         user: {
-          name: data.member?.name || 'A user',
+          name: data.member?.name || "A user",
           avatar:
-            data.member?.image || '/images/placeholder.svg?height=32&width=32',
+            data.member?.image || "/images/placeholder.svg?height=32&width=32",
         },
-        timestamp: 'Just now',
+        timestamp: "Just now",
         read: false,
       };
       addNotification(notification);
@@ -173,64 +162,59 @@ export function useNotifications(
     const handleMemberRemoved = (data: any) => {
       const notification: UINotification = {
         id: `member-removed-${Date.now()}`,
-        type: 'member',
-        activityType: 'member_delete',
+        type: "member",
+        activityType: "member_delete",
         message: formatNotificationMessage(
-          'MEMBER_DELETE',
-          data.member?.name || 'A user'
+          "MEMBER_DELETE",
+          data.member?.name || "A user"
         ),
         user: {
-          name: data.member?.name || 'A user',
+          name: data.member?.name || "A user",
           avatar:
-            data.member?.image || '/images/placeholder.svg?height=32&width=32',
+            data.member?.image || "/images/placeholder.svg?height=32&width=32",
         },
-        timestamp: 'Just now',
+        timestamp: "Just now",
         read: false,
       };
       addNotification(notification);
     };
 
-    // New handler for member-leaved event
     const handleMemberLeaved = (userId: string) => {
       const notification: UINotification = {
         id: `member-leaved-${Date.now()}`,
-        type: 'member',
-        activityType: 'member_leave',
-        message: formatNotificationMessage(
-          'MEMBER_LEAVE',
-          'A user' // We don't have the name in the payload
-        ),
+        type: "member",
+        activityType: "member_leave",
+        message: formatNotificationMessage("MEMBER_LEAVE", "A user"),
         user: {
-          name: 'A user',
-          avatar: '/images/placeholder.svg?height=32&width=32',
+          name: "A user",
+          avatar: "/images/placeholder.svg?height=32&width=32",
         },
-        timestamp: 'Just now',
+        timestamp: "Just now",
         read: false,
       };
       addNotification(notification);
     };
 
-    // Invitation notifications
     const handleInvitationCreated = (data: any) => {
       const notification: UINotification = {
         id: `invitation-created-${Date.now()}`,
-        type: 'invitation',
-        activityType: 'invitation_create',
+        type: "invitation",
+        activityType: "invitation_create",
         message: formatNotificationMessage(
-          'INVITATION_CREATE',
-          data.invitedBy?.name || 'A user',
+          "INVITATION_CREATE",
+          data.invitedBy?.name || "A user",
           undefined,
           undefined,
           data.email
         ),
         user: {
-          name: data.invitedBy?.name || 'A user',
+          name: data.invitedBy?.name || "A user",
           avatar:
             data.invitedBy?.image ||
-            '/images/placeholder.svg?height=32&width=32',
+            "/images/placeholder.svg?height=32&width=32",
         },
         invitedEmail: data.email,
-        timestamp: 'Just now',
+        timestamp: "Just now",
         read: false,
       };
       addNotification(notification);
@@ -239,23 +223,23 @@ export function useNotifications(
     const handleInvitationRevoked = (data: any) => {
       const notification: UINotification = {
         id: `invitation-revoked-${Date.now()}`,
-        type: 'invitation',
-        activityType: 'invitation_delete',
+        type: "invitation",
+        activityType: "invitation_delete",
         message: formatNotificationMessage(
-          'INVITATION_REVOKE',
-          data.revokedBy?.name || 'A user',
+          "INVITATION_REVOKE",
+          data.revokedBy?.name || "A user",
           undefined,
           undefined,
           data.email
         ),
         user: {
-          name: data.revokedBy?.name || 'A user',
+          name: data.revokedBy?.name || "A user",
           avatar:
             data.revokedBy?.image ||
-            '/images/placeholder.svg?height=32&width=32',
+            "/images/placeholder.svg?height=32&width=32",
         },
         invitedEmail: data.email,
-        timestamp: 'Just now',
+        timestamp: "Just now",
         read: false,
       };
       addNotification(notification);
@@ -264,21 +248,21 @@ export function useNotifications(
     const handleDocumentAdded = (data: any) => {
       const notification: UINotification = {
         id: `document-added-${Date.now()}`,
-        type: 'document',
-        activityType: 'document_create',
+        type: "document",
+        activityType: "document_create",
         message: formatNotificationMessage(
-          'DOCUMENT_CREATE',
-          data.createdBy?.name || 'A user',
+          "DOCUMENT_CREATE",
+          data.createdBy?.name || "A user",
           data.title
         ),
         user: {
-          name: data.createdBy?.name || 'A user',
+          name: data.createdBy?.name || "A user",
           avatar:
             data.createdBy?.image ||
-            '/images/placeholder.svg?height=32&width=32',
+            "/images/placeholder.svg?height=32&width=32",
         },
         ...(data.title && { documentName: data.title }),
-        timestamp: 'Just now',
+        timestamp: "Just now",
         read: false,
       };
       addNotification(notification);
@@ -287,21 +271,21 @@ export function useNotifications(
     const handleDocumentUpdated = (data: any) => {
       const notification: UINotification = {
         id: `document-updated-${Date.now()}`,
-        type: 'document',
-        activityType: 'document_update',
+        type: "document",
+        activityType: "document_update",
         message: formatNotificationMessage(
-          'DOCUMENT_UPDATE',
-          data.updatedBy?.name || 'A user',
+          "DOCUMENT_UPDATE",
+          data.updatedBy?.name || "A user",
           data.title
         ),
         user: {
-          name: data.updatedBy?.name || 'A user',
+          name: data.updatedBy?.name || "A user",
           avatar:
             data.updatedBy?.image ||
-            '/images/placeholder.svg?height=32&width=32',
+            "/images/placeholder.svg?height=32&width=32",
         },
         ...(data.title && { documentName: data.title }),
-        timestamp: 'Just now',
+        timestamp: "Just now",
         read: false,
       };
       addNotification(notification);
@@ -310,70 +294,68 @@ export function useNotifications(
     const handleDocumentRemoved = (data: any) => {
       const notification: UINotification = {
         id: `document-removed-${Date.now()}`,
-        type: 'document',
-        activityType: 'document_delete',
+        type: "document",
+        activityType: "document_delete",
         message: formatNotificationMessage(
-          'DOCUMENT_DELETE',
-          data.deletedBy?.name || 'A user',
+          "DOCUMENT_DELETE",
+          data.deletedBy?.name || "A user",
           data.title
         ),
         user: {
-          name: data.deletedBy?.name || 'A user',
+          name: data.deletedBy?.name || "A user",
           avatar:
             data.deletedBy?.image ||
-            '/images/placeholder.svg?height=32&width=32',
+            "/images/placeholder.svg?height=32&width=32",
         },
         ...(data.title && { documentName: data.title }),
-        timestamp: 'Just now',
+        timestamp: "Just now",
         read: false,
       };
       addNotification(notification);
     };
 
-    // Document content notifications
     const handleDocumentContentUpdated = (data: any) => {
       const notification: UINotification = {
         id: `document-content-${Date.now()}`,
-        type: 'document',
-        activityType: 'content_update',
+        type: "document",
+        activityType: "content_update",
         message: formatNotificationMessage(
-          'DOCUMENT_CONTENT_UPDATE',
-          data.editedBy?.name || 'A user',
+          "DOCUMENT_CONTENT_UPDATE",
+          data.editedBy?.name || "A user",
           data.documentName
         ),
         user: {
-          name: data.editedBy?.name || 'A user',
+          name: data.editedBy?.name || "A user",
           avatar:
             data.editedBy?.image ||
-            '/images/placeholder.svg?height=32&width=32',
+            "/images/placeholder.svg?height=32&width=32",
         },
-        documentName: data.documentName || 'Document',
-        timestamp: 'Just now',
+        documentName: data.documentName || "Document",
+        timestamp: "Just now",
         read: false,
       };
       addNotification(notification);
     };
 
-    // Meeting notifications
     const handleMeetingCreated = (data: any) => {
       const notification: UINotification = {
         id: `meeting-created-${Date.now()}`,
-        type: 'meeting',
-        activityType: 'meeting_create',
+        type: "meeting",
+        activityType: "meeting_create",
         message: formatNotificationMessage(
-          'MEETING_CREATE',
-          data.createdBy?.name || 'A user',
+          "MEETING_CREATE",
+          data.createdBy?.name || "A user",
           undefined,
           data.title
         ),
         user: {
-          name: data.createdBy?.name || 'A user',
+          name: data.createdBy?.name || "A user",
           avatar:
             data.createdBy?.image ||
-            '/images/placeholder.svg?height=32&width=32',
+            "/images/placeholder.svg?height=32&width=32",
         },
         meetingTitle: data.title,
-        timestamp: 'Just now',
+        timestamp: "Just now",
         read: false,
       };
       addNotification(notification);
@@ -382,22 +364,22 @@ export function useNotifications(
     const handleMeetingUpdated = (data: any) => {
       const notification: UINotification = {
         id: `meeting-updated-${Date.now()}`,
-        type: 'meeting',
-        activityType: 'meeting_update',
+        type: "meeting",
+        activityType: "meeting_update",
         message: formatNotificationMessage(
-          'MEETING_UPDATE',
-          data.updatedBy?.name || 'A user',
+          "MEETING_UPDATE",
+          data.updatedBy?.name || "A user",
           undefined,
           data.title
         ),
         user: {
-          name: data.updatedBy?.name || 'A user',
+          name: data.updatedBy?.name || "A user",
           avatar:
             data.updatedBy?.image ||
-            '/images/placeholder.svg?height=32&width=32',
+            "/images/placeholder.svg?height=32&width=32",
         },
         meetingTitle: data.title,
-        timestamp: 'Just now',
+        timestamp: "Just now",
         read: false,
       };
       addNotification(notification);
@@ -406,28 +388,27 @@ export function useNotifications(
     const handleMeetingRemoved = (data: any) => {
       const notification: UINotification = {
         id: `meeting-removed-${Date.now()}`,
-        type: 'meeting',
-        activityType: 'meeting_delete',
+        type: "meeting",
+        activityType: "meeting_delete",
         message: formatNotificationMessage(
-          'MEETING_DELETE',
-          data.deletedBy?.name || 'A user',
+          "MEETING_DELETE",
+          data.deletedBy?.name || "A user",
           undefined,
           data.title
         ),
         user: {
-          name: data.deletedBy?.name || 'A user',
+          name: data.deletedBy?.name || "A user",
           avatar:
             data.deletedBy?.image ||
-            '/images/placeholder.svg?height=32&width=32',
+            "/images/placeholder.svg?height=32&width=32",
         },
         meetingTitle: data.title,
-        timestamp: 'Just now',
+        timestamp: "Just now",
         read: false,
       };
       addNotification(notification);
     };
 
-    // New notification created
     const handleNotificationCreated = (data: any) => {
       const notification: UINotification = {
         id: data.id,
@@ -437,117 +418,115 @@ export function useNotifications(
           data.message ||
           formatNotificationMessage(
             data.type,
-            data.userName || 'A user',
+            data.userName || "A user",
             data.documentName,
             data.meetingTitle,
             data.invitedEmail
           ),
         user: {
-          name: data.userName || 'A user',
+          name: data.userName || "A user",
           avatar:
-            data.userAvatar || '/images/placeholder.svg?height=32&width=32',
+            data.userAvatar || "/images/placeholder.svg?height=32&width=32",
         },
         ...(data.documentName && { documentName: data.documentName }),
         ...(data.meetingTitle && { meetingTitle: data.meetingTitle }),
         ...(data.invitedEmail && { invitedEmail: data.invitedEmail }),
-        timestamp: 'Just now',
+        timestamp: "Just now",
         read: false,
       };
       addNotification(notification);
     };
 
-    // Subscribe to workspace events
     workspaceNotificationChannel.bind(
-      'workspace-updated',
+      "workspace-updated",
       handleWorkspaceUpdate
     );
-    workspaceNotificationChannel.bind('member-added', handleMemberAdded);
-    workspaceNotificationChannel.bind('member-updated', handleMemberUpdated);
-    workspaceNotificationChannel.bind('member-removed', handleMemberRemoved);
-    workspaceNotificationChannel.bind('member-leaved', handleMemberLeaved);
+    workspaceNotificationChannel.bind("member-added", handleMemberAdded);
+    workspaceNotificationChannel.bind("member-updated", handleMemberUpdated);
+    workspaceNotificationChannel.bind("member-removed", handleMemberRemoved);
+    workspaceNotificationChannel.bind("member-leaved", handleMemberLeaved);
     workspaceNotificationChannel.bind(
-      'invitation-added',
+      "invitation-added",
       handleInvitationCreated
     );
     workspaceNotificationChannel.bind(
-      'invitation-removed',
+      "invitation-removed",
       handleInvitationRevoked
     );
-    workspaceNotificationChannel.bind('document-added', handleDocumentAdded);
+    workspaceNotificationChannel.bind("document-added", handleDocumentAdded);
     workspaceNotificationChannel.bind(
-      'document-updated',
+      "document-updated",
       handleDocumentUpdated
     );
     workspaceNotificationChannel.bind(
-      'document-removed',
+      "document-removed",
       handleDocumentRemoved
     );
     workspaceNotificationChannel.bind(
-      'document-content-updated',
+      "document-content-updated",
       handleDocumentContentUpdated
     );
-    workspaceNotificationChannel.bind('meeting-created', handleMeetingCreated);
-    workspaceNotificationChannel.bind('meeting-updated', handleMeetingUpdated);
-    workspaceNotificationChannel.bind('meeting-removed', handleMeetingRemoved);
+    workspaceNotificationChannel.bind("meeting-created", handleMeetingCreated);
+    workspaceNotificationChannel.bind("meeting-updated", handleMeetingUpdated);
+    workspaceNotificationChannel.bind("meeting-removed", handleMeetingRemoved);
     workspaceNotificationChannel.bind(
-      'notification-created',
+      "notification-created",
       handleNotificationCreated
     );
 
-    // Cleanup function
     return () => {
       workspaceNotificationChannel.unbind(
-        'workspace-updated',
+        "workspace-updated",
         handleWorkspaceUpdate
       );
-      workspaceNotificationChannel.unbind('member-added', handleMemberAdded);
+      workspaceNotificationChannel.unbind("member-added", handleMemberAdded);
       workspaceNotificationChannel.unbind(
-        'member-updated',
+        "member-updated",
         handleMemberUpdated
       );
       workspaceNotificationChannel.unbind(
-        'member-removed',
+        "member-removed",
         handleMemberRemoved
       );
-      workspaceNotificationChannel.unbind('member-leaved', handleMemberLeaved);
+      workspaceNotificationChannel.unbind("member-leaved", handleMemberLeaved);
       workspaceNotificationChannel.unbind(
-        'invitation-added',
+        "invitation-added",
         handleInvitationCreated
       );
       workspaceNotificationChannel.unbind(
-        'invitation-removed',
+        "invitation-removed",
         handleInvitationRevoked
       );
       workspaceNotificationChannel.unbind(
-        'document-added',
+        "document-added",
         handleDocumentAdded
       );
       workspaceNotificationChannel.unbind(
-        'document-updated',
+        "document-updated",
         handleDocumentUpdated
       );
       workspaceNotificationChannel.unbind(
-        'document-removed',
+        "document-removed",
         handleDocumentRemoved
       );
       workspaceNotificationChannel.unbind(
-        'document-content-updated',
+        "document-content-updated",
         handleDocumentContentUpdated
       );
       workspaceNotificationChannel.unbind(
-        'meeting-created',
+        "meeting-created",
         handleMeetingCreated
       );
       workspaceNotificationChannel.unbind(
-        'meeting-updated',
+        "meeting-updated",
         handleMeetingUpdated
       );
       workspaceNotificationChannel.unbind(
-        'meeting-removed',
+        "meeting-removed",
         handleMeetingRemoved
       );
       workspaceNotificationChannel.unbind(
-        'notification-created',
+        "notification-created",
         handleNotificationCreated
       );
     };
@@ -561,79 +540,76 @@ export function useNotifications(
   };
 }
 
-// Helper function to map DB notification types to UI notification types
 function mapDbTypeToUiType(
   type: NotificationType
-): 'workspace' | 'document' | 'meeting' | 'invitation' | 'member' {
+): "workspace" | "document" | "meeting" | "invitation" | "member" {
   switch (type) {
-    case 'WORKSPACE_UPDATE':
-      return 'workspace';
-    case 'DOCUMENT_CREATE':
-    case 'DOCUMENT_UPDATE':
-    case 'DOCUMENT_DELETE':
-    case 'DOCUMENT_CONTENT_UPDATE':
-      return 'document';
-    case 'MEETING_CREATE':
-    case 'MEETING_UPDATE':
-    case 'MEETING_DELETE':
-      return 'meeting';
-    case 'INVITATION_CREATE':
-    case 'INVITATION_REVOKE':
-      return 'invitation';
-    case 'MEMBER_CREATE':
-    case 'MEMBER_UPDATE':
-    case 'MEMBER_DELETE':
-    case 'MEMBER_LEAVE':
-      return 'member';
+    case "WORKSPACE_UPDATE":
+      return "workspace";
+    case "DOCUMENT_CREATE":
+    case "DOCUMENT_UPDATE":
+    case "DOCUMENT_DELETE":
+    case "DOCUMENT_CONTENT_UPDATE":
+      return "document";
+    case "MEETING_CREATE":
+    case "MEETING_UPDATE":
+    case "MEETING_DELETE":
+      return "meeting";
+    case "INVITATION_CREATE":
+    case "INVITATION_REVOKE":
+      return "invitation";
+    case "MEMBER_CREATE":
+    case "MEMBER_UPDATE":
+    case "MEMBER_DELETE":
+    case "MEMBER_LEAVE":
+      return "member";
     default:
-      return 'workspace';
+      return "workspace";
   }
 }
 
-// Helper function to map DB notification types to activity types
 function mapDbTypeToActivityType(type: NotificationType): string {
   switch (type) {
-    case 'WORKSPACE_UPDATE':
-      return 'workspace_update';
-    case 'DOCUMENT_CREATE':
-      return 'document_create';
-    case 'DOCUMENT_UPDATE':
-      return 'document_update';
-    case 'DOCUMENT_DELETE':
-      return 'document_delete';
-    case 'DOCUMENT_CONTENT_UPDATE':
-      return 'content_update';
-    case 'MEETING_CREATE':
-      return 'meeting_create';
-    case 'MEETING_UPDATE':
-      return 'meeting_update';
-    case 'MEETING_DELETE':
-      return 'meeting_delete';
-    case 'INVITATION_CREATE':
-      return 'invitation_create';
-    case 'INVITATION_REVOKE':
-      return 'invitation_delete';
-    case 'MEMBER_CREATE':
-      return 'member_create';
-    case 'MEMBER_UPDATE':
-      return 'member_update';
-    case 'MEMBER_DELETE':
-      return 'member_delete';
-    case 'MEMBER_LEAVE':
-      return 'member_leave';
+    case "WORKSPACE_UPDATE":
+      return "workspace_update";
+    case "DOCUMENT_CREATE":
+      return "document_create";
+    case "DOCUMENT_UPDATE":
+      return "document_update";
+    case "DOCUMENT_DELETE":
+      return "document_delete";
+    case "DOCUMENT_CONTENT_UPDATE":
+      return "content_update";
+    case "MEETING_CREATE":
+      return "meeting_create";
+    case "MEETING_UPDATE":
+      return "meeting_update";
+    case "MEETING_DELETE":
+      return "meeting_delete";
+    case "INVITATION_CREATE":
+      return "invitation_create";
+    case "INVITATION_REVOKE":
+      return "invitation_delete";
+    case "MEMBER_CREATE":
+      return "member_create";
+    case "MEMBER_UPDATE":
+      return "member_update";
+    case "MEMBER_DELETE":
+      return "member_delete";
+    case "MEMBER_LEAVE":
+      return "member_leave";
     default:
-      return 'workspace_update';
+      return "workspace_update";
   }
 }
 
-// Helper function to format timestamps
 function formatTimestamp(dateString: string): string {
   const date = new Date(dateString);
   const now = new Date();
   const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
   if (diffInSeconds < 60) {
-    return 'Just now';
+    return "Just now";
   } else if (diffInSeconds < 3600) {
     return `${Math.floor(diffInSeconds / 60)}m ago`;
   } else if (diffInSeconds < 86400) {

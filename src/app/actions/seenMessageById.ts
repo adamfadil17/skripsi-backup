@@ -1,4 +1,3 @@
-// app/actions/seenMessageById.ts
 import prisma from '@/lib/prismadb';
 import { User } from '@prisma/client';
 import { pusherServer } from '@/lib/pusher';
@@ -24,7 +23,6 @@ export async function seenMessageById(
       };
     }
 
-    // Check if user is a member of the workspace
     const membership = await prisma.workspaceMember.findFirst({
       where: {
         workspaceId,
@@ -39,7 +37,6 @@ export async function seenMessageById(
       };
     }
 
-    // Find the conversation
     const conversation = await prisma.conversation.findUnique({
       where: {
         workspaceId,
@@ -53,7 +50,6 @@ export async function seenMessageById(
       };
     }
 
-    // Find the message
     const message = await prisma.message.findUnique({
       where: {
         id: messageId,
@@ -67,17 +63,14 @@ export async function seenMessageById(
       };
     }
 
-    // Update seenIds to include the user's ID
     const updatedMessage = await prisma.message.update({
       where: {
         id: messageId,
       },
       data: {
-        // Add ID to seenIds array
         seenIds: {
           push: currentUser.id,
         },
-        // Also maintain the seenBy relationship
         seenBy: {
           connect: {
             id: currentUser.id,
@@ -103,7 +96,6 @@ export async function seenMessageById(
       },
     });
 
-    // Convert to ConversationMessage type
     const conversationMessage: ConversationMessage = {
       id: updatedMessage.id,
       body: updatedMessage.body,
@@ -120,7 +112,6 @@ export async function seenMessageById(
       deletedAt: updatedMessage.deletedAt || null,
     };
 
-    // Trigger Pusher event for updated message
     await pusherServer.trigger(
       `workspace-${workspaceId}`,
       'messages:update',

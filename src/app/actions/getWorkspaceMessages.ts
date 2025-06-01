@@ -1,4 +1,3 @@
-// app/actions/getWorkspaceMessages.ts
 import prisma from '@/lib/prismadb';
 import { User } from '@prisma/client';
 import type { ConversationMessage } from '@/types/types';
@@ -22,7 +21,6 @@ export async function getWorkspaceMessages(
       };
     }
 
-    // Check if user is a member of the workspace and get join date
     const membership = await prisma.workspaceMember.findFirst({
       where: {
         workspaceId,
@@ -40,10 +38,8 @@ export async function getWorkspaceMessages(
       };
     }
 
-    // Get user join date
     const userJoinDate = membership.joinedAt;
 
-    // Find conversation for the workspace
     const conversation = await prisma.conversation.findUnique({
       where: {
         workspaceId,
@@ -57,12 +53,10 @@ export async function getWorkspaceMessages(
       };
     }
 
-    // Get messages for the conversation
-    // All members only see messages after they joined
     const messages = await prisma.message.findMany({
       where: {
         conversationId: conversation.id,
-        createdAt: { gte: userJoinDate }, // Filter messages based on user join date
+        createdAt: { gte: userJoinDate },
       },
       include: {
         sender: {
@@ -86,7 +80,6 @@ export async function getWorkspaceMessages(
       },
     });
 
-    // Convert to ConversationMessage type
     const conversationMessages: ConversationMessage[] = messages.map(
       (message) => ({
         id: message.id,

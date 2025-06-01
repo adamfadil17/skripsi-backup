@@ -1,4 +1,3 @@
-// app/actions/leaveWorkspace.ts
 import prisma from '@/lib/prismadb';
 import { User } from '@prisma/client';
 import { pusherServer } from '@/lib/pusher';
@@ -19,7 +18,6 @@ export async function leaveWorkspace(workspaceId: string, currentUser: User) {
       };
     }
 
-    // Get workspace with members
     const workspace = await prisma.workspace.findUnique({
       where: { id: workspaceId },
       include: { members: true },
@@ -61,7 +59,6 @@ export async function leaveWorkspace(workspaceId: string, currentUser: User) {
       };
     }
 
-    // Delete the member in a transaction
     const result = await prisma.$transaction([
       prisma.workspaceMember.delete({
         where: {
@@ -81,7 +78,6 @@ export async function leaveWorkspace(workspaceId: string, currentUser: User) {
       }),
     ]);
 
-    // Trigger Pusher event for real-time updates
     await pusherServer.trigger(
       `workspace-${workspaceId}`,
       'member-leaved',
@@ -96,7 +92,7 @@ export async function leaveWorkspace(workspaceId: string, currentUser: User) {
       },
     });
 
-    return result[0]; // Return the deleted member
+    return result[0];
   } catch (error) {
     console.error('Error leaving workspace:', error);
     throw error;

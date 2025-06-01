@@ -61,9 +61,7 @@ export async function GET(
       { status: 200 }
     );
   } catch (error: any) {
-    console.error('Error fetching workspace conversation:', error);
 
-    // Handle specific error types
     if (error.error_type === 'Forbidden') {
       return NextResponse.json(
         {

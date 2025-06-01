@@ -1,4 +1,3 @@
-// app/actions/sendWorkspaceMessage.ts
 import prisma from '@/lib/prismadb';
 import { User } from '@prisma/client';
 import { pusherServer } from '@/lib/pusher';
@@ -38,7 +37,6 @@ export async function sendWorkspaceMessage(
       };
     }
 
-    // Check if user is a member of the workspace
     const membership = await prisma.workspaceMember.findFirst({
       where: {
         workspaceId,
@@ -53,7 +51,6 @@ export async function sendWorkspaceMessage(
       };
     }
 
-    // Find or create conversation for the workspace
     let conversation = await prisma.conversation.findUnique({
       where: {
         workspaceId,
@@ -68,7 +65,6 @@ export async function sendWorkspaceMessage(
       });
     }
 
-    // Create the message
     const message = await prisma.message.create({
       data: {
         body: messageBody || '',
@@ -108,7 +104,6 @@ export async function sendWorkspaceMessage(
       },
     });
 
-    // Update the conversation's lastMessageAt
     await prisma.conversation.update({
       where: {
         id: conversation.id,
@@ -118,7 +113,6 @@ export async function sendWorkspaceMessage(
       },
     });
 
-    // Convert to ConversationMessage type
     const conversationMessage: ConversationMessage = {
       id: message.id,
       body: message.body,
@@ -129,13 +123,12 @@ export async function sendWorkspaceMessage(
       seenIds: message.seenIds,
       seenBy: message.seenBy,
       sender: message.sender,
-      isDeleted: false, // New message is not deleted
-      deletedAt: null, // New message has no delete date
-      isEdited: false, // New message is not edited
-      editedAt: null, // New message has no edit date
+      isDeleted: false,
+      deletedAt: null,
+      isEdited: false,
+      editedAt: null,
     };
 
-    // Trigger Pusher event for new message
     await pusherServer.trigger(
       `workspace-${workspaceId}`,
       'messages:new',

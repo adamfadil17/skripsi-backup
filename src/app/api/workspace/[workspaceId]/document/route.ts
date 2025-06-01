@@ -1,4 +1,3 @@
-// app/api/workspaces/[workspaceId]/documents/route.ts
 import { type NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
 import { getWorkspaceDocuments } from '@/app/actions/getWorkspaceDocuments';
@@ -151,7 +150,6 @@ export async function POST(
   } catch (error: any) {
     console.error('Error creating document:', error);
 
-    // Handle specific error types
     if (error.error_type === 'Forbidden') {
       return NextResponse.json(
         {

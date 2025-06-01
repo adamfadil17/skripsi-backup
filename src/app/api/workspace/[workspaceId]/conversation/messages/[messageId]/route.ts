@@ -1,4 +1,3 @@
-// app/api/workspaces/[workspaceId]/messages/[messageId]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
 import { updateMessageById } from '@/app/actions/updateMessageById';
@@ -70,7 +69,6 @@ export async function PUT(
   } catch (error: any) {
     console.error('Error updating message:', error);
 
-    // Handle specific error types
     if (error.error_type === 'Forbidden') {
       return NextResponse.json(
         {
@@ -171,7 +169,6 @@ export async function DELETE(
   } catch (error: any) {
     console.error('Error deleting message:', error);
 
-    // Handle specific error types
     if (error.error_type === 'Forbidden') {
       return NextResponse.json(
         {

@@ -1,4 +1,3 @@
-// app/actions/deleteMemberById.ts
 import prisma from '@/lib/prismadb';
 import { User } from '@prisma/client';
 import { pusherServer } from '@/lib/pusher';
@@ -29,7 +28,6 @@ export async function deleteMemberById({
       };
     }
 
-    // Cek role dari current user
     const currentUserRole = await prisma.workspaceMember.findFirst({
       where: { workspaceId, userId: currentUser.id },
     });
@@ -41,7 +39,6 @@ export async function deleteMemberById({
       };
     }
 
-    // Cek role user yang akan dihapus
     const targetUserRole = await prisma.workspaceMember.findFirst({
       where: { workspaceId, userId },
       include: {
@@ -63,7 +60,6 @@ export async function deleteMemberById({
       };
     }
 
-    // Admin tidak bisa menghapus Super Admin atau Admin
     if (
       currentUserRole.role === 'ADMIN' &&
       (targetUserRole.role === 'SUPER_ADMIN' || targetUserRole.role === 'ADMIN')
@@ -74,9 +70,7 @@ export async function deleteMemberById({
       };
     }
 
-    // Admin hanya bisa menghapus member
     if (currentUserRole.role === 'ADMIN' && targetUserRole.role === 'MEMBER') {
-      // Lakukan penghapusan member
       await prisma.$transaction([
         prisma.workspaceMember.delete({
           where: { userId_workspaceId: { userId, workspaceId } },
@@ -121,9 +115,7 @@ export async function deleteMemberById({
       };
     }
 
-    // Super Admin bisa menghapus siapa saja kecuali jika menghapus Super Admin terakhir
     if (currentUserRole.role === 'SUPER_ADMIN') {
-      // Jika target yang dihapus adalah Super Admin, pastikan masih ada Super Admin lain
       if (targetUserRole.role === 'SUPER_ADMIN') {
         const superAdminCount = await prisma.workspaceMember.count({
           where: { workspaceId, role: 'SUPER_ADMIN' },
@@ -137,7 +129,6 @@ export async function deleteMemberById({
         }
       }
 
-      // Lakukan penghapusan member
       await prisma.$transaction([
         prisma.workspaceMember.delete({
           where: { userId_workspaceId: { userId, workspaceId } },
@@ -182,7 +173,6 @@ export async function deleteMemberById({
       };
     }
 
-    // Member tidak bisa menghapus siapapun
     throw {
       error_type: 'Forbidden',
       message: 'You do not have permission to remove this user.',

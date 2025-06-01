@@ -4,14 +4,13 @@ import prisma from '@/lib/prismadb';
 import { pusherServer } from '@/lib/pusher';
 import type { NotificationType } from '@prisma/client';
 
-// Add this interface for enhanced notification data
 interface EnhancedNotification {
   id: string;
   workspaceId: string;
   message: string;
   type: NotificationType;
   createdAt: Date;
-  read: boolean; // This is now computed based on NotificationRead
+  read: boolean;
   userId: string | null;
   documentId: string | null;
   userName?: string;
@@ -52,7 +51,6 @@ export async function GET(
       );
     }
 
-    // Check if user is a member of the workspace and get join date
     const membership = await prisma.workspaceMember.findFirst({
       where: {
         userId: currentUser.id,
@@ -75,15 +73,13 @@ export async function GET(
       );
     }
 
-    // Store the join date to filter notifications
     const userJoinedAt = membership.joinedAt;
 
-    // Get notifications for this workspace created AFTER user joined
     const notifications = await prisma.notification.findMany({
       where: {
         workspaceId,
         createdAt: {
-          gte: userJoinedAt // Only show notifications created after user joined
+          gte: userJoinedAt
         }
       },
       include: {
@@ -96,10 +92,9 @@ export async function GET(
       orderBy: {
         createdAt: 'desc',
       },
-      take: 50, // Limit to 50 most recent notifications
+      take: 50,
     });
 
-    // Get user information for each notification
     const enhancedNotifications = await Promise.all(
       notifications.map(async (notification) => {
         let userName = 'A user';
@@ -107,7 +102,6 @@ export async function GET(
         let documentName = null;
         const meetingTitle = null;
 
-        // If notification has userId, get user info
         if (notification.userId) {
           const user = await prisma.user.findUnique({
             where: { id: notification.userId },
@@ -119,7 +113,6 @@ export async function GET(
           }
         }
 
-        // If notification has documentId, get document title
         if (notification.documentId) {
           const document = await prisma.document.findUnique({
             where: { id: notification.documentId },
@@ -130,7 +123,6 @@ export async function GET(
           }
         }
 
-        // Determine if notification is read by current user
         const isRead = notification.readBy.length > 0;
 
         return {
@@ -139,8 +131,8 @@ export async function GET(
           userAvatar,
           documentName,
           meetingTitle,
-          read: isRead, // Set read status based on NotificationRead
-          readBy: undefined, // Remove readBy from response
+          read: isRead,
+          readBy: undefined,
         };
       })
     );
@@ -199,7 +191,6 @@ export async function POST(
       );
     }
 
-    // Check if user is a member of the workspace
     const isMember = await prisma.workspaceMember.findFirst({
       where: {
         userId: currentUser.id,
@@ -233,7 +224,6 @@ export async function POST(
       );
     }
 
-    // Validate that type is a valid NotificationType
     if (!isValidNotificationType(type)) {
       return NextResponse.json(
         {
@@ -246,7 +236,6 @@ export async function POST(
       );
     }
 
-    // Create notification in database
     const notification = await prisma.notification.create({
       data: {
         workspaceId,
@@ -257,15 +246,13 @@ export async function POST(
       },
     });
 
-    // Prepare notification data with user info for Pusher
     const notificationData: EnhancedNotification = {
       ...notification,
       userName: currentUser.name,
       userAvatar: currentUser.image,
-      read: false, // New notifications are unread by default
+      read: false,
     };
 
-    // If notification is related to a document, add document name
     if (documentId) {
       const document = await prisma.document.findUnique({
         where: { id: documentId },
@@ -276,7 +263,6 @@ export async function POST(
       }
     }
 
-    // Trigger Pusher event on the workspace channel
     await pusherServer.trigger(
       `notification-${workspaceId}`,
       'notification-created',
@@ -306,7 +292,6 @@ export async function POST(
   }
 }
 
-// New PATCH endpoint for marking notifications as read
 export async function PATCH(
   req: Request,
   { params }: { params: { workspaceId: string } }
@@ -339,7 +324,6 @@ export async function PATCH(
       );
     }
 
-    // Check if user is a member of the workspace and get join date
     const membership = await prisma.workspaceMember.findFirst({
       where: {
         userId: currentUser.id,
@@ -362,19 +346,16 @@ export async function PATCH(
       );
     }
 
-    // Store the join date
     const userJoinedAt = membership.joinedAt;
     const body = await req.json();
 
-    // For marking a specific notification as read
     if (body.notificationId) {
-      // Check if notification exists, belongs to the workspace, and was created after user joined
       const notification = await prisma.notification.findFirst({
         where: {
           id: body.notificationId,
           workspaceId,
           createdAt: {
-            gte: userJoinedAt // Only allow marking as read if notification was created after user joined
+            gte: userJoinedAt 
           }
         },
       });
@@ -391,7 +372,6 @@ export async function PATCH(
         );
       }
 
-      // Create or update read status for this notification
       await prisma.notificationRead.upsert({
         where: {
           notificationId_userId: {
@@ -399,7 +379,7 @@ export async function PATCH(
             userId: currentUser.id,
           },
         },
-        update: {}, // Nothing to update
+        update: {},
         create: {
           notificationId: body.notificationId,
           userId: currentUser.id,
@@ -416,14 +396,12 @@ export async function PATCH(
       );
     }
 
-    // For marking all notifications as read
     else if (body.markAllAsRead) {
-      // Get all unread notifications for this workspace that were created after user joined
       const unreadNotifications = await prisma.notification.findMany({
         where: {
           workspaceId,
           createdAt: {
-            gte: userJoinedAt // Only mark notifications created after user joined
+            gte: userJoinedAt
           },
           readBy: {
             none: {
@@ -436,8 +414,6 @@ export async function PATCH(
         },
       });
 
-      // Mark all as read using transactions with individual upserts
-      // This replaces the createMany with skipDuplicates which isn't supported in MongoDB
       if (unreadNotifications.length > 0) {
         await prisma.$transaction(
           unreadNotifications.map((notification) =>
@@ -448,7 +424,7 @@ export async function PATCH(
                   userId: currentUser.id,
                 },
               },
-              update: {}, // Nothing to update
+              update: {},
               create: {
                 notificationId: notification.id,
                 userId: currentUser.id,
@@ -491,7 +467,6 @@ export async function PATCH(
   }
 }
 
-// Helper function to validate NotificationType
 function isValidNotificationType(type: string): boolean {
   const validTypes = [
     'WORKSPACE_UPDATE',

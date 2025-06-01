@@ -22,14 +22,14 @@ interface DocumentNoteEditorProps {
   workspaceId: string;
   documentId: string;
   modelResponse?: any;
-  placeholder?: string; // Tambahkan prop placeholder
+  placeholder?: string;
 }
 
 const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
   workspaceId,
   documentId,
   modelResponse,
-  placeholder = "Mulai menulis catatan Anda di sini...", // Default placeholder
+  placeholder = "Start writing your notes here...",
 }) => {
   const { data: session } = useSession();
   const userEmail = session?.user?.email;
@@ -42,10 +42,8 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
   const isProcessingExternalUpdateRef = useRef(false);
   const [editorReady, setEditorReady] = useState(false);
 
-  // Get the Pusher channel from context
   const { channel: workspaceChannel } = usePusherChannelContext();
 
-  // Debounce function to limit the frequency of function calls
   function debounce(func: Function, wait: number) {
     let timeout: NodeJS.Timeout;
     return function executedFunction(...args: any[]) {
@@ -66,13 +64,11 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     ) {
       try {
         const outputData = await editorRef.current.save();
-        // Convert inlineToolbar to <b> tags before saving
         const formattedContent = convertEditorDataToHtml(outputData);
 
-        // Check if content has actually changed to avoid unnecessary saves
         const contentString = JSON.stringify(formattedContent);
         if (contentString === lastSavedContentRef.current) {
-          return; // Skip save if content hasn't changed
+          return;
         }
 
         lastSavedContentRef.current = contentString;
@@ -98,7 +94,6 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     }
   }, [workspaceId, documentId, userEmail]);
 
-  // Add debounced save to prevent too many saves during typing
   const debouncedSave = useCallback(
     debounce(() => {
       onSaveDocumentContent();
@@ -119,7 +114,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
         ) {
           const content = response.data.data.content;
           editorRef.current?.render(content);
-          // Store the initial content hash to avoid duplicate saves
+
           lastSavedContentRef.current = JSON.stringify(content);
         } else {
           toast.error(
@@ -140,7 +135,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     if (!hasInitialized.current) {
       hasInitialized.current = true;
       editorRef.current = new EditorJS({
-        placeholder: placeholder, // Tambahkan placeholder di sini
+        placeholder: placeholder,
         onChange: () => {
           debouncedSave();
         },
@@ -155,7 +150,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
             class: Paragraph as unknown as ToolConstructable,
             inlineToolbar: true,
             config: {
-              placeholder: placeholder, // Placeholder untuk paragraph tool
+              placeholder: placeholder,
             },
           },
           table: Table,
@@ -176,7 +171,6 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     }
   }, [debouncedSave, getDocumentContent, placeholder]);
 
-  // Set up Pusher event listeners for real-time updates
   useEffect(() => {
     if (!workspaceChannel || !userEmail || !editorReady) return;
 
@@ -185,7 +179,6 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
       documentId
     );
 
-    // Document content update event handler
     const handleDocumentContentUpdated = async (data: {
       content: OutputData;
       documentId: string;
@@ -193,29 +186,23 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     }) => {
       console.log("🔥 EVENT RECEIVED document-content-updated:", data);
 
-      // Only update if it's the current document and not from the current user
       if (data.documentId === documentId && data.editorEmail !== userEmail) {
         if (editorRef.current) {
           try {
-            // Set flag to prevent triggering another save
             isProcessingExternalUpdateRef.current = true;
 
-            // Store cursor position
             const currentBlockIndex =
               editorRef.current.blocks.getCurrentBlockIndex();
             const cursorPosition = "end";
 
-            // Update the editor content
             await editorRef.current.render(data.content);
 
-            // Update the last saved content to prevent duplicate saves
             lastSavedContentRef.current = JSON.stringify(data.content);
 
             // Restore cursor position
             setTimeout(() => {
               if (editorRef.current && currentBlockIndex !== undefined) {
                 try {
-                  // Try to restore cursor to the same block if it still exists
                   if (
                     editorRef.current.blocks.getBlockByIndex(currentBlockIndex)
                   ) {
@@ -227,8 +214,6 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
                 } catch (e) {
                   console.log("Could not restore cursor position", e);
                 }
-
-                // Reset the flag after a short delay to ensure rendering is complete
                 setTimeout(() => {
                   isProcessingExternalUpdateRef.current = false;
                 }, 100);
@@ -242,15 +227,12 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
       }
     };
 
-    // Subscribe to document content events
     workspaceChannel.bind(
       "document-content-updated",
       handleDocumentContentUpdated
     );
 
-    // Cleanup
     return () => {
-      console.log("Cleaning up Pusher listeners for document content");
       workspaceChannel.unbind(
         "document-content-updated",
         handleDocumentContentUpdated
@@ -272,7 +254,6 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
               let text = block.data.text;
               const inlineTools = [];
 
-              // Find bold sections using Markdown syntax (**bold text**)
               const boldRegex = /\*\*(.*?)\*\*/g;
               let match;
 
@@ -284,7 +265,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
                   length: boldText.length,
                   type: "bold",
                 });
-                text = text.replace(`**${boldText}**`, boldText); // Remove the markdown bold characters
+                text = text.replace(`**${boldText}**`, boldText);
               }
 
               return {
@@ -352,7 +333,6 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     }
   }, [modelResponse, appendModelResponse]);
 
-  // Function to convert Editor.js data to HTML with <b> tags
   function convertEditorDataToHtml(data: OutputData): OutputData {
     const newData = { ...data };
     newData.blocks = newData.blocks.map((block) => {
@@ -360,7 +340,6 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
         let text = block.data.text;
         const inlineTools = [...block.data.inlineToolbar];
 
-        // Sort inline tools by offset (descending) to apply them correctly
         inlineTools.sort((a: any, b: any) => b.offset - a.offset);
 
         inlineTools.forEach((tool: any) => {
@@ -381,7 +360,6 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
           data: {
             ...block.data,
             text: text,
-            // Remove inlineToolbar after conversion
             inlineToolbar: undefined,
           },
         };
@@ -395,7 +373,6 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     <div className="w-full">
       <div id="editorjs" className="prose max-w-none w-full"></div>
 
-      {/* Custom CSS untuk styling placeholder */}
       <style jsx>{`
         :global(.codex-editor__redactor) {
           padding-bottom: 300px !important;

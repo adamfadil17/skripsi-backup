@@ -1,4 +1,3 @@
-// app/actions/updateMessageById.ts
 import prisma from '@/lib/prismadb';
 import { User } from '@prisma/client';
 import { pusherServer } from '@/lib/pusher';
@@ -32,7 +31,6 @@ export async function updateMessageById(
       };
     }
 
-    // Check if user is a member of the workspace
     const membership = await prisma.workspaceMember.findFirst({
       where: {
         workspaceId,
@@ -47,7 +45,6 @@ export async function updateMessageById(
       };
     }
 
-    // Find the message
     const message = await prisma.message.findUnique({
       where: {
         id: messageId,
@@ -61,7 +58,6 @@ export async function updateMessageById(
       };
     }
 
-    // Check if the user is the sender of the message
     if (message.senderId !== currentUser.id) {
       throw {
         error_type: 'Forbidden',
@@ -69,7 +65,6 @@ export async function updateMessageById(
       };
     }
 
-    // Check if the message is within the edit time window (2 minutes)
     const now = new Date();
     const messageTime = new Date(message.createdAt);
     const diffInMinutes = (now.getTime() - messageTime.getTime()) / (1000 * 60);
@@ -81,7 +76,6 @@ export async function updateMessageById(
       };
     }
 
-    // Update the message
     const updatedMessage = await prisma.message.update({
       where: {
         id: messageId,
@@ -110,7 +104,6 @@ export async function updateMessageById(
       },
     });
 
-    // Convert to ConversationMessage type
     const conversationMessage: ConversationMessage = {
       id: updatedMessage.id,
       body: updatedMessage.body,
@@ -127,7 +120,6 @@ export async function updateMessageById(
       deletedAt: updatedMessage.deletedAt || null,
     };
 
-    // Trigger Pusher event for updated message
     await pusherServer.trigger(
       `workspace-${workspaceId}`,
       'messages:update',

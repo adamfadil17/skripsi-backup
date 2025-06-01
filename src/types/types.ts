@@ -41,7 +41,6 @@ export type WorkspaceDocument = {
   } | null;
 };
 
-// Updated to ConversationMessage
 export type ConversationMessage = {
   id: string;
   body: string | null;
@@ -67,7 +66,6 @@ export type ConversationMessage = {
   deletedAt?: Date | null;
 };
 
-// Added WorkspaceConversation type
 export type WorkspaceConversation = {
   id: string;
   workspaceId: string;
@@ -110,7 +108,6 @@ export type WorkspaceInvitation = {
   };
 };
 
-// Define the main type for workspace information
 export type WorkspaceInfo = {
   id: string;
   name: string;

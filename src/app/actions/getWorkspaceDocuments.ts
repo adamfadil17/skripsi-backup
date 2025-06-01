@@ -1,4 +1,3 @@
-// lib/getWorkspaceDocuments.tsx
 import prisma from '@/lib/prismadb';
 import { WorkspaceDocument } from '@/types/types';
 import { User } from '@prisma/client';
@@ -12,7 +11,6 @@ export async function getWorkspaceDocuments(
       throw new Error('User not authenticated');
     }
 
-    // 🔐 Validasi apakah user adalah member dari workspace
     const isMember = await prisma.workspaceMember.findUnique({
       where: {
         userId_workspaceId: {
@@ -26,7 +24,6 @@ export async function getWorkspaceDocuments(
       return null;
     }
 
-    // ✅ Ambil dokumen jika user valid
     const documents = await prisma.document.findMany({
       where: { workspaceId },
       select: {

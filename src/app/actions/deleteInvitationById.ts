@@ -1,4 +1,3 @@
-// app/actions/deleteInvitationById.ts
 import prisma from '@/lib/prismadb';
 import { User } from '@prisma/client';
 import { pusherServer } from '@/lib/pusher';
@@ -29,7 +28,6 @@ export async function deleteInvitationById({
       };
     }
 
-    // Cek peran pengguna di workspace
     const workspaceUser = await prisma.workspaceMember.findUnique({
       where: {
         userId_workspaceId: { userId: currentUser.id, workspaceId },
@@ -46,7 +44,6 @@ export async function deleteInvitationById({
     const isSuperAdmin = workspaceUser.role === 'SUPER_ADMIN';
     const isAdmin = workspaceUser.role === 'ADMIN';
 
-    // Cek apakah undangan ada
     const invitation = await prisma.invitation.findUnique({
       where: { id: invitationId, workspaceId },
     });
@@ -60,7 +57,6 @@ export async function deleteInvitationById({
 
     const invitedEmail = invitation.email;
 
-    // Validasi hak akses untuk mencabut undangan
     if (
       isSuperAdmin ||
       (isAdmin && invitation.invitedById === currentUser.id)
@@ -77,7 +73,6 @@ export async function deleteInvitationById({
         }),
       ]);
 
-      // Trigger Pusher event for real-time updates
       await pusherServer.trigger(
         `workspace-${workspaceId}`,
         'invitation-removed',

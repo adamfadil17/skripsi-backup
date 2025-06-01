@@ -61,7 +61,6 @@ export async function GET(
   } catch (error: any) {
     console.error('Error fetching workspace messages:', error);
 
-    // Handle specific error types
     if (error.error_type === 'Forbidden') {
       return NextResponse.json(
         {
@@ -154,7 +153,6 @@ export async function POST(
   } catch (error: any) {
     console.error('Error sending workspace message:', error);
 
-    // Handle specific error types
     if (error.error_type === 'Forbidden') {
       return NextResponse.json(
         {

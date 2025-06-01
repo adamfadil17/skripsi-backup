@@ -19,18 +19,15 @@ export async function getGoogleCalendarClient(userId: string) {
       process.env.GOOGLE_CLIENT_SECRET
     );
 
-    // Set credentials
     oauth2Client.setCredentials({
       access_token: account.access_token,
       refresh_token: account.refresh_token,
     });
 
-    // Check if token is expired and refresh if needed
     if (account.expires_at && account.expires_at * 1000 < Date.now()) {
       try {
         const { credentials } = await oauth2Client.refreshAccessToken();
 
-        // Update the token in the database
         await prisma.account.update({
           where: { id: account.id },
           data: {

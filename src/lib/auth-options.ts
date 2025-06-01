@@ -8,7 +8,6 @@ import type { JWT } from "next-auth/jwt";
 
 import prisma from "@/lib/prismadb";
 
-// Function to refresh Google access token
 async function refreshAccessToken(token: JWT) {
   try {
     const url = "https://oauth2.googleapis.com/token";
@@ -37,7 +36,6 @@ async function refreshAccessToken(token: JWT) {
       Date.now() / 1000 + refreshedTokens.expires_in
     );
 
-    // Update the database with the new token information
     if (token.userId) {
       await prisma.account.updateMany({
         where: {
@@ -56,7 +54,7 @@ async function refreshAccessToken(token: JWT) {
       ...token,
       accessToken: refreshedTokens.access_token,
       accessTokenExpires: Date.now() + refreshedTokens.expires_in * 1000,
-      refreshToken: refreshedTokens.refresh_token ?? token.refreshToken, // Fall back to old refresh token
+      refreshToken: refreshedTokens.refresh_token ?? token.refreshToken,
     };
   } catch (error) {
     console.error("Error refreshing access token:", error);
@@ -84,7 +82,7 @@ export const authOptions: AuthOptions = {
           response_type: "code",
           scope:
             "openid email profile https://www.googleapis.com/auth/calendar",
-          prompt: "consent", // This ensures we get a refresh token
+          prompt: "consent",
         },
       },
     }),
@@ -127,7 +125,7 @@ export const authOptions: AuthOptions = {
 
   session: {
     strategy: "jwt",
-    maxAge: 24 * 60 * 60, // 1 day in seconds
+    maxAge: 24 * 60 * 60,
   },
 
   callbacks: {
@@ -140,30 +138,24 @@ export const authOptions: AuthOptions = {
           refreshToken: account.refresh_token,
           accessTokenExpires: account.expires_at
             ? account.expires_at * 1000
-            : Date.now() + 60 * 60 * 1000, // Default to 1 hour if not provided
+            : Date.now() + 60 * 60 * 1000,
           user,
           provider: account.provider,
-          userId: user.id, // Store user ID for database updates
+          userId: user.id,
         } as JWT;
       }
 
-      // Return previous token if the access token has not expired yet
       const accessTokenExpires = token.accessTokenExpires as number;
-      const shouldRefresh = Date.now() > accessTokenExpires - 5 * 60 * 1000; // Refresh 5 minutes before expiry
+      const shouldRefresh = Date.now() > accessTokenExpires - 5 * 60 * 1000;
 
       if (!shouldRefresh) {
         return token;
       }
 
-      // Access token has expired, try to update it
-      // Only refresh for providers that support refresh tokens (Google in this case)
       if (token.provider === "google" && token.refreshToken) {
         console.log("Refreshing access token...");
         return refreshAccessToken(token);
       }
-
-      // For other providers or if refresh fails, return the token as is
-      // The session will handle the expired state
       return token;
     },
 

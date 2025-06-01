@@ -47,7 +47,6 @@ export async function DELETE(
   } catch (error: any) {
     console.error('Error leaving workspace:', error);
 
-    // Handle specific error types
     if (error.error_type === 'Forbidden') {
       return NextResponse.json(
         {

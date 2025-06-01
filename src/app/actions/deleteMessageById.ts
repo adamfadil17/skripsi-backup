@@ -1,4 +1,3 @@
-// app/actions/deleteMessageById.ts
 import prisma from '@/lib/prismadb';
 import { User } from '@prisma/client';
 import { pusherServer } from '@/lib/pusher';
@@ -24,7 +23,6 @@ export async function deleteMessageById(
       };
     }
 
-    // Check if user is a member of the workspace
     const membership = await prisma.workspaceMember.findFirst({
       where: {
         workspaceId,
@@ -39,7 +37,6 @@ export async function deleteMessageById(
       };
     }
 
-    // Find the message
     const message = await prisma.message.findUnique({
       where: {
         id: messageId,
@@ -53,7 +50,6 @@ export async function deleteMessageById(
       };
     }
 
-    // Check if the user is the sender of the message
     if (message.senderId !== currentUser.id) {
       throw {
         error_type: 'Forbidden',
@@ -61,7 +57,6 @@ export async function deleteMessageById(
       };
     }
 
-    // Soft delete the message
     const now = new Date();
     const deletedMessage = await prisma.message.update({
       where: {
@@ -90,7 +85,6 @@ export async function deleteMessageById(
       },
     });
 
-    // Convert to ConversationMessage type
     const conversationMessage: ConversationMessage = {
       id: deletedMessage.id,
       body: 'This message has been deleted',
@@ -107,7 +101,6 @@ export async function deleteMessageById(
       deletedAt: deletedMessage.deletedAt || null,
     };
 
-    // Trigger Pusher event for updated message
     await pusherServer.trigger(
       `workspace-${workspaceId}`,
       'messages:update',

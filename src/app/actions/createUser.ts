@@ -1,4 +1,3 @@
-// lib/createUser.ts
 import bcrypt from 'bcrypt';
 import prisma from '@/lib/prismadb';
 import { User } from '@prisma/client';
@@ -22,7 +21,6 @@ export async function createUser(
       };
     }
 
-    // Check if user with email already exists
     const existingUser = await prisma.user.findUnique({
       where: { email },
     });
@@ -34,10 +32,8 @@ export async function createUser(
       };
     }
 
-    // Hash the password
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Create the user
     const user = await prisma.user.create({
       data: {
         name,

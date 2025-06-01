@@ -74,7 +74,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get input from request
     const body = await req.json();
     const { name, emoji, coverImage } = body;
 
@@ -94,7 +93,6 @@ export async function POST(req: NextRequest) {
         { status: 201 }
       );
     } catch (error: any) {
-      // Handle specific errors
       if (error.error_type === 'BadRequest') {
         return NextResponse.json(
           {
@@ -116,7 +114,7 @@ export async function POST(req: NextRequest) {
           { status: 401 }
         );
       } else {
-        throw error; // Re-throw for the outer catch block
+        throw error;
       }
     }
   } catch (error) {

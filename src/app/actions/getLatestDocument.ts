@@ -1,4 +1,3 @@
-// src/app/actions/getLatestDocument.ts
 import prisma from '@/lib/prismadb';
 
 export async function getLatestDocument(workspaceId: string) {

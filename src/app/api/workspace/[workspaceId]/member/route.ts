@@ -35,7 +35,6 @@ export async function GET(
       );
     }
 
-    // Panggil fungsi getWorkspaceMembers
     const members = await getWorkspaceMembers(workspaceId, currentUser);
 
     if (!members || members.length === 0) {

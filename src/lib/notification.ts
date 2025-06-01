@@ -98,7 +98,6 @@ export function isMeetingNotification(
   return notification.type === 'meeting';
 }
 
-// Function to check if a notification should be shown in the workspace filter
 export function isWorkspaceFilterNotification(
   notification: Notification
 ): boolean {
@@ -110,7 +109,6 @@ export function isWorkspaceFilterNotification(
   );
 }
 
-// Function to check if a notification should be shown in the document filter
 export function isDocumentFilterNotification(
   notification: Notification
 ): boolean {

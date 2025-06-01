@@ -34,7 +34,6 @@ export async function POST(
         },
       });
     } catch (error: any) {
-      // Handle specific errors
       if (error.error_type === 'NotFound') {
         return NextResponse.json(
           {
@@ -86,7 +85,7 @@ export async function POST(
           { status: 401 }
         );
       } else {
-        throw error; // Re-throw for the outer catch block
+        throw error;
       }
     }
   } catch (error) {

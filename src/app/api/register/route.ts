@@ -32,7 +32,6 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('Error in registration route:', error);
 
-    // Handle specific errors
     if (error.error_type === 'BadRequest') {
       return NextResponse.json(
         {
@@ -55,7 +54,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Default error response
     return NextResponse.json(
       {
         status: 'error',

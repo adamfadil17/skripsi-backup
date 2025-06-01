@@ -8,7 +8,6 @@ export async function getWorkspaceInvitations(workspaceId: string, currentUser: 
       throw new Error("User not authenticated")
     }
 
-    // Check if user is a member of the workspace
     const isMember = await prisma.workspaceMember.findUnique({
       where: {
         userId_workspaceId: {
@@ -19,10 +18,9 @@ export async function getWorkspaceInvitations(workspaceId: string, currentUser: 
     })
 
     if (!isMember) {
-      return [] // User is not a member of the workspace
+      return [] 
     }
 
-    // Get all invitations for the workspace
     const invitations = await prisma.invitation.findMany({
       where: {
         workspaceId,

@@ -1,4 +1,3 @@
-// src/app/actions/getDocumentById.ts
 import prisma from '@/lib/prismadb';
 
 export async function getDocumentById(workspaceId: string, documentId: string) {

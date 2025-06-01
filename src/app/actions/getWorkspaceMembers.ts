@@ -24,7 +24,6 @@ export async function getWorkspaceMembers(
       return [];
     }
 
-    // Ambil semua anggota di workspace langsung dari WorkspaceMember
     const members = await prisma.workspaceMember.findMany({
       where: { workspaceId },
       select: {
@@ -43,7 +42,6 @@ export async function getWorkspaceMembers(
       },
     });
 
-    // Jika tidak ada anggota, berarti workspace tidak ada atau kosong
     if (!members.length) return [];
 
     return members;

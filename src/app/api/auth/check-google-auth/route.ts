@@ -3,7 +3,6 @@ import { getServerSession } from "next-auth";
 import prisma from "@/lib/prismadb";
 import { authOptions } from "@/lib/auth-options";
 
-// Tambahkan ini untuk memaksa route menjadi dynamic
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
@@ -22,7 +21,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Check if there's a token refresh error in the session
     if (session.error === "RefreshAccessTokenError") {
       return NextResponse.json(
         {
@@ -36,7 +34,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get the user's Google account from database for scope checking
     const userAccount = await prisma.account.findFirst({
       where: {
         user: {
@@ -64,18 +61,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Check if calendar scope is included
     const hasCalendarScope =
       userAccount.scope?.includes("https://www.googleapis.com/auth/calendar") ||
       false;
 
-    // Check if token is expired
     const now = Math.floor(Date.now() / 1000);
     const isTokenExpired =
       userAccount.expires_at && userAccount.expires_at < now;
 
-    // If we have a session accessToken but the database shows expired,
-    // trust the session since it might have been refreshed
     const tokenStatus = session.accessToken ? false : isTokenExpired;
 
     return NextResponse.json(

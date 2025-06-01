@@ -36,7 +36,6 @@ export async function GET(
       );
     }
 
-    // Use the existing getWorkspaceInfo action
     const workspace = await getWorkspaceById(workspaceId, currentUser);
 
     if (!workspace) {
@@ -162,7 +161,7 @@ export async function PUT(
           { status: 404 }
         );
       } else {
-        throw error; // Re-throw for the outer catch block
+        throw error;
       }
     }
   } catch (error) {
@@ -184,7 +183,6 @@ export async function DELETE(
   { params }: { params: { workspaceId: string } }
 ) {
   try {
-    // Get current user
     const currentUser = await getCurrentUser();
     if (!currentUser?.id || !currentUser?.email) {
       return NextResponse.json(
@@ -227,7 +225,6 @@ export async function DELETE(
         { status: 200 }
       );
     } catch (error: any) {
-      // Handle specific errors
       if (error.error_type === 'BadRequest') {
         return NextResponse.json(
           {
@@ -269,7 +266,7 @@ export async function DELETE(
           { status: 404 }
         );
       } else {
-        throw error; // Re-throw for the outer catch block
+        throw error;
       }
     }
   } catch (error) {

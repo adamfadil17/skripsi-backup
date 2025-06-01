@@ -2,7 +2,6 @@ import { Suspense } from "react";
 import Image from "next/image";
 import AuthForm from "../../components/shared/AuthForm";
 
-// Loading component untuk AuthForm
 function AuthFormSkeleton() {
   return (
     <div className="sm:mx-auto sm:w-full sm:max-w-md mt-8">
@@ -70,7 +69,6 @@ export default function Home() {
           </p>
         </div>
 
-        {/* Bungkus AuthForm dengan Suspense */}
         <Suspense fallback={<AuthFormSkeleton />}>
           <AuthForm />
         </Suspense>

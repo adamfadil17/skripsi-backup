@@ -17,7 +17,6 @@ export async function POST(
 
     const { workspaceId } = params;
 
-    // Check if user is admin of the workspace
     const workspaceMember = await prisma.workspaceMember.findFirst({
       where: {
         workspaceId,
@@ -44,34 +43,31 @@ export async function POST(
       );
     }
 
-    // Set up OAuth2 client
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,
       process.env.NEXTAUTH_URL
     );
 
-    // Use the access token from the session
     oauth2Client.setCredentials({
       access_token: session.accessToken as string,
     });
 
     const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
 
-    // Create a permanent meeting
     const event = {
       summary: `${workspaceMember.workspace.name} Permanent Meeting Room`,
       description: `Permanent meeting room for ${workspaceMember.workspace.name} workspace`,
       start: {
         dateTime: new Date(
           Date.now() + 365 * 24 * 60 * 60 * 1000
-        ).toISOString(), // 1 year from now
+        ).toISOString(),
         timeZone: 'UTC',
       },
       end: {
         dateTime: new Date(
           Date.now() + 366 * 24 * 60 * 60 * 1000
-        ).toISOString(), // 1 year + 1 day from now
+        ).toISOString(),
         timeZone: 'UTC',
       },
       conferenceData: {
@@ -98,7 +94,6 @@ export async function POST(
       throw new Error('Failed to generate Google Meet link');
     }
 
-    // Update workspace with new Google Meet URL
     const updatedWorkspace = await prisma.workspace.update({
       where: { id: workspaceId },
       data: { googleMeetUrl: meetLink },
@@ -109,7 +104,6 @@ export async function POST(
       },
     });
 
-    // Create a notification about the updated meeting URL
     await prisma.notification.create({
       data: {
         workspaceId,

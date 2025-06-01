@@ -1,4 +1,3 @@
-// app/actions/createDocument.ts
 import prisma from '@/lib/prismadb';
 import { User } from '@prisma/client';
 import { pusherServer } from '@/lib/pusher';
@@ -38,7 +37,6 @@ export async function createDocument(
       };
     }
 
-    // Check if user is a member of the workspace
     const membership = await prisma.workspaceMember.findFirst({
       where: {
         workspaceId,
@@ -69,7 +67,7 @@ export async function createDocument(
                 {
                   type: 'paragraph',
                   data: {
-                    text: 'Welcome to your new workspace! Start collaborating here.',
+                    text: '',
                   },
                 },
               ],
@@ -92,7 +90,6 @@ export async function createDocument(
       },
     });
 
-    // Create notification for document creation
     await prisma.notification.create({
       data: {
         workspaceId,
@@ -103,7 +100,6 @@ export async function createDocument(
       },
     });
 
-    // Trigger Pusher event for real-time updates
     await pusherServer.trigger(`workspace-${workspaceId}`, 'document-added', {
       id: newDocument.id,
       title: newDocument.title,

@@ -1,9 +1,7 @@
-// app/actions/updateDocumentContent.ts
 import prisma from "@/lib/prismadb";
 import { User } from "@prisma/client";
 import { pusherServer } from "@/lib/pusher";
 
-// Store untuk tracking timeout notifications per document
 const notificationTimeouts = new Map<string, NodeJS.Timeout>();
 
 export async function updateDocumentContentById(
@@ -35,7 +33,6 @@ export async function updateDocumentContentById(
       };
     }
 
-    // Check if user is a member of the workspace
     const membership = await prisma.workspaceMember.findFirst({
       where: {
         workspaceId,
@@ -50,7 +47,6 @@ export async function updateDocumentContentById(
       };
     }
 
-    // Get document details for notification
     const document = await prisma.document.findUnique({
       where: { id: documentId },
       select: { title: true },
@@ -63,7 +59,6 @@ export async function updateDocumentContentById(
       };
     }
 
-    // Find the user by email to get their ID for the database
     const user = await prisma.user.findUnique({
       where: { email: currentUser.email },
       select: { id: true },
@@ -76,16 +71,14 @@ export async function updateDocumentContentById(
       };
     }
 
-    const safeContent = content ?? {}; // Ensure content is not null/undefined
+    const safeContent = content ?? {};
 
-    // Check if document content already exists in database
     const existingContent = await prisma.documentContent.findFirst({
       where: { documentId },
     });
 
     let updatedContent;
     if (existingContent) {
-      // If it exists, update it
       updatedContent = await prisma.documentContent.update({
         where: { id: existingContent.id },
         data: {
@@ -95,7 +88,6 @@ export async function updateDocumentContentById(
         },
       });
     } else {
-      // If it doesn't exist, create a new entry
       updatedContent = await prisma.documentContent.create({
         data: {
           documentId,
@@ -106,7 +98,6 @@ export async function updateDocumentContentById(
       });
     }
 
-    // Update the document's updatedBy field
     await prisma.document.update({
       where: { id: documentId },
       data: {
@@ -115,14 +106,13 @@ export async function updateDocumentContentById(
       },
     });
 
-    // Trigger immediate Pusher event for real-time content updates
     await pusherServer.trigger(
       `workspace-${workspaceId}`,
       "document-content-updated",
       {
         documentId,
         content: safeContent,
-        editorEmail, // Include the editor's email to prevent update loops
+        editorEmail,
         timestamp: new Date().toISOString(),
         documentName: document?.title,
         editedBy: {
@@ -133,7 +123,6 @@ export async function updateDocumentContentById(
       }
     );
 
-    // Handle delayed notification (3 minutes after last change)
     handleDelayedNotification(
       workspaceId,
       documentId,
@@ -152,7 +141,6 @@ export async function updateDocumentContentById(
   }
 }
 
-// Function to handle delayed notification with debouncing
 async function handleDelayedNotification(
   workspaceId: string,
   documentId: string,
@@ -161,16 +149,13 @@ async function handleDelayedNotification(
   content: any,
   editorEmail: string
 ) {
-  // Clear existing timeout for this document if it exists
   const existingTimeout = notificationTimeouts.get(documentId);
   if (existingTimeout) {
     clearTimeout(existingTimeout);
   }
 
-  // Set new timeout for 3 minutes (180000 ms)
   const timeout = setTimeout(async () => {
     try {
-      // Create notification for document content update
       await prisma.notification.create({
         data: {
           workspaceId,
@@ -181,7 +166,6 @@ async function handleDelayedNotification(
         },
       });
 
-      // Send notification via Pusher
       await pusherServer.trigger(
         `notification-${workspaceId}`,
         "document-content-updated",
@@ -199,7 +183,6 @@ async function handleDelayedNotification(
         }
       );
 
-      // Remove timeout from map after execution
       notificationTimeouts.delete(documentId);
 
       console.log(
@@ -207,11 +190,8 @@ async function handleDelayedNotification(
       );
     } catch (error) {
       console.error("Error sending delayed notification:", error);
-      // Remove timeout from map even if there's an error
       notificationTimeouts.delete(documentId);
     }
-  }, 180000); // 3 minutes = 180000 milliseconds
-
-  // Store timeout reference
+  }, 180000);
   notificationTimeouts.set(documentId, timeout);
 }

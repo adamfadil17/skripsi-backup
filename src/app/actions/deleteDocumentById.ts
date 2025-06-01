@@ -1,4 +1,3 @@
-// app/actions/deleteDocumentById.ts
 import prisma from '@/lib/prismadb';
 import { User } from '@prisma/client';
 import { pusherServer } from '@/lib/pusher';
@@ -23,7 +22,6 @@ export async function deleteDocumentById(
       };
     }
 
-    // Check if user is a member of the workspace
     const membership = await prisma.workspaceMember.findFirst({
       where: {
         workspaceId,
@@ -50,7 +48,6 @@ export async function deleteDocumentById(
       };
     }
 
-    // Store document title before deletion for notification
     const documentTitle = document.title;
 
     const [deletedDocument] = await prisma.$transaction([
@@ -65,7 +62,6 @@ export async function deleteDocumentById(
       }),
     ]);
 
-    // Trigger Pusher event for real-time updates
     await pusherServer.trigger(
       `workspace-${workspaceId}`,
       'document-removed',

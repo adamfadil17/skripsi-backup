@@ -5,7 +5,6 @@ import { google } from "googleapis";
 import { getFreshGoogleTokens } from "@/lib/auth-helpers";
 import { authOptions } from "@/lib/auth-options";
 
-// GET - Fetch all session meetings for a workspace
 export async function GET(
   request: NextRequest,
   { params }: { params: { workspaceId: string } }
@@ -22,7 +21,6 @@ export async function GET(
 
     const { workspaceId } = params;
 
-    // Check if user has access to this workspace
     const workspaceMember = await prisma.workspaceMember.findFirst({
       where: {
         workspaceId,
@@ -39,7 +37,6 @@ export async function GET(
       );
     }
 
-    // Fetch all session meetings for this workspace
     const sessionMeetings = await prisma.sessionMeeting.findMany({
       where: {
         workspaceId,
@@ -73,7 +70,6 @@ export async function GET(
   }
 }
 
-// POST - Create a new session meeting with Google Meet integration
 export async function POST(
   request: NextRequest,
   { params }: { params: { workspaceId: string } }
@@ -92,7 +88,6 @@ export async function POST(
     const { title, description, duration, organizerEmail } =
       await request.json();
 
-    // Validate required fields
     if (!title || !duration) {
       return NextResponse.json(
         { error: "Missing required fields" },
@@ -100,7 +95,6 @@ export async function POST(
       );
     }
 
-    // Check if user has access to this workspace
     const workspaceMember = await prisma.workspaceMember.findFirst({
       where: {
         workspaceId,
@@ -117,7 +111,6 @@ export async function POST(
       );
     }
 
-    // Get fresh Google tokens using our helper function
     let tokens;
     try {
       tokens = await getFreshGoogleTokens(session.user.email);
@@ -132,14 +125,12 @@ export async function POST(
       );
     }
 
-    // Set up OAuth2 client with fresh tokens
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,
       process.env.NEXTAUTH_URL
     );
 
-    // Set credentials
     oauth2Client.setCredentials({
       access_token: tokens.access_token,
       refresh_token: tokens.refresh_token,
@@ -147,11 +138,9 @@ export async function POST(
 
     const calendar = google.calendar({ version: "v3", auth: oauth2Client });
 
-    // Calculate start and end times
     const startTime = new Date();
     const endTime = new Date(startTime.getTime() + duration * 60000);
 
-    // Create calendar event with Google Meet
     const event = {
       summary: title,
       description: description || `Meeting for workspace: ${workspaceId}`,
@@ -197,13 +186,12 @@ export async function POST(
       throw new Error("User not found");
     }
 
-    // Save the meeting to the SessionMeeting model with Google Event ID
     const sessionMeeting = await prisma.sessionMeeting.create({
       data: {
         title,
         description: description || `Meeting for workspace: ${workspaceId}`,
         meetLink,
-        googleEventId: response.data.id, // Store the Google Calendar event ID
+        googleEventId: response.data.id,
         startTime: startTime,
         endTime: endTime,
         workspaceId,
@@ -220,7 +208,6 @@ export async function POST(
       },
     });
 
-    // Create a notification about the new meeting
     await prisma.notification.create({
       data: {
         workspaceId,
@@ -238,7 +225,6 @@ export async function POST(
   } catch (error) {
     console.error("Error creating session meeting:", error);
 
-    // Provide more specific error messages
     if (error instanceof Error) {
       if (
         error.message.includes("Invalid Credentials") ||

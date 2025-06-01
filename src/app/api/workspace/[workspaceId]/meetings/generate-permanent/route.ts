@@ -20,7 +20,6 @@ export async function POST(
 
     const { workspaceId } = params;
 
-    // Check if user has access to this workspace
     const workspaceMember = await prisma.workspaceMember.findFirst({
       where: {
         workspaceId,
@@ -45,7 +44,6 @@ export async function POST(
       );
     }
 
-    // If workspace already has a Google Meet URL, return it
     if (workspaceMember.workspace.googleMeetUrl) {
       return NextResponse.json({
         googleMeetUrl: workspaceMember.workspace.googleMeetUrl,
@@ -53,7 +51,6 @@ export async function POST(
       });
     }
 
-    // Get the user's Google account with fresh tokens
     const userAccount = await prisma.account.findFirst({
       where: {
         user: {
@@ -78,7 +75,6 @@ export async function POST(
       );
     }
 
-    // Check if token is expired
     const now = Math.floor(Date.now() / 1000);
     const isTokenExpired =
       userAccount.expires_at && userAccount.expires_at < now;
@@ -93,25 +89,21 @@ export async function POST(
       );
     }
 
-    // Set up OAuth2 client
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,
       process.env.NEXTAUTH_URL
     );
 
-    // Set credentials
     oauth2Client.setCredentials({
       access_token: userAccount.access_token,
       refresh_token: userAccount.refresh_token,
     });
 
-    // If token is expired, try to refresh it
     if (isTokenExpired && userAccount.refresh_token) {
       try {
         const { credentials } = await oauth2Client.refreshAccessToken();
 
-        // Update the database with new tokens
         await prisma.account.updateMany({
           where: {
             userId: (
@@ -131,7 +123,6 @@ export async function POST(
           },
         });
 
-        // Update OAuth2 client with new credentials
         oauth2Client.setCredentials(credentials);
       } catch (refreshError) {
         console.error('Error refreshing token:', refreshError);
@@ -147,20 +138,19 @@ export async function POST(
 
     const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
 
-    // Create a permanent meeting
     const event = {
       summary: `${workspaceMember.workspace.name} Permanent Meeting Room`,
       description: `Permanent meeting room for ${workspaceMember.workspace.name} workspace`,
       start: {
         dateTime: new Date(
           Date.now() + 365 * 24 * 60 * 60 * 1000
-        ).toISOString(), // 1 year from now
+        ).toISOString(),
         timeZone: 'UTC',
       },
       end: {
         dateTime: new Date(
           Date.now() + 366 * 24 * 60 * 60 * 1000
-        ).toISOString(), // 1 year + 1 day from now
+        ).toISOString(),
         timeZone: 'UTC',
       },
       conferenceData: {
@@ -187,7 +177,6 @@ export async function POST(
       throw new Error('Failed to generate Google Meet link');
     }
 
-    // Update workspace with new Google Meet URL
     const updatedWorkspace = await prisma.workspace.update({
       where: { id: workspaceId },
       data: { googleMeetUrl: meetLink },
@@ -198,7 +187,6 @@ export async function POST(
       },
     });
 
-    // Create a notification about the new meeting URL
     await prisma.notification.create({
       data: {
         workspaceId,
@@ -217,7 +205,6 @@ export async function POST(
   } catch (error) {
     console.error('Error generating permanent meeting link:', error);
 
-    // Provide more specific error messages
     if (error instanceof Error) {
       if (
         error.message.includes('Invalid Credentials') ||

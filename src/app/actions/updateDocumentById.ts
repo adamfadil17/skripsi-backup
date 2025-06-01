@@ -1,4 +1,3 @@
-// app/actions/updateDocumentById.ts
 import prisma from '@/lib/prismadb';
 import { User } from '@prisma/client';
 import { pusherServer } from '@/lib/pusher';
@@ -30,7 +29,6 @@ export async function updateDocumentById(
       };
     }
 
-    // Check if user is a member of the workspace
     const membership = await prisma.workspaceMember.findFirst({
       where: {
         workspaceId,
@@ -58,7 +56,6 @@ export async function updateDocumentById(
       };
     }
 
-    // Prepare update data before checking for changes
     const documentUpdateData: any = {};
     if (title !== undefined) documentUpdateData.title = title;
     if (emoji !== undefined) documentUpdateData.emoji = emoji;
@@ -69,34 +66,18 @@ export async function updateDocumentById(
       documentUpdateData.updatedById = currentUser.id;
     }
 
-    // Check if there are actual changes to make
     const hasChanges =
       (title !== undefined && title !== document.title) ||
       (emoji !== undefined && emoji !== document.emoji) ||
       (coverImage !== undefined && coverImage !== document.coverImage);
 
-    // Log what's happening
-    console.log('Document update requested:', {
-      current: {
-        title: document.title,
-        emoji: document.emoji,
-        coverImage: document.coverImage,
-      },
-      requested: { title, emoji, coverImage },
-      hasChanges,
-      documentUpdateData,
-    });
-
-    // Only proceed with update if there are changes to make
     if (Object.keys(documentUpdateData).length === 0) {
-      // Return existing document if no changes
       return {
         noChanges: true,
         document,
       };
     }
 
-    // Proceed with update
     const updatedDocument = await prisma.document.update({
       where: { id: documentId },
       data: documentUpdateData,
@@ -120,9 +101,7 @@ export async function updateDocumentById(
       },
     });
 
-    // Only create notification and trigger Pusher events if there were actual changes
     if (hasChanges) {
-      // Create notification for document update
     await prisma.notification.create({
         data: {
           workspaceId,
@@ -133,7 +112,6 @@ export async function updateDocumentById(
         },
       });
 
-      // Trigger Pusher event for real-time updates
       await pusherServer.trigger(
         `workspace-${workspaceId}`,
         'document-updated',

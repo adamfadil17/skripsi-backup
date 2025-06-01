@@ -5,7 +5,6 @@ import { google } from "googleapis";
 import { getFreshGoogleTokens } from "@/lib/auth-helpers";
 import { authOptions } from "@/lib/auth-options";
 
-// GET - Fetch a specific session meeting
 export async function GET(
   request: NextRequest,
   { params }: { params: { workspaceId: string; meetingId: string } }
@@ -22,7 +21,6 @@ export async function GET(
 
     const { workspaceId, meetingId } = params;
 
-    // Check if user has access to this workspace
     const workspaceMember = await prisma.workspaceMember.findFirst({
       where: {
         workspaceId,
@@ -39,7 +37,6 @@ export async function GET(
       );
     }
 
-    // Fetch the specific session meeting
     const sessionMeeting = await prisma.sessionMeeting.findFirst({
       where: {
         id: meetingId,
@@ -78,7 +75,6 @@ export async function GET(
   }
 }
 
-// PUT - Update a session meeting
 export async function PUT(
   request: NextRequest,
   { params }: { params: { workspaceId: string; meetingId: string } }
@@ -96,7 +92,6 @@ export async function PUT(
     const { workspaceId, meetingId } = params;
     const { title, description, duration } = await request.json();
 
-    // Validate required fields
     if (!title || !duration) {
       return NextResponse.json(
         { error: "Missing required fields" },
@@ -104,7 +99,6 @@ export async function PUT(
       );
     }
 
-    // Check if user has access to this workspace
     const workspaceMember = await prisma.workspaceMember.findFirst({
       where: {
         workspaceId,
@@ -121,7 +115,6 @@ export async function PUT(
       );
     }
 
-    // Get the existing meeting
     const existingMeeting = await prisma.sessionMeeting.findFirst({
       where: {
         id: meetingId,
@@ -136,17 +129,14 @@ export async function PUT(
       );
     }
 
-    // Get fresh Google tokens
     let tokens;
     let calendarSynced = false;
     try {
       tokens = await getFreshGoogleTokens(session.user.email);
     } catch (error) {
       console.warn("Could not get Google tokens for calendar update:", error);
-      // Continue with database update even if we can't update calendar
     }
 
-    // Try to update Google Calendar event
     if (tokens && existingMeeting.googleEventId) {
       try {
         const oauth2Client = new google.auth.OAuth2(
@@ -162,11 +152,8 @@ export async function PUT(
 
         const calendar = google.calendar({ version: "v3", auth: oauth2Client });
 
-        // Calculate new start and end times
         const startTime = new Date();
         const endTime = new Date(startTime.getTime() + duration * 60000);
-
-        // Update the Google Calendar event
         const updatedEvent = {
           summary: title,
           description:
@@ -194,7 +181,6 @@ export async function PUT(
         console.log("Google Calendar event updated successfully");
       } catch (calendarError) {
         console.error("Error updating Google Calendar event:", calendarError);
-        // Continue with database update even if calendar update fails
       }
     } else {
       console.log(
@@ -202,11 +188,8 @@ export async function PUT(
       );
     }
 
-    // Calculate new start and end times for database
     const startTime = new Date();
     const endTime = new Date(startTime.getTime() + duration * 60000);
-
-    // Update the meeting in the database
     const updatedMeeting = await prisma.sessionMeeting.update({
       where: {
         id: meetingId,
@@ -235,7 +218,6 @@ export async function PUT(
     });
 
     if (user) {
-      // Create a notification about the updated meeting
       await prisma.notification.create({
         data: {
           workspaceId,
@@ -281,7 +263,6 @@ export async function PUT(
   }
 }
 
-// DELETE - Delete a session meeting
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { workspaceId: string; meetingId: string } }
@@ -298,7 +279,6 @@ export async function DELETE(
 
     const { workspaceId, meetingId } = params;
 
-    // Check if user has access to this workspace
     const workspaceMember = await prisma.workspaceMember.findFirst({
       where: {
         workspaceId,
@@ -315,7 +295,6 @@ export async function DELETE(
       );
     }
 
-    // Get the existing meeting
     const existingMeeting = await prisma.sessionMeeting.findFirst({
       where: {
         id: meetingId,
@@ -339,7 +318,6 @@ export async function DELETE(
       );
     }
 
-    // Get fresh Google tokens
     let tokens;
     let calendarSynced = false;
 
@@ -347,10 +325,8 @@ export async function DELETE(
       tokens = await getFreshGoogleTokens(session.user.email);
     } catch (error) {
       console.warn("Could not get Google tokens for calendar deletion:", error);
-      // Continue with database deletion even if we can't delete from calendar
     }
 
-    // Try to delete from Google Calendar
     if (tokens && existingMeeting.googleEventId) {
       try {
         const oauth2Client = new google.auth.OAuth2(
@@ -378,7 +354,6 @@ export async function DELETE(
         console.log("Google Calendar event deleted successfully");
       } catch (calendarError) {
         console.error("Error deleting Google Calendar event:", calendarError);
-        // Continue with database deletion even if calendar deletion fails
       }
     } else {
       console.log(
@@ -386,20 +361,17 @@ export async function DELETE(
       );
     }
 
-    // Delete the meeting from the database
     await prisma.sessionMeeting.delete({
       where: {
         id: meetingId,
       },
     });
 
-    // Get the user for notification
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
     });
 
     if (user) {
-      // Create a notification about the deleted meeting
       await prisma.notification.create({
         data: {
           workspaceId,

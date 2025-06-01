@@ -4,7 +4,6 @@ import { useMemo } from 'react';
 import type { User } from '@prisma/client';
 import type { WorkspaceMember } from '@/types/types';
 
-// Hook to identify other users in a conversation
 export const useOtherUsers = (
   members: WorkspaceMember[] | undefined,
   currentUser: User | null | undefined

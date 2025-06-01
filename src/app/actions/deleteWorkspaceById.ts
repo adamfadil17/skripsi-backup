@@ -1,4 +1,3 @@
-// lib/deleteWorkspaceById.ts
 import prisma from '@/lib/prismadb';
 import { User } from '@prisma/client';
 import { pusherServer } from '@/lib/pusher';
@@ -22,7 +21,6 @@ export async function deleteWorkspaceById(
       };
     }
 
-    // Find workspace by id, include members for role validation
     const workspace = await prisma.workspace.findUnique({
       where: { id: workspaceId },
       include: { members: true },
@@ -35,7 +33,6 @@ export async function deleteWorkspaceById(
       };
     }
 
-    // Validate if currentUser is SUPER_ADMIN in the workspace
     const isOwner = workspace.members.some(
       (member) =>
         member.userId === currentUser.id && member.role === 'SUPER_ADMIN'
@@ -48,12 +45,10 @@ export async function deleteWorkspaceById(
       };
     }
 
-    // Delete workspace
     const deletedWorkspace = await prisma.workspace.delete({
       where: { id: workspaceId },
     });
 
-    // Trigger Pusher event for real-time updates
     await pusherServer.trigger(
       `workspace-${workspaceId}`,
       'workspace-deleted',

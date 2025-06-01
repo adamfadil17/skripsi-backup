@@ -1,4 +1,3 @@
-// app/actions/getWorkspaceConversation.ts
 import prisma from '@/lib/prismadb';
 import { User } from '@prisma/client';
 import type { WorkspaceConversation } from '@/types/types';
@@ -22,7 +21,6 @@ export async function getWorkspaceConversations(
       };
     }
 
-    // Check if user is a member of the workspace and get join date
     const membership = await prisma.workspaceMember.findFirst({
       where: {
         workspaceId,
@@ -40,10 +38,8 @@ export async function getWorkspaceConversations(
       };
     }
 
-    // Get user join date
     const userJoinDate = membership.joinedAt;
 
-    // Find or create conversation for the workspace
     let conversation = await prisma.conversation.findUnique({
       where: {
         workspaceId,
@@ -51,7 +47,7 @@ export async function getWorkspaceConversations(
       include: {
         messages: {
           where: {
-            createdAt: { gte: userJoinDate }, // Only include messages after join date
+            createdAt: { gte: userJoinDate },
           },
           include: {
             sender: {
@@ -85,7 +81,7 @@ export async function getWorkspaceConversations(
         include: {
           messages: {
             where: {
-              createdAt: { gte: userJoinDate }, // Only include messages after join date
+              createdAt: { gte: userJoinDate },
             },
             include: {
               sender: {
@@ -112,14 +108,12 @@ export async function getWorkspaceConversations(
       });
     }
 
-    // Convert to WorkspaceConversation type
     const workspaceConversation: WorkspaceConversation = {
       id: conversation.id,
       workspaceId: conversation.workspaceId,
       lastMessageAt: conversation.lastMessageAt,
       messages: conversation.messages.map((message) => ({
         id: message.id,
-        // Replace body for deleted messages
         body: message.isDeleted
           ? 'This message has been deleted'
           : message.body,
@@ -130,7 +124,6 @@ export async function getWorkspaceConversations(
         seenIds: message.seenIds,
         seenBy: message.seenBy,
         sender: message.sender,
-        // Include these important properties
         isDeleted: message.isDeleted || false,
         deletedAt: message.deletedAt || null,
         isEdited: message.isEdited || false,

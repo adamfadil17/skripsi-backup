@@ -1,4 +1,3 @@
-// lib/acceptInvitation.ts
 import prisma from '@/lib/prismadb';
 import { User } from '@prisma/client';
 import { pusherServer } from '@/lib/pusher';
@@ -39,7 +38,6 @@ export async function acceptInvitation(
       };
     }
 
-    // Check if email matches the invitation
     if (currentUser.email !== invitation.email) {
       throw {
         error_type: 'Forbidden',
@@ -47,7 +45,6 @@ export async function acceptInvitation(
       };
     }
 
-    // Check if user is already a workspace member
     const existingMember = await prisma.workspaceMember.findFirst({
       where: {
         workspaceId: invitation.workspaceId,
@@ -69,7 +66,6 @@ export async function acceptInvitation(
       };
     }
 
-    // Add user to workspace
     const [newMember, _] = await prisma.$transaction([
       prisma.workspaceMember.create({
         data: {
@@ -99,7 +95,6 @@ export async function acceptInvitation(
       }),
     ]);
 
-    // Trigger Pusher events
     await pusherServer.trigger(
       `workspace-${invitation.workspaceId}`,
       'member-added',

@@ -1,10 +1,8 @@
-// app/api/workspaces/[workspaceId]/invitations/route.ts
 import { type NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
 import { getWorkspaceInvitations } from '@/app/actions/getWorkspaceInvitations';
 import { createInvitation } from '@/app/actions/createInvitation';
 
-// GET method remains the same
 export async function GET(
   req: NextRequest,
   { params }: { params: { workspaceId: string } }
@@ -38,7 +36,6 @@ export async function GET(
       );
     }
 
-    // Call the getWorkspaceInvitations function
     const invitations = await getWorkspaceInvitations(workspaceId, currentUser);
 
     if (!invitations) {
@@ -75,7 +72,6 @@ export async function GET(
   }
 }
 
-// Refactored POST method to use createInvitation action
 export async function POST(
   req: NextRequest,
   { params }: { params: { workspaceId: string } }
@@ -111,7 +107,6 @@ export async function POST(
     }
 
     try {
-      // Use the createInvitation action
       const invitation = await createInvitation({
         email,
         workspaceId,
@@ -129,7 +124,6 @@ export async function POST(
         { status: 201 }
       );
     } catch (error: any) {
-      // Handle specific error types
       if (error.error_type === 'BadRequest') {
         return NextResponse.json(
           {
@@ -174,7 +168,7 @@ export async function POST(
           { status: 400 }
         );
       } else {
-        throw error; // Re-throw for the outer catch block
+        throw error;
       }
     }
   } catch (error) {

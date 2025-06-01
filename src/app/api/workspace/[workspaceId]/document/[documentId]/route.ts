@@ -1,4 +1,3 @@
-// app/api/workspaces/[workspaceId]/documents/[documentId]/route.ts
 import { type NextRequest, NextResponse } from 'next/server';
 import { getDocumentById } from '@/app/actions/getDocumentById';
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
@@ -109,7 +108,6 @@ export async function PATCH(
       currentUser
     );
 
-    // Handle "no changes" case
     if (result.noChanges) {
       return NextResponse.json(
         {
@@ -132,9 +130,7 @@ export async function PATCH(
       { status: 200 }
     );
   } catch (error: any) {
-    console.error('Error updating document:', error);
 
-    // Handle specific error types
     if (error.error_type === 'Forbidden') {
       return NextResponse.json(
         {
