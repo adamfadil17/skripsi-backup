@@ -393,18 +393,20 @@ export function AppSidebar({
                     className="flex w-full justify-between py-1.5 px-2"
                   >
                     <div className="flex items-center gap-2 max-w-[120px]">
-                      <Avatar className="h-6 w-6 flex-shrink-0">
-                        <AvatarImage
-                          src={member.user.image || "/placeholder.svg"}
-                          alt={member.user.name || "avatar"}
-                        />
-                        <AvatarFallback>
-                          {member.user.name?.charAt(0)}
-                        </AvatarFallback>
-                      </Avatar>
-                      {isUserActive(currentUser?.email) && (
-                        <span className="absolute top-0 right-0 block rounded-full bg-green-500 ring-2 ring-white h-2 w-2 -mt-0.5 mr-0.5" />
-                      )}
+                      <div className="relative">
+                        <Avatar className="h-6 w-6 flex-shrink-0">
+                          <AvatarImage
+                            src={member.user.image || "/placeholder.svg"}
+                            alt={member.user.name || "avatar"}
+                          />
+                          <AvatarFallback>
+                            {member.user.name?.charAt(0)}
+                          </AvatarFallback>
+                        </Avatar>
+                        {isUserActive(member.user.email) && (
+                          <span className="absolute top-0 right-0 block rounded-full bg-green-500 ring-2 ring-white h-2 w-2 -mt-0.5 mr-0.5" />
+                        )}
+                      </div>
                       <span className="truncate">{member.user.name}</span>
                     </div>
                     <Badge
