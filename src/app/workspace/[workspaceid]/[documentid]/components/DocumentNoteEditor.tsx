@@ -649,7 +649,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     <div className="w-full relative">
       {/* Collaboration indicator - moved to left */}
       {isCollaborating && (
-        <div className="fixed top-4 left-4 z-50 bg-blue-500 text-white px-4 py-2 rounded-md text-sm shadow-lg">
+        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 bg-blue-500 text-white px-4 py-2 rounded-md text-sm shadow-lg">
           <div className="flex items-center space-x-2">
             <div className="flex space-x-1">
               <div className="w-2 h-2 bg-white rounded-full animate-bounce"></div>
@@ -669,7 +669,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
 
       {/* Image upload indicator */}
       {isUploading && (
-        <div className="fixed top-4 right-4 z-50 bg-green-500 text-white px-4 py-2 rounded-md text-sm shadow-lg">
+        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 bg-green-500 text-white px-4 py-2 rounded-md text-sm shadow-lg">
           <div className="flex items-center space-x-2">
             <div className="animate-spin h-4 w-4 border-2 border-white rounded-full border-t-transparent"></div>
             <span>Uploading image...</span>
