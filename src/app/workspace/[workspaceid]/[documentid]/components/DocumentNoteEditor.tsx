@@ -25,6 +25,28 @@ interface DocumentNoteEditorProps {
   placeholder?: string;
 }
 
+interface EditorState {
+  blockIndex: number;
+  caretPosition: "end" | "start" | "default";
+  blockContent?: string;
+}
+
+// Add proper type for Editor.js events
+interface BlockMutationEvent {
+  type: string;
+  detail: {
+    target: {
+      name: string;
+    };
+    index?: number;
+  };
+}
+
+interface EditorChangeEvent {
+  type?: string;
+  detail?: any;
+}
+
 const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
   workspaceId,
   documentId,
@@ -41,63 +63,139 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
   const lastSavedContentRef = useRef<string>("");
   const isProcessingExternalUpdateRef = useRef(false);
   const [editorReady, setEditorReady] = useState(false);
+  const [isCollaborating, setIsCollaborating] = useState(false);
+  const pendingUpdatesRef = useRef<OutputData[]>([]);
+  const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const { channel: workspaceChannel } = usePusherChannelContext();
 
-  function debounce(func: Function, wait: number) {
+  // Enhanced debounce with immediate execution option
+  function debounce(func: Function, wait: number, immediate = false) {
     let timeout: NodeJS.Timeout;
     return function executedFunction(...args: any[]) {
       const later = () => {
         clearTimeout(timeout);
-        func(...args);
+        if (!immediate) func(...args);
       };
+      const callNow = immediate && !timeout;
       clearTimeout(timeout);
       timeout = setTimeout(later, wait);
+      if (callNow) func(...args);
     };
   }
 
-  const onSaveDocumentContent = useCallback(async () => {
-    if (
-      editorRef.current &&
-      !isProcessingExternalUpdateRef.current &&
-      userEmail
-    ) {
-      try {
-        const outputData = await editorRef.current.save();
-        const formattedContent = convertEditorDataToHtml(outputData);
+  // Capture current editor state
+  const captureEditorState = useCallback((): EditorState | null => {
+    if (!editorRef.current) return null;
 
-        const contentString = JSON.stringify(formattedContent);
-        if (contentString === lastSavedContentRef.current) {
-          return;
-        }
+    try {
+      const currentBlockIndex = editorRef.current.blocks.getCurrentBlockIndex();
+      const currentBlock =
+        editorRef.current.blocks.getBlockByIndex(currentBlockIndex);
 
-        lastSavedContentRef.current = contentString;
-
-        const response = await axios.put(
-          `/api/workspace/${workspaceId}/document/${documentId}/content/`,
-          {
-            content: formattedContent,
-            userEmail: userEmail,
-          }
-        );
-
-        if (response.data?.status !== "success") {
-          toast.error(
-            response.data?.message || "Failed to save document content"
-          );
-        }
-      } catch (error: any) {
-        toast.error(
-          error.response?.data?.message || "An unexpected error occurred."
-        );
-      }
+      return {
+        blockIndex: currentBlockIndex,
+        caretPosition: "end", // Simplified for now
+        blockContent: currentBlock?.holder?.textContent || "",
+      };
+    } catch (error) {
+      console.log("Could not capture editor state:", error);
+      return null;
     }
-  }, [workspaceId, documentId, userEmail]);
+  }, []);
 
+  // Restore editor state with smooth transition
+  const restoreEditorState = useCallback(
+    (state: EditorState | null, delay = 50) => {
+      if (!state || !editorRef.current) return;
+
+      setTimeout(() => {
+        if (editorRef.current) {
+          try {
+            const totalBlocks = editorRef.current.blocks.getBlocksCount();
+            const targetIndex = Math.min(state.blockIndex, totalBlocks - 1);
+
+            if (targetIndex >= 0) {
+              editorRef.current.caret.setToBlock(
+                targetIndex,
+                state.caretPosition
+              );
+            }
+          } catch (error) {
+            console.log("Could not restore editor state:", error);
+          }
+        }
+      }, delay);
+    },
+    []
+  );
+
+  // Enhanced save with conflict resolution
+  const onSaveDocumentContent = useCallback(
+    async (force = false) => {
+      if (
+        editorRef.current &&
+        !isProcessingExternalUpdateRef.current &&
+        userEmail
+      ) {
+        try {
+          const outputData = await editorRef.current.save();
+          const formattedContent = convertEditorDataToHtml(outputData);
+          const contentString = JSON.stringify(formattedContent);
+
+          if (!force && contentString === lastSavedContentRef.current) {
+            return;
+          }
+
+          lastSavedContentRef.current = contentString;
+
+          const response = await axios.put(
+            `/api/workspace/${workspaceId}/document/${documentId}/content/`,
+            {
+              content: formattedContent,
+              userEmail: userEmail,
+              timestamp: Date.now(), // Add timestamp for conflict resolution
+            }
+          );
+
+          if (response.data?.status !== "success") {
+            toast.error(
+              response.data?.message || "Failed to save document content"
+            );
+          }
+        } catch (error: any) {
+          if (error.response?.status === 409) {
+            // Conflict detected - refresh content
+            toast.error("Document was updated by another user. Refreshing...");
+            await getDocumentContent();
+          } else {
+            toast.error(
+              error.response?.data?.message || "An unexpected error occurred."
+            );
+          }
+        }
+      }
+    },
+    [workspaceId, documentId, userEmail]
+  );
+
+  // Optimized debounced save
   const debouncedSave = useCallback(
     debounce(() => {
       onSaveDocumentContent();
-    }, 500),
+    }, 800), // Increased delay to reduce server load
+    [onSaveDocumentContent]
+  );
+
+  // Immediate save for critical updates
+  const immediateSave = useCallback(
+    debounce(
+      () => {
+        onSaveDocumentContent(true);
+      },
+      100,
+      true
+    ),
     [onSaveDocumentContent]
   );
 
@@ -114,7 +212,6 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
         ) {
           const content = response.data.data.content;
           editorRef.current?.render(content);
-
           lastSavedContentRef.current = JSON.stringify(content);
         } else {
           toast.error(
@@ -131,13 +228,80 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     }
   }, [workspaceId, documentId]);
 
+  // Batch process pending updates
+  const processPendingUpdates = useCallback(async () => {
+    if (
+      pendingUpdatesRef.current.length === 0 ||
+      isProcessingExternalUpdateRef.current
+    ) {
+      return;
+    }
+
+    const latestUpdate =
+      pendingUpdatesRef.current[pendingUpdatesRef.current.length - 1];
+    pendingUpdatesRef.current = [];
+
+    if (editorRef.current) {
+      const currentState = captureEditorState();
+
+      try {
+        isProcessingExternalUpdateRef.current = true;
+
+        // Show collaboration indicator
+        setIsCollaborating(true);
+
+        await editorRef.current.render(latestUpdate);
+        lastSavedContentRef.current = JSON.stringify(latestUpdate);
+
+        // Restore cursor position after a short delay
+        restoreEditorState(currentState, 100);
+
+        // Hide collaboration indicator after animation
+        setTimeout(() => {
+          setIsCollaborating(false);
+        }, 500);
+      } catch (error) {
+        console.error("Error processing update:", error);
+      } finally {
+        setTimeout(() => {
+          isProcessingExternalUpdateRef.current = false;
+        }, 150);
+      }
+    }
+  }, [captureEditorState, restoreEditorState]);
+
   const initEditor = useCallback(() => {
     if (!hasInitialized.current) {
       hasInitialized.current = true;
       editorRef.current = new EditorJS({
         placeholder: placeholder,
-        onChange: () => {
-          debouncedSave();
+        onChange: (api, event) => {
+          // Handle different event types safely
+          let eventType = "";
+
+          if (Array.isArray(event)) {
+            // If event is an array, get the first event's type
+            eventType =
+              event.length > 0 &&
+              event[0] &&
+              typeof event[0] === "object" &&
+              "type" in event[0]
+                ? (event[0] as any).type
+                : "";
+          } else if (event && typeof event === "object" && "type" in event) {
+            eventType = (event as any).type;
+          }
+
+          // Use different save strategies based on event type
+          if (
+            eventType === "block-added" ||
+            eventType === "block-removed" ||
+            eventType === "block-moved"
+          ) {
+            immediateSave();
+          } else {
+            debouncedSave();
+          }
         },
         onReady: () => {
           getDocumentContent();
@@ -169,7 +333,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
         },
       });
     }
-  }, [debouncedSave, getDocumentContent, placeholder]);
+  }, [debouncedSave, immediateSave, getDocumentContent, placeholder]);
 
   useEffect(() => {
     if (!workspaceChannel || !userEmail || !editorReady) return;
@@ -183,46 +347,33 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
       content: OutputData;
       documentId: string;
       editorEmail: string;
+      timestamp?: number;
     }) => {
       console.log("🔥 EVENT RECEIVED document-content-updated:", data);
 
       if (data.documentId === documentId && data.editorEmail !== userEmail) {
-        if (editorRef.current) {
-          try {
-            isProcessingExternalUpdateRef.current = true;
+        // Add to pending updates queue
+        pendingUpdatesRef.current.push(data.content);
 
-            const currentBlockIndex =
-              editorRef.current.blocks.getCurrentBlockIndex();
-            const cursorPosition = "end";
-
-            await editorRef.current.render(data.content);
-
-            lastSavedContentRef.current = JSON.stringify(data.content);
-
-            setTimeout(() => {
-              if (editorRef.current && currentBlockIndex !== undefined) {
-                try {
-                  if (
-                    editorRef.current.blocks.getBlockByIndex(currentBlockIndex)
-                  ) {
-                    editorRef.current.caret.setToBlock(
-                      currentBlockIndex,
-                      cursorPosition
-                    );
-                  }
-                } catch (e) {
-                  console.log("Could not restore cursor position", e);
-                }
-                setTimeout(() => {
-                  isProcessingExternalUpdateRef.current = false;
-                }, 100);
-              }
-            }, 100);
-          } catch (error) {
-            console.error("Error updating editor content:", error);
-            isProcessingExternalUpdateRef.current = false;
-          }
+        // Clear existing timeout and set new one
+        if (updateTimeoutRef.current) {
+          clearTimeout(updateTimeoutRef.current);
         }
+
+        // Process updates with a slight delay to batch them
+        updateTimeoutRef.current = setTimeout(() => {
+          processPendingUpdates();
+        }, 100);
+      }
+    };
+
+    const handleUserTyping = (data: {
+      documentId: string;
+      userEmail: string;
+      isTyping: boolean;
+    }) => {
+      if (data.documentId === documentId && data.userEmail !== userEmail) {
+        setIsCollaborating(data.isTyping);
       }
     };
 
@@ -230,15 +381,28 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
       "document-content-updated",
       handleDocumentContentUpdated
     );
+    workspaceChannel.bind("user-typing", handleUserTyping);
 
     return () => {
       workspaceChannel.unbind(
         "document-content-updated",
         handleDocumentContentUpdated
       );
-    };
-  }, [workspaceChannel, documentId, userEmail, editorReady]);
+      workspaceChannel.unbind("user-typing", handleUserTyping);
 
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+      }
+    };
+  }, [
+    workspaceChannel,
+    documentId,
+    userEmail,
+    editorReady,
+    processPendingUpdates,
+  ]);
+
+  // Enhanced model response appending with smooth scrolling
   const appendModelResponse = useCallback(
     async (response: any) => {
       if (!editorRef.current) return;
@@ -300,14 +464,25 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
 
         await editorRef.current.render(updatedContent);
 
+        // Smooth scroll to new content
         setTimeout(() => {
           if (editorRef.current) {
             const lastBlockIndex = updatedContent.blocks.length - 1;
             editorRef.current.caret.setToBlock(lastBlockIndex, "end");
-          }
-        }, 300);
 
-        onSaveDocumentContent();
+            // Smooth scroll into view
+            const editorElement = document.getElementById("editorjs");
+            if (editorElement) {
+              const lastBlock = editorElement.lastElementChild;
+              lastBlock?.scrollIntoView({
+                behavior: "smooth",
+                block: "end",
+              });
+            }
+          }
+        }, 200);
+
+        onSaveDocumentContent(true);
       } catch (error) {
         console.error("Error appending model response:", error);
       }
@@ -369,12 +544,26 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
   }
 
   return (
-    <div className="w-full">
-      <div id="editorjs" className="prose max-w-none w-full"></div>
+    <div className="w-full relative">
+      {/* Collaboration indicator */}
+      {isCollaborating && (
+        <div className="absolute top-0 right-0 z-50 bg-blue-500 text-white px-3 py-1 rounded-bl-md text-sm animate-pulse">
+          <div className="flex items-center space-x-2">
+            <div className="w-2 h-2 bg-white rounded-full animate-bounce"></div>
+            <span>Someone is editing...</span>
+          </div>
+        </div>
+      )}
+
+      <div
+        id="editorjs"
+        className="prose max-w-none w-full transition-opacity duration-200"
+      ></div>
 
       <style jsx>{`
         :global(.codex-editor__redactor) {
           padding-bottom: 300px !important;
+          transition: all 0.2s ease-in-out;
         }
 
         :global(.ce-paragraph[data-placeholder]:empty::before) {
@@ -395,6 +584,29 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
           color: #a1a1aa;
           font-style: italic;
           opacity: 0.7;
+        }
+
+        /* Smooth transitions for collaborative editing */
+        :global(.ce-block) {
+          transition: all 0.15s ease-in-out;
+        }
+
+        :global(.ce-block:hover) {
+          transform: translateX(2px);
+        }
+
+        /* Collaboration highlight effect */
+        :global(.ce-block--selected) {
+          background-color: rgba(59, 130, 246, 0.05);
+          border-left: 3px solid #3b82f6;
+          padding-left: 12px;
+        }
+
+        /* Loading state for content updates */
+        .transition-opacity {
+          transition-property: opacity;
+          transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+          transition-duration: 200ms;
         }
       `}</style>
     </div>
