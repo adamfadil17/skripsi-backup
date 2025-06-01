@@ -58,6 +58,7 @@ import WorkspaceSettingsDialog from "./workspacesettings/WorkspaceSettingsDialog
 import { DeleteDocument } from "../[documentid]/components/DeleteDocument";
 import { ShareDocument } from "../[documentid]/components/ShareDocument";
 import Link from "next/link";
+import useActiveList from "@/hooks/use-active-list";
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   workspaceId: string;
@@ -96,6 +97,7 @@ export function AppSidebar({
   const [workspaceInfo, setWorkspaceInfo] = useState<WorkspaceInfo | null>(
     initialWorkspaceInfo || null
   );
+  const { members: activeMembers } = useActiveList();
 
   const { channel: workspaceChannel } = usePusherChannelContext();
 
@@ -128,7 +130,6 @@ export function AppSidebar({
 
   useEffect(() => {
     if (!workspaceChannel) return;
-
 
     const handleWorkspaceUpdated = (updatedWorkspace: any) => {
       console.log(
@@ -278,6 +279,10 @@ export function AppSidebar({
     router.refresh();
   }
 
+  const isUserActive = (email: string) => {
+    return activeMembers.includes(email);
+  };
+
   return (
     <Sidebar
       {...props}
@@ -397,6 +402,9 @@ export function AppSidebar({
                           {member.user.name?.charAt(0)}
                         </AvatarFallback>
                       </Avatar>
+                      {isUserActive(currentUser?.email) && (
+                        <span className="absolute top-0 right-0 block rounded-full bg-green-500 ring-2 ring-white h-2 w-2 -mt-0.5 mr-0.5" />
+                      )}
                       <span className="truncate">{member.user.name}</span>
                     </div>
                     <Badge

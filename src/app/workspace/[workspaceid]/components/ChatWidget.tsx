@@ -304,10 +304,6 @@ function ChatWidgetContent({
     if (!channel) return;
 
     const handleWorkspaceUpdated = (updatedWorkspace: any) => {
-      console.log(
-        '🔥 EVENT RECEIVED workspace-updated in ChatWidget:',
-        updatedWorkspace
-      );
 
       setLocalWorkspaceInfo((prev) => {
         if (!prev) return updatedWorkspace;
@@ -317,7 +313,6 @@ function ChatWidgetContent({
           ...updatedWorkspace,
         };
 
-        console.log('Updated workspace info in ChatWidget:', updated);
         return updated;
       });
     };
