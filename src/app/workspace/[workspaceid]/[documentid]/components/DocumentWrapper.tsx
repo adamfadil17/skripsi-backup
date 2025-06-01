@@ -57,7 +57,6 @@ const DocumentWrapper = ({ workspaceId, documentId }: DocumentWrapperProps) => {
             'An error occurred while loading the document'
         );
 
-        // If document not found (404), redirect to not found page
         if (err.response?.status === 404) {
           router.push('/not-found');
         }
@@ -74,7 +73,7 @@ const DocumentWrapper = ({ workspaceId, documentId }: DocumentWrapperProps) => {
       setEmoji(documentInfo.emoji || '');
       setCoverImage(documentInfo.coverImage || '/images/placeholder.svg');
       setDocumentTitle(documentInfo.title || '');
-      setTitleChanged(false); // Reset title changed flag when document info is updated
+      setTitleChanged(false);
     }
   }, [documentInfo]);
 
@@ -83,29 +82,24 @@ const DocumentWrapper = ({ workspaceId, documentId }: DocumentWrapperProps) => {
 
     console.log('Setting up Pusher listeners for document:', documentId);
 
-    // Document update event handler
     const handleDocumentUpdated = (updatedDocument: WorkspaceDocument) => {
       console.log(
         '🔥 EVENT RECEIVED document-updated in DocumentContainer:',
         updatedDocument
       );
 
-      // Only update if it's the current document
       if (updatedDocument.id === documentId) {
         setEmoji(updatedDocument.emoji || '');
         setCoverImage(updatedDocument.coverImage || '/images/placeholder.svg');
 
-        // Only update the title if we're not in the middle of editing it locally
         if (!titleChanged) {
           setDocumentTitle(updatedDocument.title || '');
         }
       }
     };
 
-    // Subscribe to document events
     workspaceChannel.bind('document-updated', handleDocumentUpdated);
 
-    // Cleanup
     return () => {
       console.log('Cleaning up Pusher listeners');
       workspaceChannel.unbind('document-updated', handleDocumentUpdated);
@@ -116,7 +110,6 @@ const DocumentWrapper = ({ workspaceId, documentId }: DocumentWrapperProps) => {
     try {
       console.log('Attempting to update document with data:', data);
 
-      // Don't compare with trim here - send the raw data to the API and let it decide
       const response = await axios.patch(
         `/api/workspace/${workspaceId}/document/${documentId}`,
         data
@@ -125,7 +118,6 @@ const DocumentWrapper = ({ workspaceId, documentId }: DocumentWrapperProps) => {
       if (response.data.status === 'success') {
         console.log('Document updated successfully:', response.data);
 
-        // If we were updating the title, reset the title changed flag
         if (data.title !== undefined) {
           setTitleChanged(false);
         }

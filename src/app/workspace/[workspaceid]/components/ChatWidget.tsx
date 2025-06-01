@@ -41,7 +41,6 @@ interface ChatWidgetProps {
   members?: WorkspaceMember[];
 }
 
-// Updated interface for message with status
 interface MessageWithStatus extends ConversationMessage {
   sendStatus?: 'sending' | 'sent' | 'seen';
   isEditing?: boolean;
@@ -68,11 +67,8 @@ function ChatWidgetContent({
   const editInputRef = useRef<HTMLInputElement>(null);
   const { members: activeMembers } = useActiveList();
   const { channel } = usePusherChannelContext();
-
-  // Use MessageWithStatus for messages state
   const [localMessages, setLocalMessages] = useState<MessageWithStatus[]>([]);
 
-  // Get messages
   const {
     messages,
     setMessages,
@@ -82,20 +78,15 @@ function ChatWidgetContent({
     deleteMessage,
   } = useMessages(workspaceId);
 
-  // Update localWorkspaceInfo when prop changes
   useEffect(() => {
     setLocalWorkspaceInfo(workspaceInfo);
   }, [workspaceInfo]);
 
-  // Sync server messages with local messages
   useEffect(() => {
     if (messages.length > 0) {
-      // Map messages to properly handle isDeleted/isEdited states
       const updatedMessages = messages.map((message) => {
-        // Set status based on whether message is seen by others
         let status: 'sending' | 'sent' | 'seen' = 'sent';
 
-        // If message is from current user and seen by others
         if (
           message.sender.email === currentUser.email &&
           message.seenIds.length > 1
@@ -105,11 +96,9 @@ function ChatWidgetContent({
 
         return {
           ...message,
-          // Make sure deleted messages always show the placeholder text
           body: message.isDeleted
             ? 'This message has been deleted'
             : message.body,
-          // Ensure all status properties are correctly preserved
           sendStatus: status,
           isEdited: message.isEdited || false,
           editedAt: message.editedAt || null,
@@ -130,9 +119,8 @@ function ChatWidgetContent({
     e.preventDefault();
     if ((!input.trim() && !imageToSend) || !workspaceId) return;
 
-    // Create optimistic message
     const optimisticMessage: MessageWithStatus = {
-      id: Date.now().toString(), // temporary id
+      id: Date.now().toString(),
       body: input,
       image: imageToSend || null,
       conversationId: '',
@@ -152,19 +140,15 @@ function ChatWidgetContent({
         email: currentUser.email || '',
         image: currentUser.image || null,
       },
-      sendStatus: 'sending', // Initial status is 'sending'
+      sendStatus: 'sending',
       isEdited: false,
       isDeleted: false,
     };
 
-    // Add optimistic message to local state
     setLocalMessages((prev) => [...prev, optimisticMessage]);
 
-    // Send message to server
     try {
       const sentMessage = await sendMessage(input, imageToSend);
-
-      // Update the optimistic message status to 'sent' once server response is received
       setLocalMessages((prev) =>
         prev.map((msg) =>
           msg.id === optimisticMessage.id
@@ -174,16 +158,13 @@ function ChatWidgetContent({
       );
     } catch (error) {
       console.error('Failed to send message:', error);
-      // Handle error here if needed
     }
 
     setInput('');
     setImageToSend(null);
   };
 
-  // Start editing a message
   const startEditMessage = (message: MessageWithStatus) => {
-    // Check if the message is within the 2-minute edit window
     const now = new Date();
     const messageTime = new Date(message.createdAt);
     const diffInMinutes = (now.getTime() - messageTime.getTime()) / (1000 * 60);
@@ -196,7 +177,6 @@ function ChatWidgetContent({
     setEditingMessageId(message.id);
     setEditText(message.body || '');
 
-    // Focus the edit input after it's rendered
     setTimeout(() => {
       if (editInputRef.current) {
         editInputRef.current.focus();
@@ -204,7 +184,6 @@ function ChatWidgetContent({
     }, 0);
   };
 
-  // Cancel editing
   const cancelEdit = () => {
     setEditingMessageId(null);
     setEditText('');
@@ -212,7 +191,6 @@ function ChatWidgetContent({
 
   const saveEditedMessage = async () => {
     if (!editingMessageId || !editText.trim()) {
-      // Reset state even when conditions aren't met
       setEditingMessageId(null);
       setEditText('');
       return;
@@ -220,7 +198,6 @@ function ChatWidgetContent({
 
     const now = new Date();
 
-    // Optimistically update UI
     setLocalMessages((prev) =>
       prev.map((msg) =>
         msg.id === editingMessageId
@@ -235,19 +212,17 @@ function ChatWidgetContent({
     );
 
     try {
-      // Send the edit to the server
       await editMessage(editingMessageId, editText);
     } catch (error) {
       console.error('Failed to edit message:', error);
       alert('Failed to edit message');
 
-      // Revert optimistic update on error
       setLocalMessages((prev) =>
         prev.map((msg) =>
           msg.id === editingMessageId
             ? {
                 ...msg,
-                body: msg.body, // Restore original body
+                body: msg.body,
                 isEdited: false,
                 editedAt: null,
               }
@@ -255,13 +230,11 @@ function ChatWidgetContent({
         )
       );
     } finally {
-      // Ensure these are always called, even after successful update or error
       setEditingMessageId(null);
       setEditText('');
     }
   };
 
-  // Handle delete message
   const handleDeleteMessage = async (messageId: string) => {
     if (!messageId) return;
 
@@ -269,7 +242,6 @@ function ChatWidgetContent({
       return;
     }
 
-    // Optimistically update UI
     setLocalMessages((prev) =>
       prev.map((msg) =>
         msg.id === messageId
@@ -284,19 +256,17 @@ function ChatWidgetContent({
     );
 
     try {
-      // Send deletion request to server
       await deleteMessage(messageId);
     } catch (error) {
       console.error('Failed to delete message:', error);
       alert('Failed to delete message');
 
-      // Restore status if server request fails
       setLocalMessages((prev) =>
         prev.map((msg) =>
           msg.id === messageId
             ? {
                 ...msg,
-                body: msg.body, // Restore original body
+                body: msg.body,
                 isDeleted: false,
                 deletedAt: null,
               }
@@ -306,19 +276,16 @@ function ChatWidgetContent({
     }
   };
 
-  // Handle image upload
   const handleUpload = (result: any, options: any) => {
     if (result?.info?.secure_url) {
       setImageToSend(result.info.secure_url);
     }
   };
 
-  // Cancel image upload
   const cancelImageUpload = () => {
     setImageToSend(null);
   };
 
-  // Mark a message as seen
   const markMessageAsSeen = async (messageId: string) => {
     try {
       await fetch(`/api/workspace/${workspaceId}/conversation/seen`, {
@@ -333,18 +300,15 @@ function ChatWidgetContent({
     }
   };
 
-  // Set up Pusher event listeners for workspace updates
   useEffect(() => {
     if (!channel) return;
 
-    // Handle workspace updates
     const handleWorkspaceUpdated = (updatedWorkspace: any) => {
       console.log(
         '🔥 EVENT RECEIVED workspace-updated in ChatWidget:',
         updatedWorkspace
       );
 
-      // Update the workspace info state
       setLocalWorkspaceInfo((prev) => {
         if (!prev) return updatedWorkspace;
 
@@ -358,22 +322,17 @@ function ChatWidgetContent({
       });
     };
 
-    // Subscribe to workspace update events
     channel.bind('workspace-updated', handleWorkspaceUpdated);
 
-    // Cleanup on unmount
     return () => {
       channel.unbind('workspace-updated', handleWorkspaceUpdated);
     };
   }, [channel]);
 
-  // Set up Pusher event listeners
   useEffect(() => {
     if (!channel) return;
 
-    // Listen for new messages
     const handleNewMessage = (message: ConversationMessage) => {
-      // Add the new message to the messages state with status
       const messageWithStatus: MessageWithStatus = {
         ...message,
         sendStatus:
@@ -382,42 +341,32 @@ function ChatWidgetContent({
 
       setLocalMessages((current) => [...current, messageWithStatus]);
 
-      // Add to server messages state as well
       setMessages((current) => [...current, message]);
 
-      // If the message is from someone else, mark it as seen
       if (message.sender.email !== currentUser.email) {
         markMessageAsSeen(message.id);
       }
     };
 
-    // Listen for message updates (seen status, edits, and deletions)
     const handleMessageUpdate = (message: ConversationMessage) => {
-      // Process the message to ensure deleted and edited messages display correctly
       const processedMessage = {
         ...message,
-        // Always replace deleted message body with placeholder
         body: message.isDeleted
           ? 'This message has been deleted'
           : message.body,
-        // Ensure edited information is preserved
         isEdited: message.isEdited || false,
         editedAt: message.editedAt || null,
-        // Ensure deleted information is preserved
         isDeleted: message.isDeleted || false,
         deletedAt: message.deletedAt || null,
       };
 
-      // Update server message state
       setMessages((current) =>
         current.map((msg) => (msg.id === message.id ? processedMessage : msg))
       );
 
-      // Update local messages with status
       setLocalMessages((current) =>
         current.map((msg) => {
           if (msg.id === message.id) {
-            // Update the status to 'seen' if the message is seen by others
             const status =
               message.sender.email === currentUser.email &&
               message.seenIds.length > 1
@@ -434,18 +383,15 @@ function ChatWidgetContent({
       );
     };
 
-    // Subscribe to events
     channel.bind('messages:new', handleNewMessage);
     channel.bind('messages:update', handleMessageUpdate);
 
-    // Cleanup on unmount
     return () => {
       channel.unbind('messages:new', handleNewMessage);
       channel.unbind('messages:update', handleMessageUpdate);
     };
   }, [channel, currentUser.email, currentUser.id, setMessages, workspaceId]);
 
-  // Mark visible messages as seen when expanded
   useEffect(() => {
     if (isExpanded) {
       localMessages.forEach((message) => {
@@ -465,17 +411,14 @@ function ChatWidgetContent({
     currentUser.id,
   ]);
 
-  // Scroll to bottom when messages change
   useEffect(() => {
     if (isExpanded) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [localMessages, isExpanded]);
 
-  // Function to check if all members have seen the message
   const allMembersSeen = (seenIds: string[]) => {
     if (!members) return false;
-    // Use email as the identifier since that's what we're using in Pusher
     return members.every((member) => seenIds.includes(member.user.id));
   };
 
@@ -483,7 +426,6 @@ function ChatWidgetContent({
     return activeMembers.includes(email);
   };
 
-  // Check if message is editable (within 2 minute window)
   const isMessageEditable = (message: MessageWithStatus) => {
     if (message.sender.email !== currentUser.email) return false;
     if (message.isDeleted) return false;
@@ -495,7 +437,6 @@ function ChatWidgetContent({
     return diffInMinutes <= 2;
   };
 
-  // Count unread messages
   const unreadCount = localMessages.filter(
     (message) =>
       message.sender.email !== currentUser?.email &&
@@ -503,7 +444,6 @@ function ChatWidgetContent({
   ).length;
 
   if (isMessagesLoading || !workspaceId) {
-    return null; // Don't render until everything is loaded
   }
 
   return (
@@ -566,11 +506,8 @@ function ChatWidgetContent({
                 hour12: true,
               }).format(new Date(message.createdAt));
 
-              // Determine if all members have seen the message
               const isSeenByAll = allMembersSeen(message.seenIds);
-              // Show status indicator for current user's messages
               const showStatusIndicator = isCurrentUser;
-              // Check if the message is editable (within 2 minutes and by the current user)
               const editable = isMessageEditable(message);
 
               return (
@@ -678,7 +615,6 @@ function ChatWidgetContent({
                       )}
                     >
                       {editingMessageId === message.id ? (
-                        // Edit mode
                         <div className="flex flex-col">
                           <Input
                             ref={editInputRef}
@@ -720,10 +656,8 @@ function ChatWidgetContent({
                           </div>
                         </div>
                       ) : (
-                        // Message content
                         <>
                           {message.isDeleted ? (
-                            // Deleted message with Ban icon
                             <div className="flex items-center opacity-70">
                               <Ban size={16} className="mr-2" />
                               <span className="italic">
@@ -731,7 +665,6 @@ function ChatWidgetContent({
                               </span>
                             </div>
                           ) : (
-                            // Regular message content
                             <>
                               <span className="whitespace-pre-wrap">
                                 {message.body}

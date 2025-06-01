@@ -81,7 +81,6 @@ interface SessionMeetingForm {
   duration: number;
 }
 
-// Create axios instance with default config
 const api = axios.create({
   timeout: 30000,
   headers: {
@@ -97,13 +96,9 @@ export default function MeetingDialog({
 }: MeetingDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-
-  // Separate states for permanent and session meetings
   const [permanentMeetingData, setPermanentMeetingData] =
     useState<PermanentMeetingData | null>(null);
   const [googleMeetUrl, setGoogleMeetUrl] = useState(initialGoogleMeetUrl);
-
-  // Session meeting states
   const [sessionMeetings, setSessionMeetings] = useState<SessionMeetingData[]>(
     []
   );
@@ -116,13 +111,11 @@ export default function MeetingDialog({
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [isLoadingMeetings, setIsLoadingMeetings] = useState(false);
 
-  // Edit and delete states
   const [editingMeeting, setEditingMeeting] =
     useState<SessionMeetingData | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Track if we have created at least one session meeting
   const [hasSessionMeetings, setHasSessionMeetings] = useState(false);
 
   const [googleAuthStatus, setGoogleAuthStatus] =
@@ -133,11 +126,9 @@ export default function MeetingDialog({
     "permanent"
   );
 
-  // Check Google auth status when dialog opens
   useEffect(() => {
     if (isOpen) {
       checkGoogleAuthStatus();
-      // Check if we have any session meetings
       fetchSessionMeetings().then((meetings) => {
         if (meetings && meetings.length > 0) {
           setHasSessionMeetings(true);
@@ -146,7 +137,6 @@ export default function MeetingDialog({
     }
   }, [isOpen]);
 
-  // If there's a permanent Google Meet URL, use it
   useEffect(() => {
     if (googleMeetUrl && isOpen) {
       setPermanentMeetingData({
@@ -206,7 +196,6 @@ export default function MeetingDialog({
           endTime: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
         });
 
-        // Ensure we're on the permanent tab to see the new meeting room
         setActiveTab("permanent");
 
         toast({
@@ -272,17 +261,14 @@ export default function MeetingDialog({
         }
       );
 
-      // Add the new session meeting to the list
       setSessionMeetings((prev) => [response.data, ...prev]);
 
-      // Reset form
       setSessionMeetingForm({
         title: `${workspaceName} Team Meeting`,
         description: "",
         duration: 60,
       });
 
-      // Mark that we have session meetings and switch to session tab
       setHasSessionMeetings(true);
       setActiveTab("oneSession");
       setIsCreatingSession(false);
@@ -347,21 +333,19 @@ export default function MeetingDialog({
         }
       );
 
-      // Update the meeting in the list
       setSessionMeetings((prev) =>
         prev.map((meeting) =>
           meeting.id === editingMeeting.id ? response.data : meeting
         )
       );
 
-      // Reset states and return to session list
       setEditingMeeting(null);
       setSessionMeetingForm({
         title: `${workspaceName} Team Meeting`,
         description: "",
         duration: 60,
       });
-      setIsCreatingSession(false); // Return to session list
+      setIsCreatingSession(false);
 
       toast({
         title: "Meeting Updated",
@@ -398,10 +382,8 @@ export default function MeetingDialog({
         `/api/workspace/${workspaceId}/meetings/session-meetings/${meeting.id}`
       );
 
-      // Remove the meeting from the list
       setSessionMeetings((prev) => prev.filter((m) => m.id !== meeting.id));
 
-      // Check if we still have session meetings
       const remainingMeetings = sessionMeetings.filter(
         (m) => m.id !== meeting.id
       );
@@ -439,9 +421,9 @@ export default function MeetingDialog({
     setSessionMeetingForm({
       title: meeting.title,
       description: meeting.description || "",
-      duration: 60, // Default duration since we don't store it
+      duration: 60,
     });
-    setIsCreatingSession(true); // Reuse the same form
+    setIsCreatingSession(true);
   };
 
   const cancelEditing = () => {
@@ -556,7 +538,6 @@ export default function MeetingDialog({
     });
   };
 
-  // Show authentication warning if needed
   const showAuthWarning = Boolean(
     googleAuthStatus &&
       (!googleAuthStatus.hasGoogleAuth ||
@@ -564,7 +545,6 @@ export default function MeetingDialog({
         googleAuthStatus.isTokenExpired)
   );
 
-  // Helper function to check if user can create meetings
   const canCreateMeetings = Boolean(
     googleAuthStatus?.hasGoogleAuth &&
       googleAuthStatus?.hasCalendarScope &&
@@ -577,7 +557,6 @@ export default function MeetingDialog({
     }
   }, [isOpen, activeTab, isCreatingSession]);
 
-  // Determine if we should show the tabbed interface
   const showTabbedInterface = permanentMeetingData || hasSessionMeetings;
 
   return (
@@ -629,7 +608,6 @@ export default function MeetingDialog({
             )}
 
             {!showTabbedInterface ? (
-              // No permanent meeting link or session meetings exist
               <div className="space-y-4">
                 <div className="text-center py-6">
                   <Video className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
@@ -721,7 +699,6 @@ export default function MeetingDialog({
                 </div>
               </div>
             ) : (
-              // Meeting Details or Create New Meeting
               <div className="space-y-4">
                 {/* Tab Navigation */}
                 <div className="flex border-b">
@@ -748,10 +725,8 @@ export default function MeetingDialog({
                 </div>
 
                 {activeTab === "oneSession" ? (
-                  // One Session Tab Content
                   <div className="space-y-4">
                     {isCreatingSession ? (
-                      // Create/Edit Session Form
                       <div className="space-y-4">
                         <div className="flex items-center justify-between">
                           <h4 className="font-medium">
@@ -862,7 +837,6 @@ export default function MeetingDialog({
                         </div>
                       </div>
                     ) : (
-                      // Session Meetings List
                       <div className="space-y-4">
                         <div className="flex justify-between items-center">
                           <h4 className="font-medium">Session Meetings</h4>
@@ -989,10 +963,8 @@ export default function MeetingDialog({
                     )}
                   </div>
                 ) : (
-                  // Permanent Meeting Tab Content
                   <div className="space-y-4">
                     {permanentMeetingData ? (
-                      // Permanent Meeting Details
                       <div>
                         <div className="rounded-lg border p-4 space-y-3">
                           <div className="flex items-start justify-between">
@@ -1064,7 +1036,6 @@ export default function MeetingDialog({
                         </div>
                       </div>
                     ) : (
-                      // Form to create permanent meeting room
                       <div className="text-center py-6">
                         <Video className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                         <h3 className="text-lg font-semibold mb-2">

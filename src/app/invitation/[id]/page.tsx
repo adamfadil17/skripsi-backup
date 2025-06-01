@@ -26,13 +26,11 @@ export default function AcceptInvitePage({
     async function handleInvitation() {
       try {
         if (!session?.user) {
-          // Store inviteId before redirecting to login
           sessionStorage.setItem("inviteId", params.id)
           router.push("/")
           return
         }
 
-        // Process the invitation if user is logged in
         const response = await axios.post(`/api/acceptinvitation/${params.id}`)
 
         if (response.status === 200) {
@@ -40,7 +38,6 @@ export default function AcceptInvitePage({
           setWorkspaceName(response.data.workspaceName || null)
           setMessage(workspaceName ? `You've joined ${workspaceName}!` : "Invitation accepted successfully!")
 
-          // Redirect after a short delay to show success message
           setTimeout(() => {
             router.push("/dashboard")
           }, 2000)
@@ -48,26 +45,22 @@ export default function AcceptInvitePage({
       } catch (error: any) {
         setState("error")
 
-        // Handle 401 Unauthorized
         if (error.response?.status === 401) {
           sessionStorage.setItem("inviteId", params.id)
           setMessage("Please log in to accept this invitation")
 
-          // Redirect after a short delay
           setTimeout(() => {
             router.push("/")
           }, 2000)
           return
         }
 
-        // Handle case where user is already a member
         if (error.response?.status === 400 && error.response?.data?.error_type === "UserIsMember") {
           setIsAlreadyMember(true)
           setMessage(error.response?.data?.message || "You are already a member of this workspace")
           return
         }
 
-        // Handle other errors
         setMessage(error.response?.data?.message || "Failed to accept invitation. Please try again.")
       }
     }

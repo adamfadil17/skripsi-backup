@@ -1,22 +1,22 @@
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import { 
-  Dialog, 
+import React, { useState } from "react";
+import {
+  Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Check, Copy, Share2 } from 'lucide-react';
-import toast from 'react-hot-toast';
-import { WorkspaceDocument } from '@/types/types';
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Check, Copy, Share2 } from "lucide-react";
+import toast from "react-hot-toast";
+import { WorkspaceDocument } from "@/types/types";
 
 interface ShareDocumentProps {
   workspaceId: string;
@@ -24,17 +24,20 @@ interface ShareDocumentProps {
   children?: React.ReactNode;
 }
 
-export function ShareDocument({ workspaceId, document, children }: ShareDocumentProps) {
+export function ShareDocument({
+  workspaceId,
+  document,
+  children,
+}: ShareDocumentProps) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
-  
-  // Generate document links for sharing
-  const shareableUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/workspace/${workspaceId}/${document.id}`;
-  
+
+  const shareableUrl = `${process.env.NEXT_PUBLIC_APP_URL}/workspace/${workspaceId}/${document.id}`;
+
   const handleCopyLink = (link: string) => {
     navigator.clipboard.writeText(link);
     setCopied(link);
-    toast.success('Link copied to clipboard!');
+    toast.success("Link copied to clipboard!");
     setTimeout(() => setCopied(null), 1300);
   };
 
@@ -89,9 +92,9 @@ export function ShareDocument({ workspaceId, document, children }: ShareDocument
           </div>
         </div>
         <DialogFooter className="sm:justify-start">
-          <Button 
-            type="button" 
-            variant="secondary" 
+          <Button
+            type="button"
+            variant="secondary"
             onClick={() => setOpen(false)}
           >
             Close

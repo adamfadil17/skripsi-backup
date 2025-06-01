@@ -199,7 +199,6 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
 
             lastSavedContentRef.current = JSON.stringify(data.content);
 
-            // Restore cursor position
             setTimeout(() => {
               if (editorRef.current && currentBlockIndex !== undefined) {
                 try {

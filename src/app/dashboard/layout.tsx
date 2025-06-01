@@ -2,7 +2,6 @@ import Topbar from "./components/Topbar";
 import { getCurrentUser } from "../actions/getCurrentUser";
 import { WorkspaceProvider } from "../context/WorkspaceContext";
 
-// Force dynamic rendering
 export const dynamic = "force-dynamic";
 
 export default async function DashboardLayout({

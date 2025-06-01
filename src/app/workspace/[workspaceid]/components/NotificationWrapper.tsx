@@ -1,11 +1,10 @@
-// NotificationWrapper.tsx
-'use client';
+"use client";
 
-import type { User } from '@prisma/client';
-import NotificationSystem from './NotificationSystem';
-import { useNotifications } from '@/hooks/use-notifications';
-import { Bell } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import type { User } from "@prisma/client";
+import NotificationSystem from "./NotificationSystem";
+import { useNotifications } from "@/hooks/use-notifications";
+import { Bell } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface NotificationWrapperProps {
   workspaceId: string;
@@ -18,7 +17,6 @@ const NotificationWrapper = ({
 }: NotificationWrapperProps) => {
   const { notifications, markAllAsRead } = useNotifications(workspaceId);
 
-  // Handle marking all notifications as read
   const handleMarkAllAsRead = async () => {
     await markAllAsRead();
   };
@@ -30,7 +28,7 @@ const NotificationWrapper = ({
       <Bell className="h-5 w-5" />
       {unreadCount > 0 && (
         <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-primary text-[10px] font-medium text-white flex items-center justify-center">
-          {unreadCount > 99 ? '99+' : unreadCount}
+          {unreadCount > 99 ? "99+" : unreadCount}
         </span>
       )}
     </Button>

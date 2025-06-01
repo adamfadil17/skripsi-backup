@@ -1,9 +1,8 @@
-// app/providers/pusher-channel-provider.tsx
-'use client';
+"use client";
 
-import { useEffect, useMemo, useState, createContext, useContext } from 'react';
-import { pusherClient } from '@/lib/pusher';
-import type { Channel } from 'pusher-js';
+import { useEffect, useMemo, useState, createContext, useContext } from "react";
+import { pusherClient } from "@/lib/pusher";
+import type { Channel } from "pusher-js";
 
 interface PusherChannelContextType {
   channel: Channel | null;

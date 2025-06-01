@@ -1,25 +1,24 @@
-// NotificationSystem.tsx
-'use client';
+"use client";
 
-import type React from 'react';
+import type React from "react";
 
-import { useState } from 'react';
-import { Bell } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useState } from "react";
+import { Bell } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from '@/components/ui/popover';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+} from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   type NotificationType,
   type Notification,
   isWorkspaceFilterNotification,
   isDocumentFilterNotification,
-} from '@/lib/notification';
+} from "@/lib/notification";
 
 interface NotificationSystemProps {
   trigger?: React.ReactNode;
@@ -32,14 +31,14 @@ const NotificationSystem = ({
   notifications,
   onMarkAllAsRead,
 }: NotificationSystemProps) => {
-  const [filter, setFilter] = useState<NotificationType | 'all'>('all');
+  const [filter, setFilter] = useState<NotificationType | "all">("all");
   const [isOpen, setIsOpen] = useState(false);
 
   const filteredNotifications = notifications.filter((notification) => {
-    if (filter === 'all') return true;
-    if (filter === 'workspace')
+    if (filter === "all") return true;
+    if (filter === "workspace")
       return isWorkspaceFilterNotification(notification);
-    if (filter === 'document')
+    if (filter === "document")
       return isDocumentFilterNotification(notification);
     return notification.type === filter;
   });
@@ -48,7 +47,6 @@ const NotificationSystem = ({
   const hasUnread = unreadCount > 0;
 
   const getNotificationMessage = (notification: Notification): string => {
-    // Just use the message property directly, as it's already formatted in useNotifications
     return notification.message;
   };
 
@@ -57,7 +55,7 @@ const NotificationSystem = ({
       <Bell className="h-5 w-5" />
       {hasUnread && (
         <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-primary text-[10px] font-medium text-white flex items-center justify-center">
-          {unreadCount > 99 ? '99+' : unreadCount}
+          {unreadCount > 99 ? "99+" : unreadCount}
         </span>
       )}
     </Button>
@@ -80,8 +78,8 @@ const NotificationSystem = ({
             onClick={onMarkAllAsRead}
             className={
               !hasUnread
-                ? 'text-muted-foreground hover:text-muted-foreground'
-                : ''
+                ? "text-muted-foreground hover:text-muted-foreground"
+                : ""
             }
             disabled={!hasUnread}
           >
@@ -93,21 +91,21 @@ const NotificationSystem = ({
             <TabsTrigger
               value="all"
               className="rounded-none border-b-2 border-transparent px-4 py-2 data-[state=active]:border-primary"
-              onClick={() => setFilter('all')}
+              onClick={() => setFilter("all")}
             >
               All
             </TabsTrigger>
             <TabsTrigger
               value="workspace"
               className="rounded-none border-b-2 border-transparent px-4 py-2 data-[state=active]:border-primary"
-              onClick={() => setFilter('workspace')}
+              onClick={() => setFilter("workspace")}
             >
               Workspace
             </TabsTrigger>
             <TabsTrigger
               value="document"
               className="rounded-none border-b-2 border-transparent px-4 py-2 data-[state=active]:border-primary"
-              onClick={() => setFilter('document')}
+              onClick={() => setFilter("document")}
             >
               Document
             </TabsTrigger>
@@ -119,13 +117,13 @@ const NotificationSystem = ({
                   <div
                     key={notification.id}
                     className={`flex items-start gap-4 p-4 ${
-                      !notification.read ? 'bg-muted/50' : ''
+                      !notification.read ? "bg-muted/50" : ""
                     }`}
                   >
                     <Avatar className="h-8 w-8">
                       <AvatarImage
                         src={
-                          notification.user.avatar || '/images/placeholder.svg'
+                          notification.user.avatar || "/images/placeholder.svg"
                         }
                         alt={notification.user.name}
                       />

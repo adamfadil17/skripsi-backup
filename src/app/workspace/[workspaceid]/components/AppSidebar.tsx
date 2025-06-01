@@ -34,7 +34,6 @@ import {
   SidebarGroupContent,
 } from "@/components/ui/sidebar";
 
-// Icons
 import { PiVideoConference } from "react-icons/pi";
 import { GrGroup } from "react-icons/gr";
 import { MdManageAccounts } from "react-icons/md";
@@ -107,7 +106,6 @@ export function AppSidebar({
       );
 
       if (currentWorkspace) {
-        // If we find the current workspace in the list, use it but update with live workspaceInfo
         setSelectedWorkspace({
           ...currentWorkspace,
           name: workspaceInfo?.name || currentWorkspace.name,
@@ -117,7 +115,6 @@ export function AppSidebar({
         setSelectedWorkspace(workspaces[0]);
       }
     } else if (workspaceInfo) {
-      // Fallback to the provided workspaceInfo if no workspaces are available
       setSelectedWorkspace({
         id: workspaceInfo.id || "",
         name: workspaceInfo.name || "",
@@ -127,22 +124,18 @@ export function AppSidebar({
         members: [],
       });
     }
-  }, [workspaces, workspaceInfo]); // Depend on both workspaces and workspaceInfo
+  }, [workspaces, workspaceInfo]);
 
-  // Set up Pusher event listeners
   useEffect(() => {
     if (!workspaceChannel) return;
 
-    console.log("Setting up Pusher listeners for workspace:", workspaceId);
 
-    // Workspace events
     const handleWorkspaceUpdated = (updatedWorkspace: any) => {
       console.log(
         "🔥 EVENT RECEIVED workspace-updated in SidebarNav:",
         updatedWorkspace
       );
 
-      // Create a new object with the updated properties to ensure React detects the change
       setWorkspaceInfo((prev) => {
         if (!prev) return updatedWorkspace;
 
@@ -156,11 +149,9 @@ export function AppSidebar({
       });
     };
 
-    // Member events
     const handleMemberAdded = (member: WorkspaceMember) => {
       console.log("Pusher event received: member-added", member);
       setMembers((prev) => {
-        // Check if member already exists to prevent duplicates
         const exists = prev.some((m) => m.user.id === member.user.id);
         if (exists) return prev;
         return [...prev, member];
@@ -176,7 +167,6 @@ export function AppSidebar({
       console.log("Pusher event received: member-leaved", userId);
       setMembers((prev) => prev.filter((member) => member.user.id !== userId));
 
-      // If current user is removed, redirect to dashboard
       if (userId === currentUser.id) {
         router.push("/dashboard");
       }
@@ -197,14 +187,12 @@ export function AppSidebar({
       );
     };
 
-    // Document events
     const handleDocumentAdded = (document: WorkspaceDocument) => {
       console.log("Pusher event received: document-added", document);
       setDocuments((prev) => {
-        // Check if document already exists to prevent duplicates
         const exists = prev.some((d) => d.id === document.id);
         if (exists) return prev;
-        return [document, ...prev]; // Add new document at the beginning
+        return [document, ...prev];
       });
     };
 
@@ -222,7 +210,6 @@ export function AppSidebar({
       );
     };
 
-    // Subscribe to events
     workspaceChannel.bind("workspace-updated", handleWorkspaceUpdated);
     workspaceChannel.bind("member-added", handleMemberAdded);
     workspaceChannel.bind("member-removed", handleMemberRemoved);
@@ -232,7 +219,6 @@ export function AppSidebar({
     workspaceChannel.bind("document-removed", handleDocumentRemoved);
     workspaceChannel.bind("document-updated", handleDocumentUpdated);
 
-    // Cleanup
     return () => {
       console.log("Cleaning up Pusher listeners");
       workspaceChannel.unbind("workspace-updated", handleWorkspaceUpdated);
@@ -266,7 +252,6 @@ export function AppSidebar({
         const newDocument = response.data.data.newDocument;
         console.log(newDocument.id);
         router.push(`/workspace/${workspaceId}/${newDocument?.id}`);
-        // No need to call router.refresh() since Pusher will handle the real-time update
         toast.success("Document has been created");
       }
     } catch (error: any) {
@@ -279,14 +264,12 @@ export function AppSidebar({
     }
   }, [workspaceId, router]);
 
-  // If workspace info couldn't be loaded
   if (!workspaceInfo) {
     return null;
   }
 
   const handleWorkspaceChange = (workspace: UserWorkspace) => {
     setSelectedWorkspace(workspace);
-    // Navigate to the selected workspace with the current document
     router.push(`/workspace/${workspace.id}`);
   };
 
@@ -303,7 +286,6 @@ export function AppSidebar({
       variant="sidebar"
     >
       <SidebarHeader className="px-4 mt-2">
-        {/* Logo and App Name */}
         <div
           onClick={handleLogoClick}
           className="flex items-center gap-2 px-2 cursor-pointer mb-4"

@@ -44,13 +44,11 @@ export function DeleteDocument({
       if (response.data.status === 'success') {
         toast.success('Document has been deleted');
 
-        // Fetch dokumen terbaru setelah delete
         const fetchRes = await axios.get(
           `/api/workspace/${workspaceId}/document`
         );
         const latestDocuments = fetchRes.data?.data?.documents;
 
-        // Arahkan ke dokumen pertama jika masih ada, atau kembali ke halaman workspace
         if (latestDocuments && latestDocuments.length > 0) {
           router.push(`/workspace/${workspaceId}/${latestDocuments[0].id}`);
         } else {

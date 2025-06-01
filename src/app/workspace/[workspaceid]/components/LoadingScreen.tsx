@@ -8,7 +8,6 @@ export default function LoadingScreen() {
   const [progress, setProgress] = useState(0);
   const [loadingText, setLoadingText] = useState('Preparing workspace');
 
-  // Simulate loading progress
   useEffect(() => {
     const timer = setTimeout(() => {
       setProgress((prev) => {
@@ -20,7 +19,6 @@ export default function LoadingScreen() {
     return () => clearTimeout(timer);
   }, [progress]);
 
-  // Change loading text periodically
   useEffect(() => {
     const texts = [
       'Preparing workspace',
