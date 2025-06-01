@@ -84,38 +84,60 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     };
   }
 
-  // Capture current editor state
-  const captureEditorState = useCallback((): EditorState | null => {
+  // Capture current editor state including scroll position
+  const captureEditorState = useCallback(():
+    | (EditorState & { scrollTop: number })
+    | null => {
     if (!editorRef.current) return null;
 
     try {
       const currentBlockIndex = editorRef.current.blocks.getCurrentBlockIndex();
       const currentBlock =
         editorRef.current.blocks.getBlockByIndex(currentBlockIndex);
+      const editorElement = document.getElementById("editorjs");
+      const scrollTop = editorElement?.scrollTop || window.scrollY;
 
       return {
-        blockIndex: currentBlockIndex,
-        caretPosition: "end", // Simplified for now
+        blockIndex: currentBlockIndex >= 0 ? currentBlockIndex : 0,
+        caretPosition: "end" as const,
         blockContent: currentBlock?.holder?.textContent || "",
+        scrollTop: scrollTop,
       };
     } catch (error) {
       console.log("Could not capture editor state:", error);
-      return null;
+      return {
+        blockIndex: 0,
+        caretPosition: "end" as const,
+        blockContent: "",
+        scrollTop: window.scrollY,
+      };
     }
   }, []);
 
-  // Restore editor state with smooth transition
+  // Restore editor state with smooth transition and scroll position
   const restoreEditorState = useCallback(
-    (state: EditorState | null, delay = 50) => {
+    (state: (EditorState & { scrollTop: number }) | null, delay = 50) => {
       if (!state || !editorRef.current) return;
 
       setTimeout(() => {
         if (editorRef.current) {
           try {
             const totalBlocks = editorRef.current.blocks.getBlocksCount();
-            const targetIndex = Math.min(state.blockIndex, totalBlocks - 1);
+            const targetIndex = Math.min(
+              Math.max(state.blockIndex, 0),
+              totalBlocks - 1
+            );
 
-            if (targetIndex >= 0) {
+            // Restore scroll position first
+            const editorElement = document.getElementById("editorjs");
+            if (editorElement && state.scrollTop > 0) {
+              editorElement.scrollTop = state.scrollTop;
+            } else if (state.scrollTop > 0) {
+              window.scrollTo({ top: state.scrollTop, behavior: "auto" });
+            }
+
+            // Then restore cursor position
+            if (targetIndex >= 0 && totalBlocks > 0) {
               editorRef.current.caret.setToBlock(
                 targetIndex,
                 state.caretPosition
@@ -228,7 +250,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     }
   }, [workspaceId, documentId]);
 
-  // Batch process pending updates
+  // Batch process pending updates with better state preservation
   const processPendingUpdates = useCallback(async () => {
     if (
       pendingUpdatesRef.current.length === 0 ||
@@ -250,22 +272,30 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
         // Show collaboration indicator
         setIsCollaborating(true);
 
-        await editorRef.current.render(latestUpdate);
-        lastSavedContentRef.current = JSON.stringify(latestUpdate);
+        // Get current content to compare
+        const currentContent = await editorRef.current.save();
+        const currentContentString = JSON.stringify(currentContent);
+        const newContentString = JSON.stringify(latestUpdate);
 
-        // Restore cursor position after a short delay
-        restoreEditorState(currentState, 100);
+        // Only update if content is actually different
+        if (currentContentString !== newContentString) {
+          await editorRef.current.render(latestUpdate);
+          lastSavedContentRef.current = JSON.stringify(latestUpdate);
+
+          // Restore state with longer delay to ensure render is complete
+          restoreEditorState(currentState, 200);
+        }
 
         // Hide collaboration indicator after animation
         setTimeout(() => {
           setIsCollaborating(false);
-        }, 500);
+        }, 800);
       } catch (error) {
         console.error("Error processing update:", error);
       } finally {
         setTimeout(() => {
           isProcessingExternalUpdateRef.current = false;
-        }, 150);
+        }, 300);
       }
     }
   }, [captureEditorState, restoreEditorState]);
@@ -360,10 +390,10 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
           clearTimeout(updateTimeoutRef.current);
         }
 
-        // Process updates with a slight delay to batch them
+        // Process updates with a slightly longer delay to reduce flicker
         updateTimeoutRef.current = setTimeout(() => {
           processPendingUpdates();
-        }, 100);
+        }, 150);
       }
     };
 
@@ -545,11 +575,21 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
 
   return (
     <div className="w-full relative">
-      {/* Collaboration indicator */}
+      {/* Collaboration indicator - moved to left */}
       {isCollaborating && (
-        <div className="absolute top-0 right-0 z-50 bg-blue-500 text-white px-3 py-1 rounded-bl-md text-sm animate-pulse">
+        <div className="fixed top-4 left-4 z-50 bg-blue-500 text-white px-4 py-2 rounded-md text-sm shadow-lg">
           <div className="flex items-center space-x-2">
-            <div className="w-2 h-2 bg-white rounded-full animate-bounce"></div>
+            <div className="flex space-x-1">
+              <div className="w-2 h-2 bg-white rounded-full animate-bounce"></div>
+              <div
+                className="w-2 h-2 bg-white rounded-full animate-bounce"
+                style={{ animationDelay: "0.1s" }}
+              ></div>
+              <div
+                className="w-2 h-2 bg-white rounded-full animate-bounce"
+                style={{ animationDelay: "0.2s" }}
+              ></div>
+            </div>
             <span>Someone is editing...</span>
           </div>
         </div>
