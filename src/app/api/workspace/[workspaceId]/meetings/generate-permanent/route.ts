@@ -26,6 +26,7 @@ export async function POST(
         user: {
           email: session.user.email,
         },
+        role: "SUPER_ADMIN",
       },
       include: {
         workspace: {
@@ -39,7 +40,7 @@ export async function POST(
 
     if (!workspaceMember) {
       return NextResponse.json(
-        { error: "You don't have access to this workspace" },
+        { error: "Only Owner can create permanent meeting rooms"  },
         { status: 403 }
       );
     }

@@ -32,11 +32,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useSession, signIn } from "next-auth/react";
+import toast from "react-hot-toast";
 
 interface MeetingDialogProps {
   workspaceId: string;
@@ -120,7 +120,6 @@ export default function MeetingDialog({
 
   const [googleAuthStatus, setGoogleAuthStatus] =
     useState<GoogleAuthStatus | null>(null);
-  const { toast } = useToast();
   const { data: session } = useSession();
   const [activeTab, setActiveTab] = useState<"permanent" | "oneSession">(
     "permanent"
@@ -172,11 +171,7 @@ export default function MeetingDialog({
       !googleAuthStatus?.hasGoogleAuth ||
       !googleAuthStatus?.hasCalendarScope
     ) {
-      toast({
-        title: "Authentication Required",
-        description: "Please sign in with Google and grant calendar access.",
-        variant: "destructive",
-      });
+      toast("Please Sign In with Google to create a permanent meeting.");
       return;
     }
 
@@ -198,30 +193,24 @@ export default function MeetingDialog({
 
         setActiveTab("permanent");
 
-        toast({
-          title: "Success",
-          description:
-            response.data.message ||
-            "Permanent meeting link generated successfully.",
-        });
+        toast("Permanent meeting link generated successfully.");
       } else {
         throw new Error("No meeting link was generated");
       }
     } catch (error) {
-      console.error("Error generating permanent meeting link:", error);
-
       if (axios.isAxiosError(error) && error.response?.data?.authRequired) {
         handleGoogleSignIn();
         return;
       }
 
-      toast({
-        title: "Error",
-        description: axios.isAxiosError(error)
-          ? error.response?.data?.error || error.message
-          : "Failed to generate permanent meeting link.",
-        variant: "destructive",
-      });
+      if (axios.isAxiosError(error) && error.response?.status === 403) {
+        toast(
+          "You do not have permission to generate a permanent meeting link."
+        );
+        return;
+      }
+
+      toast("Failed to generate permanent meeting link.");
     } finally {
       setIsLoading(false);
     }
@@ -232,20 +221,12 @@ export default function MeetingDialog({
       !googleAuthStatus?.hasGoogleAuth ||
       !googleAuthStatus?.hasCalendarScope
     ) {
-      toast({
-        title: "Authentication Required",
-        description: "Please sign in with Google and grant calendar access.",
-        variant: "destructive",
-      });
+      toast("Please Sign In with Google to create a session meeting.");
       return;
     }
 
     if (!sessionMeetingForm.title.trim()) {
-      toast({
-        title: "Validation Error",
-        description: "Meeting title is required.",
-        variant: "destructive",
-      });
+      toast("Meeting title is required.");
       return;
     }
 
@@ -273,10 +254,7 @@ export default function MeetingDialog({
       setActiveTab("oneSession");
       setIsCreatingSession(false);
 
-      toast({
-        title: "Session Meeting Created",
-        description: "New session meeting has been created successfully.",
-      });
+      toast("New session meeting has been created successfully.");
     } catch (error) {
       console.error("Error creating session meeting:", error);
 
@@ -298,13 +276,7 @@ export default function MeetingDialog({
         }
       }
 
-      toast({
-        title: "Error",
-        description: axios.isAxiosError(error)
-          ? error.response?.data?.error || error.message
-          : "Failed to create session meeting. Please try again.",
-        variant: "destructive",
-      });
+      toast("Failed to create session meeting. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -314,11 +286,7 @@ export default function MeetingDialog({
     if (!editingMeeting) return;
 
     if (!sessionMeetingForm.title.trim()) {
-      toast({
-        title: "Validation Error",
-        description: "Meeting title is required.",
-        variant: "destructive",
-      });
+      toast("Meeting title is required.");
       return;
     }
 
@@ -347,14 +315,7 @@ export default function MeetingDialog({
       });
       setIsCreatingSession(false);
 
-      toast({
-        title: "Meeting Updated",
-        description: `Session meeting has been updated successfully.${
-          response.data.calendarSynced
-            ? " Google Calendar event was also updated."
-            : " (Google Calendar sync failed)"
-        }`,
-      });
+      toast("Session meeting has been updated successfully.");
     } catch (error) {
       console.error("Error updating session meeting:", error);
 
@@ -363,13 +324,7 @@ export default function MeetingDialog({
         return;
       }
 
-      toast({
-        title: "Error",
-        description: axios.isAxiosError(error)
-          ? error.response?.data?.error || error.message
-          : "Failed to update session meeting.",
-        variant: "destructive",
-      });
+      toast("Failed to update session meeting.");
     } finally {
       setIsUpdating(false);
     }
@@ -391,26 +346,11 @@ export default function MeetingDialog({
         setHasSessionMeetings(false);
       }
 
-      toast({
-        title: "Meeting Deleted",
-        description: `Session meeting "${
-          meeting.title
-        }" has been deleted successfully.${
-          response.data.calendarSynced
-            ? " Google Calendar event was also removed."
-            : " (Google Calendar sync failed)"
-        }`,
-      });
+      toast("Session meeting has been deleted successfully.");
     } catch (error) {
       console.error("Error deleting session meeting:", error);
 
-      toast({
-        title: "Error",
-        description: axios.isAxiosError(error)
-          ? error.response?.data?.error || error.message
-          : "Failed to delete session meeting.",
-        variant: "destructive",
-      });
+      toast("Failed to delete session meeting.");
     } finally {
       setIsDeleting(false);
     }
@@ -439,16 +379,9 @@ export default function MeetingDialog({
   const copyMeetLink = async (meetLink: string) => {
     try {
       await navigator.clipboard.writeText(meetLink);
-      toast({
-        title: "Copied!",
-        description: "Meeting link copied to clipboard.",
-      });
+      toast("Meeting link copied to clipboard.");
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to copy link.",
-        variant: "destructive",
-      });
+      toast("Failed to copy link.");
     }
   };
 
@@ -473,28 +406,23 @@ export default function MeetingDialog({
           endTime: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
         });
 
-        toast({
-          title: "Link Regenerated",
-          description: "Permanent meeting link has been updated.",
-        });
+        toast("Permanent meeting link has been updated.");
       } else {
         throw new Error("No meeting link was generated");
       }
     } catch (error) {
-      console.error("Error regenerating meeting link:", error);
 
       if (axios.isAxiosError(error) && error.response?.data?.authRequired) {
         handleGoogleSignIn();
         return;
       }
 
-      toast({
-        title: "Error",
-        description: axios.isAxiosError(error)
-          ? error.response?.data?.error || error.message
-          : "Failed to regenerate meeting link.",
-        variant: "destructive",
-      });
+      if (axios.isAxiosError(error) && error.response?.status === 403) {
+        toast("You don't have permission to regenerate the meeting link.");
+        return;
+      }
+
+      toast("Failed to regenerate meeting link.");
     } finally {
       setIsLoading(false);
     }
@@ -511,11 +439,7 @@ export default function MeetingDialog({
       return meetings;
     } catch (error) {
       console.error("Error fetching session meetings:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load session meetings",
-        variant: "destructive",
-      });
+      toast("Failed to load session meetings");
       return [];
     } finally {
       setIsLoadingMeetings(false);
