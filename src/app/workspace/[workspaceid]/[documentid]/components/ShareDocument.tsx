@@ -32,7 +32,9 @@ export function ShareDocument({
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
 
-  const shareableUrl = `${process.env.NEXT_PUBLIC_APP_URL}/workspace/${workspaceId}/${document.id}`;
+  const shareableUrl = `${
+    process.env.NEXT_PUBLIC_APP_URL || "https://skripsi-backup.vercel.app/"
+  }/workspace/${workspaceId}/${document.id}`;
 
   const handleCopyLink = (link: string) => {
     navigator.clipboard.writeText(link);
