@@ -14,6 +14,7 @@ import Table from "@editorjs/table";
 import List from "@editorjs/list";
 import Checklist from "@editorjs/checklist";
 import CodeTool from "@editorjs/code";
+import ImageTool from "@editorjs/image";
 import axios from "axios";
 import toast from "react-hot-toast";
 import { usePusherChannelContext } from "../../components/PusherChannelProvider";
@@ -64,8 +65,10 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
   const isProcessingExternalUpdateRef = useRef(false);
   const [editorReady, setEditorReady] = useState(false);
   const [isCollaborating, setIsCollaborating] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const pendingUpdatesRef = useRef<OutputData[]>([]);
   const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const uploadWidgetRef = useRef<any>(null);
 
   const { channel: workspaceChannel } = usePusherChannelContext();
 
@@ -300,6 +303,57 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     }
   }, [captureEditorState, restoreEditorState]);
 
+  // Alternative simpler upload method using next-cloudinary
+  const handleImageUploadSimple = useCallback(
+    async (file: File): Promise<{ success: number; file: { url: string } }> => {
+      try {
+        setIsUploading(true);
+
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append(
+          "upload_preset",
+          process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET!
+        );
+        formData.append("folder", `documents/${workspaceId}/${documentId}`);
+        formData.append(
+          "tags",
+          `workspace:${workspaceId},document:${documentId}`
+        );
+
+        const response = await fetch(
+          `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`,
+          {
+            method: "POST",
+            body: formData,
+          }
+        );
+
+        const data = await response.json();
+
+        if (data.secure_url) {
+          toast.success("Image uploaded successfully!");
+          return {
+            success: 1,
+            file: { url: data.secure_url },
+          };
+        } else {
+          throw new Error("Upload failed");
+        }
+      } catch (error) {
+        console.error("Image upload error:", error);
+        toast.error("Failed to upload image. Please try again.");
+        return {
+          success: 0,
+          file: { url: "" },
+        };
+      } finally {
+        setIsUploading(false);
+      }
+    },
+    [workspaceId, documentId]
+  );
+
   const initEditor = useCallback(() => {
     if (!hasInitialized.current) {
       hasInitialized.current = true;
@@ -360,10 +414,28 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
             inlineToolbar: true,
           },
           code: { class: CodeTool, shortcut: "CMD+SHIFT+P" },
+          image: {
+            class: ImageTool,
+            config: {
+              uploader: {
+                uploadByFile: handleImageUploadSimple,
+              },
+              captionPlaceholder: "Add image caption...",
+              withBorder: true,
+              withBackground: false,
+              stretched: false,
+            },
+          },
         },
       });
     }
-  }, [debouncedSave, immediateSave, getDocumentContent, placeholder]);
+  }, [
+    debouncedSave,
+    immediateSave,
+    getDocumentContent,
+    placeholder,
+    handleImageUploadSimple,
+  ]);
 
   useEffect(() => {
     if (!workspaceChannel || !userEmail || !editorReady) return;
@@ -595,6 +667,16 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
         </div>
       )}
 
+      {/* Image upload indicator */}
+      {isUploading && (
+        <div className="fixed top-4 right-4 z-50 bg-green-500 text-white px-4 py-2 rounded-md text-sm shadow-lg">
+          <div className="flex items-center space-x-2">
+            <div className="animate-spin h-4 w-4 border-2 border-white rounded-full border-t-transparent"></div>
+            <span>Uploading image...</span>
+          </div>
+        </div>
+      )}
+
       <div
         id="editorjs"
         className="prose max-w-none w-full transition-opacity duration-200"
@@ -647,6 +729,36 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
           transition-property: opacity;
           transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
           transition-duration: 200ms;
+        }
+
+        /* Image block styling */
+        :global(.image-tool) {
+          margin: 1.5rem 0;
+        }
+
+        :global(.image-tool__image) {
+          border-radius: 0.5rem;
+          overflow: hidden;
+        }
+
+        :global(.image-tool__caption) {
+          font-size: 0.875rem;
+          color: #6b7280;
+          text-align: center;
+          margin-top: 0.5rem;
+        }
+
+        :global(.image-tool--withBorder .image-tool__image) {
+          border: 1px solid #e5e7eb;
+        }
+
+        :global(.image-tool--withBackground .image-tool__image) {
+          background-color: #f3f4f6;
+          padding: 1rem;
+        }
+
+        :global(.image-tool--stretched .image-tool__image img) {
+          width: 100%;
         }
       `}</style>
     </div>
