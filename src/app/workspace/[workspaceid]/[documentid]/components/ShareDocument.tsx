@@ -33,7 +33,7 @@ export function ShareDocument({
   const [copied, setCopied] = useState<string | null>(null);
 
   const shareableUrl = `${
-    process.env.NEXT_PUBLIC_APP_URL || "https://skripsi-backup.vercel.app/"
+    process.env.NEXT_PUBLIC_APP_URL || "https://skripsi-backup.vercel.app"
   }/workspace/${workspaceId}/${document.id}`;
 
   const handleCopyLink = (link: string) => {
