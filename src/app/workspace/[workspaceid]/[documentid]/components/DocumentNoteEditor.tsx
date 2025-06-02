@@ -17,6 +17,7 @@ import CodeTool from "@editorjs/code";
 import ImageTool from "@editorjs/image";
 import axios from "axios";
 import toast from "react-hot-toast";
+import InlineCode from "@editorjs/inline-code";
 import { useUndoRedo } from "@/hooks/use-undo-redo";
 import { UndoRedoToolbar } from "./UndoRedoToolbar";
 
@@ -480,6 +481,10 @@ const DocumentNoteEditorWithUndoRedo: React.FC<DocumentNoteEditorProps> = ({
             inlineToolbar: true,
           },
           code: { class: CodeTool, shortcut: "CMD+SHIFT+P" },
+          inlineCode: {
+            class: InlineCode,
+            shortcut: "CMD+SHIFT+M",
+          },
           image: {
             class: ImageTool,
             config: {
@@ -548,7 +553,7 @@ const DocumentNoteEditorWithUndoRedo: React.FC<DocumentNoteEditorProps> = ({
   return (
     <div className="w-full relative">
       {/* Undo/Redo Toolbar */}
-      <div className="fixed top-4 right-4 z-50">
+      <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50">
         <UndoRedoToolbar
           canUndo={canUndo}
           canRedo={canRedo}
