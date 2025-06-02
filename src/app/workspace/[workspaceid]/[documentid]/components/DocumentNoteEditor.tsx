@@ -18,8 +18,6 @@ import ImageTool from "@editorjs/image";
 import axios from "axios";
 import toast from "react-hot-toast";
 import InlineCode from "@editorjs/inline-code";
-import { useUndoRedo } from "@/hooks/use-undo-redo";
-import { UndoRedoToolbar } from "./UndoRedoToolbar";
 
 interface DocumentNoteEditorProps {
   workspaceId: string;
@@ -34,7 +32,7 @@ interface EditorState {
   blockContent?: string;
 }
 
-const DocumentNoteEditorWithUndoRedo: React.FC<DocumentNoteEditorProps> = ({
+const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
   workspaceId,
   documentId,
   modelResponse,
@@ -52,33 +50,8 @@ const DocumentNoteEditorWithUndoRedo: React.FC<DocumentNoteEditorProps> = ({
   const [editorReady, setEditorReady] = useState(false);
   const [isCollaborating, setIsCollaborating] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-
-  // Initialize undo/redo hook
-  const {
-    saveState,
-    undo,
-    redo,
-    canUndo,
-    canRedo,
-    clearHistory,
-    getCurrentState,
-    historyLength,
-    currentIndex,
-    isUndoRedoOperation,
-  } = useUndoRedo({
-    maxHistorySize: 50,
-    debounceMs: 1000,
-  });
-
-  // Debug logging for undo/redo operations
-  useEffect(() => {
-    console.log("History state updated:", {
-      historyLength,
-      currentIndex,
-      canUndo,
-      canRedo,
-    });
-  }, [historyLength, currentIndex, canUndo, canRedo]);
+  const pendingUpdatesRef = useRef<OutputData[]>([]);
+  const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Enhanced debounce with immediate execution option
   function debounce(func: Function, wait: number, immediate = false) {
@@ -211,6 +184,26 @@ const DocumentNoteEditorWithUndoRedo: React.FC<DocumentNoteEditorProps> = ({
     [workspaceId, documentId, userEmail]
   );
 
+  // Optimized debounced save
+  const debouncedSave = useCallback(
+    debounce(() => {
+      onSaveDocumentContent();
+    }, 800),
+    [onSaveDocumentContent]
+  );
+
+  // Immediate save for critical updates
+  const immediateSave = useCallback(
+    debounce(
+      () => {
+        onSaveDocumentContent(true);
+      },
+      100,
+      true
+    ),
+    [onSaveDocumentContent]
+  );
+
   const getDocumentContent = useCallback(async () => {
     if (!isFetchedRef.current) {
       try {
@@ -223,20 +216,8 @@ const DocumentNoteEditorWithUndoRedo: React.FC<DocumentNoteEditorProps> = ({
           response.data.data?.content
         ) {
           const content = response.data.data.content;
-
-          // Render content to editor
-          await editorRef.current?.render(content);
+          editorRef.current?.render(content);
           lastSavedContentRef.current = JSON.stringify(content);
-
-          // Clear history and save initial state
-          clearHistory();
-
-          // Add a small delay to ensure editor is fully rendered
-          setTimeout(() => {
-            // Save initial state to history
-            saveState(content);
-            console.log("Initial state saved to history");
-          }, 300);
         } else {
           toast.error(
             response.data?.message || "Failed to load document content."
@@ -250,7 +231,57 @@ const DocumentNoteEditorWithUndoRedo: React.FC<DocumentNoteEditorProps> = ({
         );
       }
     }
-  }, [workspaceId, documentId, saveState, clearHistory]);
+  }, [workspaceId, documentId]);
+
+  // Batch process pending updates with better state preservation
+  const processPendingUpdates = useCallback(async () => {
+    if (
+      pendingUpdatesRef.current.length === 0 ||
+      isProcessingExternalUpdateRef.current
+    ) {
+      return;
+    }
+
+    const latestUpdate =
+      pendingUpdatesRef.current[pendingUpdatesRef.current.length - 1];
+    pendingUpdatesRef.current = [];
+
+    if (editorRef.current) {
+      const currentState = captureEditorState();
+
+      try {
+        isProcessingExternalUpdateRef.current = true;
+
+        // Show collaboration indicator
+        setIsCollaborating(true);
+
+        // Get current content to compare
+        const currentContent = await editorRef.current.save();
+        const currentContentString = JSON.stringify(currentContent);
+        const newContentString = JSON.stringify(latestUpdate);
+
+        // Only update if content is actually different
+        if (currentContentString !== newContentString) {
+          await editorRef.current.render(latestUpdate);
+          lastSavedContentRef.current = JSON.stringify(latestUpdate);
+
+          // Restore state with longer delay to ensure render is complete
+          restoreEditorState(currentState, 200);
+        }
+
+        // Hide collaboration indicator after animation
+        setTimeout(() => {
+          setIsCollaborating(false);
+        }, 800);
+      } catch (error) {
+        console.error("Error processing update:", error);
+      } finally {
+        setTimeout(() => {
+          isProcessingExternalUpdateRef.current = false;
+        }, 300);
+      }
+    }
+  }, [captureEditorState, restoreEditorState]);
 
   // Alternative simpler upload method using next-cloudinary
   const handleImageUploadSimple = useCallback(
@@ -381,15 +412,101 @@ const DocumentNoteEditorWithUndoRedo: React.FC<DocumentNoteEditorProps> = ({
         },
       });
     }
-  }, [getDocumentContent, placeholder, handleImageUploadSimple]);
+  }, [
+    debouncedSave,
+    immediateSave,
+    getDocumentContent,
+    placeholder,
+    handleImageUploadSimple,
+  ]);
 
-  const handleUndo = useCallback(() => {
-    undo();
-  }, [undo]);
+  // Enhanced model response appending with smooth scrolling
+  const appendModelResponse = useCallback(
+    async (response: any) => {
+      if (!editorRef.current) return;
 
-  const handleRedo = useCallback(() => {
-    redo();
-  }, [redo]);
+      try {
+        const currentContent = await editorRef.current.save();
+        let newBlock;
+
+        if (response && response.blocks) {
+          newBlock = response.blocks.map((block: any) => {
+            if (block.type === "paragraph" && block.data.text) {
+              let text = block.data.text;
+              const inlineTools = [];
+
+              const boldRegex = /\*\*(.*?)\*\*/g;
+              let match;
+
+              while ((match = boldRegex.exec(text)) !== null) {
+                const boldText = match[1];
+                const startIndex = match.index;
+                inlineTools.push({
+                  offset: startIndex,
+                  length: boldText.length,
+                  type: "bold",
+                });
+                text = text.replace(`**${boldText}**`, boldText);
+              }
+
+              return {
+                ...block,
+                data: {
+                  ...block.data,
+                  text: text,
+                  inlineToolbar: inlineTools,
+                },
+              };
+            }
+            return block;
+          });
+        } else {
+          newBlock = [
+            {
+              type: "paragraph",
+              data: {
+                text:
+                  typeof response === "string"
+                    ? response
+                    : JSON.stringify(response),
+              },
+            },
+          ];
+        }
+
+        const updatedContent: OutputData = {
+          time: new Date().getTime(),
+          blocks: [...(currentContent.blocks || []), ...newBlock],
+          version: currentContent.version || "2.30.8",
+        };
+
+        await editorRef.current.render(updatedContent);
+
+        // Smooth scroll to new content
+        setTimeout(() => {
+          if (editorRef.current) {
+            const lastBlockIndex = updatedContent.blocks.length - 1;
+            editorRef.current.caret.setToBlock(lastBlockIndex, "end");
+
+            // Smooth scroll into view
+            const editorElement = document.getElementById("editorjs");
+            if (editorElement) {
+              const lastBlock = editorElement.lastElementChild;
+              lastBlock?.scrollIntoView({
+                behavior: "smooth",
+                block: "end",
+              });
+            }
+          }
+        }, 200);
+
+        onSaveDocumentContent(true);
+      } catch (error) {
+        console.error("Error appending model response:", error);
+      }
+    },
+    [onSaveDocumentContent]
+  );
 
   useEffect(() => {
     if (session) {
@@ -398,90 +515,15 @@ const DocumentNoteEditorWithUndoRedo: React.FC<DocumentNoteEditorProps> = ({
   }, [session, initEditor]);
 
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      // Check if we're in an input field or contentEditable element
-      const target = event.target as HTMLElement;
-      const isInput =
-        target.tagName === "INPUT" ||
-        target.tagName === "TEXTAREA" ||
-        target.isContentEditable;
-
-      // Only handle shortcuts if we're in the editor
-      if (isInput && (event.ctrlKey || event.metaKey)) {
-        if (!event.shiftKey && event.key.toLowerCase() === "z") {
-          event.preventDefault();
-          event.stopPropagation();
-          handleUndo();
-          console.log("Undo shortcut triggered");
-        } else if (
-          (event.shiftKey && event.key.toLowerCase() === "z") ||
-          event.key.toLowerCase() === "y"
-        ) {
-          event.preventDefault();
-          event.stopPropagation();
-          handleRedo();
-          console.log("Redo shortcut triggered");
-        }
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [handleUndo, handleRedo]);
-
-  // Optimized debounced save with undo/redo state tracking
-  const debouncedSave = useCallback(
-    debounce(async () => {
-      if (!isUndoRedoOperation && editorRef.current) {
-        const outputData = await editorRef.current.save();
-        const currentState = captureEditorState();
-
-        // Save to undo/redo history
-        saveState(
-          outputData,
-          currentState
-            ? {
-                blockIndex: currentState.blockIndex,
-                caretPosition: currentState.caretPosition,
-              }
-            : undefined
-        );
-
-        // Save to server
-        onSaveDocumentContent();
-      }
-    }, 800),
-    [onSaveDocumentContent, saveState, captureEditorState, isUndoRedoOperation]
-  );
-
-  // Immediate save for critical updates
-  const immediateSave = useCallback(
-    debounce(
-      async () => {
-        if (!isUndoRedoOperation && editorRef.current) {
-          const outputData = await editorRef.current.save();
-          const currentState = captureEditorState();
-
-          // Save to undo/redo history
-          saveState(
-            outputData,
-            currentState
-              ? {
-                  blockIndex: currentState.blockIndex,
-                  caretPosition: currentState.caretPosition,
-                }
-              : undefined
-          );
-
-          // Save to server
-          onSaveDocumentContent(true);
-        }
-      },
-      100,
-      true
-    ),
-    [onSaveDocumentContent, saveState, captureEditorState, isUndoRedoOperation]
-  );
+    if (
+      modelResponse &&
+      modelResponse !== prevModelResponseRef.current &&
+      editorRef.current
+    ) {
+      appendModelResponse(modelResponse);
+      prevModelResponseRef.current = modelResponse;
+    }
+  }, [modelResponse, appendModelResponse]);
 
   function convertEditorDataToHtml(data: OutputData): OutputData {
     const newData = { ...data };
@@ -521,19 +563,6 @@ const DocumentNoteEditorWithUndoRedo: React.FC<DocumentNoteEditorProps> = ({
 
   return (
     <div className="w-full relative">
-      {/* Undo/Redo Toolbar */}
-      <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50">
-        <UndoRedoToolbar
-          canUndo={canUndo}
-          canRedo={canRedo}
-          onUndo={handleUndo}
-          onRedo={handleRedo}
-          onClearHistory={clearHistory}
-          historyLength={historyLength}
-          currentIndex={currentIndex}
-        />
-      </div>
-
       {/* Collaboration indicator */}
       {isCollaborating && (
         <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 bg-blue-500 text-white px-4 py-2 rounded-md text-sm shadow-lg">
@@ -652,4 +681,4 @@ const DocumentNoteEditorWithUndoRedo: React.FC<DocumentNoteEditorProps> = ({
   );
 };
 
-export default DocumentNoteEditorWithUndoRedo;
+export default DocumentNoteEditor;
