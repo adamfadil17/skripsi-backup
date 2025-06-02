@@ -17,7 +17,8 @@ import CodeTool from "@editorjs/code";
 import ImageTool from "@editorjs/image";
 import axios from "axios";
 import toast from "react-hot-toast";
-import { usePusherChannelContext } from "../../components/PusherChannelProvider";
+import { useUndoRedo } from "@/hooks/use-undo-redo";
+import { UndoRedoToolbar } from "./UndoRedoToolbar";
 
 interface DocumentNoteEditorProps {
   workspaceId: string;
@@ -32,23 +33,7 @@ interface EditorState {
   blockContent?: string;
 }
 
-// Add proper type for Editor.js events
-interface BlockMutationEvent {
-  type: string;
-  detail: {
-    target: {
-      name: string;
-    };
-    index?: number;
-  };
-}
-
-interface EditorChangeEvent {
-  type?: string;
-  detail?: any;
-}
-
-const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
+const DocumentNoteEditorWithUndoRedo: React.FC<DocumentNoteEditorProps> = ({
   workspaceId,
   documentId,
   modelResponse,
@@ -66,11 +51,23 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
   const [editorReady, setEditorReady] = useState(false);
   const [isCollaborating, setIsCollaborating] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const pendingUpdatesRef = useRef<OutputData[]>([]);
-  const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const uploadWidgetRef = useRef<any>(null);
 
-  const { channel: workspaceChannel } = usePusherChannelContext();
+  // Initialize undo/redo hook
+  const {
+    saveState,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    clearHistory,
+    getCurrentState,
+    historyLength,
+    currentIndex,
+    isUndoRedoOperation,
+  } = useUndoRedo({
+    maxHistorySize: 50,
+    debounceMs: 1000,
+  });
 
   // Enhanced debounce with immediate execution option
   function debounce(func: Function, wait: number, immediate = false) {
@@ -179,7 +176,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
             {
               content: formattedContent,
               userEmail: userEmail,
-              timestamp: Date.now(), // Add timestamp for conflict resolution
+              timestamp: Date.now(),
             }
           );
 
@@ -190,7 +187,6 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
           }
         } catch (error: any) {
           if (error.response?.status === 409) {
-            // Conflict detected - refresh content
             toast.error("Document was updated by another user. Refreshing...");
             await getDocumentContent();
           } else {
@@ -204,24 +200,142 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     [workspaceId, documentId, userEmail]
   );
 
-  // Optimized debounced save
+  // Handle undo operation
+  const handleUndo = useCallback(async () => {
+    const previousState = undo();
+    if (previousState && editorRef.current) {
+      try {
+        const currentState = captureEditorState();
+        await editorRef.current.render(previousState.content);
+
+        // Restore cursor position if available
+        if (previousState.cursorPosition) {
+          setTimeout(() => {
+            if (editorRef.current) {
+              editorRef.current.caret.setToBlock(
+                previousState.cursorPosition!.blockIndex,
+                previousState.cursorPosition!.caretPosition
+              );
+            }
+          }, 100);
+        }
+
+        // Save the undone state
+        onSaveDocumentContent(true);
+        toast.success("Undone");
+      } catch (error) {
+        console.error("Error during undo:", error);
+        toast.error("Failed to undo");
+      }
+    }
+  }, [undo, captureEditorState, onSaveDocumentContent]);
+
+  // Handle redo operation
+  const handleRedo = useCallback(async () => {
+    const nextState = redo();
+    if (nextState && editorRef.current) {
+      try {
+        await editorRef.current.render(nextState.content);
+
+        // Restore cursor position if available
+        if (nextState.cursorPosition) {
+          setTimeout(() => {
+            if (editorRef.current) {
+              editorRef.current.caret.setToBlock(
+                nextState.cursorPosition!.blockIndex,
+                nextState.cursorPosition!.caretPosition
+              );
+            }
+          }, 100);
+        }
+
+        // Save the redone state
+        onSaveDocumentContent(true);
+        toast.success("Redone");
+      } catch (error) {
+        console.error("Error during redo:", error);
+        toast.error("Failed to redo");
+      }
+    }
+  }, [redo, onSaveDocumentContent]);
+
+  // Keyboard shortcuts for undo/redo
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        (event.ctrlKey || event.metaKey) &&
+        !event.shiftKey &&
+        event.key === "z"
+      ) {
+        event.preventDefault();
+        handleUndo();
+      } else if (
+        ((event.ctrlKey || event.metaKey) &&
+          event.shiftKey &&
+          event.key === "Z") ||
+        ((event.ctrlKey || event.metaKey) && event.key === "y")
+      ) {
+        event.preventDefault();
+        handleRedo();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [handleUndo, handleRedo]);
+
+  // Optimized debounced save with undo/redo state tracking
   const debouncedSave = useCallback(
-    debounce(() => {
-      onSaveDocumentContent();
-    }, 800), // Increased delay to reduce server load
-    [onSaveDocumentContent]
+    debounce(async () => {
+      if (!isUndoRedoOperation && editorRef.current) {
+        const outputData = await editorRef.current.save();
+        const currentState = captureEditorState();
+
+        // Save to undo/redo history
+        saveState(
+          outputData,
+          currentState
+            ? {
+                blockIndex: currentState.blockIndex,
+                caretPosition: currentState.caretPosition,
+              }
+            : undefined
+        );
+
+        // Save to server
+        onSaveDocumentContent();
+      }
+    }, 800),
+    [onSaveDocumentContent, saveState, captureEditorState, isUndoRedoOperation]
   );
 
   // Immediate save for critical updates
   const immediateSave = useCallback(
     debounce(
-      () => {
-        onSaveDocumentContent(true);
+      async () => {
+        if (!isUndoRedoOperation && editorRef.current) {
+          const outputData = await editorRef.current.save();
+          const currentState = captureEditorState();
+
+          // Save to undo/redo history
+          saveState(
+            outputData,
+            currentState
+              ? {
+                  blockIndex: currentState.blockIndex,
+                  caretPosition: currentState.caretPosition,
+                }
+              : undefined
+          );
+
+          // Save to server
+          onSaveDocumentContent(true);
+        }
       },
       100,
       true
     ),
-    [onSaveDocumentContent]
+    [onSaveDocumentContent, saveState, captureEditorState, isUndoRedoOperation]
   );
 
   const getDocumentContent = useCallback(async () => {
@@ -238,6 +352,9 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
           const content = response.data.data.content;
           editorRef.current?.render(content);
           lastSavedContentRef.current = JSON.stringify(content);
+
+          // Save initial state to history
+          saveState(content);
         } else {
           toast.error(
             response.data?.message || "Failed to load document content."
@@ -251,57 +368,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
         );
       }
     }
-  }, [workspaceId, documentId]);
-
-  // Batch process pending updates with better state preservation
-  const processPendingUpdates = useCallback(async () => {
-    if (
-      pendingUpdatesRef.current.length === 0 ||
-      isProcessingExternalUpdateRef.current
-    ) {
-      return;
-    }
-
-    const latestUpdate =
-      pendingUpdatesRef.current[pendingUpdatesRef.current.length - 1];
-    pendingUpdatesRef.current = [];
-
-    if (editorRef.current) {
-      const currentState = captureEditorState();
-
-      try {
-        isProcessingExternalUpdateRef.current = true;
-
-        // Show collaboration indicator
-        setIsCollaborating(true);
-
-        // Get current content to compare
-        const currentContent = await editorRef.current.save();
-        const currentContentString = JSON.stringify(currentContent);
-        const newContentString = JSON.stringify(latestUpdate);
-
-        // Only update if content is actually different
-        if (currentContentString !== newContentString) {
-          await editorRef.current.render(latestUpdate);
-          lastSavedContentRef.current = JSON.stringify(latestUpdate);
-
-          // Restore state with longer delay to ensure render is complete
-          restoreEditorState(currentState, 200);
-        }
-
-        // Hide collaboration indicator after animation
-        setTimeout(() => {
-          setIsCollaborating(false);
-        }, 800);
-      } catch (error) {
-        console.error("Error processing update:", error);
-      } finally {
-        setTimeout(() => {
-          isProcessingExternalUpdateRef.current = false;
-        }, 300);
-      }
-    }
-  }, [captureEditorState, restoreEditorState]);
+  }, [workspaceId, documentId, saveState]);
 
   // Alternative simpler upload method using next-cloudinary
   const handleImageUploadSimple = useCallback(
@@ -364,7 +431,6 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
           let eventType = "";
 
           if (Array.isArray(event)) {
-            // If event is an array, get the first event's type
             eventType =
               event.length > 0 &&
               event[0] &&
@@ -438,176 +504,10 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
   ]);
 
   useEffect(() => {
-    if (!workspaceChannel || !userEmail || !editorReady) return;
-
-    console.log(
-      "Setting up Pusher listeners for document content:",
-      documentId
-    );
-
-    const handleDocumentContentUpdated = async (data: {
-      content: OutputData;
-      documentId: string;
-      editorEmail: string;
-      timestamp?: number;
-    }) => {
-      console.log("🔥 EVENT RECEIVED document-content-updated:", data);
-
-      if (data.documentId === documentId && data.editorEmail !== userEmail) {
-        // Add to pending updates queue
-        pendingUpdatesRef.current.push(data.content);
-
-        // Clear existing timeout and set new one
-        if (updateTimeoutRef.current) {
-          clearTimeout(updateTimeoutRef.current);
-        }
-
-        // Process updates with a slightly longer delay to reduce flicker
-        updateTimeoutRef.current = setTimeout(() => {
-          processPendingUpdates();
-        }, 150);
-      }
-    };
-
-    const handleUserTyping = (data: {
-      documentId: string;
-      userEmail: string;
-      isTyping: boolean;
-    }) => {
-      if (data.documentId === documentId && data.userEmail !== userEmail) {
-        setIsCollaborating(data.isTyping);
-      }
-    };
-
-    workspaceChannel.bind(
-      "document-content-updated",
-      handleDocumentContentUpdated
-    );
-    workspaceChannel.bind("user-typing", handleUserTyping);
-
-    return () => {
-      workspaceChannel.unbind(
-        "document-content-updated",
-        handleDocumentContentUpdated
-      );
-      workspaceChannel.unbind("user-typing", handleUserTyping);
-
-      if (updateTimeoutRef.current) {
-        clearTimeout(updateTimeoutRef.current);
-      }
-    };
-  }, [
-    workspaceChannel,
-    documentId,
-    userEmail,
-    editorReady,
-    processPendingUpdates,
-  ]);
-
-  // Enhanced model response appending with smooth scrolling
-  const appendModelResponse = useCallback(
-    async (response: any) => {
-      if (!editorRef.current) return;
-
-      try {
-        const currentContent = await editorRef.current.save();
-        let newBlock;
-
-        if (response && response.blocks) {
-          newBlock = response.blocks.map((block: any) => {
-            if (block.type === "paragraph" && block.data.text) {
-              let text = block.data.text;
-              const inlineTools = [];
-
-              const boldRegex = /\*\*(.*?)\*\*/g;
-              let match;
-
-              while ((match = boldRegex.exec(text)) !== null) {
-                const boldText = match[1];
-                const startIndex = match.index;
-                inlineTools.push({
-                  offset: startIndex,
-                  length: boldText.length,
-                  type: "bold",
-                });
-                text = text.replace(`**${boldText}**`, boldText);
-              }
-
-              return {
-                ...block,
-                data: {
-                  ...block.data,
-                  text: text,
-                  inlineToolbar: inlineTools,
-                },
-              };
-            }
-            return block;
-          });
-        } else {
-          newBlock = [
-            {
-              type: "paragraph",
-              data: {
-                text:
-                  typeof response === "string"
-                    ? response
-                    : JSON.stringify(response),
-              },
-            },
-          ];
-        }
-
-        const updatedContent: OutputData = {
-          time: new Date().getTime(),
-          blocks: [...(currentContent.blocks || []), ...newBlock],
-          version: currentContent.version || "2.30.8",
-        };
-
-        await editorRef.current.render(updatedContent);
-
-        // Smooth scroll to new content
-        setTimeout(() => {
-          if (editorRef.current) {
-            const lastBlockIndex = updatedContent.blocks.length - 1;
-            editorRef.current.caret.setToBlock(lastBlockIndex, "end");
-
-            // Smooth scroll into view
-            const editorElement = document.getElementById("editorjs");
-            if (editorElement) {
-              const lastBlock = editorElement.lastElementChild;
-              lastBlock?.scrollIntoView({
-                behavior: "smooth",
-                block: "end",
-              });
-            }
-          }
-        }, 200);
-
-        onSaveDocumentContent(true);
-      } catch (error) {
-        console.error("Error appending model response:", error);
-      }
-    },
-    [onSaveDocumentContent]
-  );
-
-  useEffect(() => {
     if (session) {
       initEditor();
     }
   }, [session, initEditor]);
-
-  useEffect(() => {
-    if (
-      modelResponse &&
-      modelResponse !== prevModelResponseRef.current &&
-      editorRef.current
-    ) {
-      appendModelResponse(modelResponse);
-      prevModelResponseRef.current = modelResponse;
-    }
-  }, [modelResponse, appendModelResponse]);
 
   function convertEditorDataToHtml(data: OutputData): OutputData {
     const newData = { ...data };
@@ -647,7 +547,20 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
 
   return (
     <div className="w-full relative">
-      {/* Collaboration indicator - moved to left */}
+      {/* Undo/Redo Toolbar */}
+      <div className="fixed top-4 right-4 z-50">
+        <UndoRedoToolbar
+          canUndo={canUndo}
+          canRedo={canRedo}
+          onUndo={handleUndo}
+          onRedo={handleRedo}
+          onClearHistory={clearHistory}
+          historyLength={historyLength}
+          currentIndex={currentIndex}
+        />
+      </div>
+
+      {/* Collaboration indicator */}
       {isCollaborating && (
         <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 bg-blue-500 text-white px-4 py-2 rounded-md text-sm shadow-lg">
           <div className="flex items-center space-x-2">
@@ -765,4 +678,4 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
   );
 };
 
-export default DocumentNoteEditor;
+export default DocumentNoteEditorWithUndoRedo;
