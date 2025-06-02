@@ -70,6 +70,16 @@ const DocumentNoteEditorWithUndoRedo: React.FC<DocumentNoteEditorProps> = ({
     debounceMs: 1000,
   });
 
+  // Debug logging for undo/redo operations
+  useEffect(() => {
+    console.log("History state updated:", {
+      historyLength,
+      currentIndex,
+      canUndo,
+      canRedo,
+    });
+  }, [historyLength, currentIndex, canUndo, canRedo]);
+
   // Enhanced debounce with immediate execution option
   function debounce(func: Function, wait: number, immediate = false) {
     let timeout: NodeJS.Timeout;
@@ -201,144 +211,6 @@ const DocumentNoteEditorWithUndoRedo: React.FC<DocumentNoteEditorProps> = ({
     [workspaceId, documentId, userEmail]
   );
 
-  // Handle undo operation
-  const handleUndo = useCallback(async () => {
-    const previousState = undo();
-    if (previousState && editorRef.current) {
-      try {
-        const currentState = captureEditorState();
-        await editorRef.current.render(previousState.content);
-
-        // Restore cursor position if available
-        if (previousState.cursorPosition) {
-          setTimeout(() => {
-            if (editorRef.current) {
-              editorRef.current.caret.setToBlock(
-                previousState.cursorPosition!.blockIndex,
-                previousState.cursorPosition!.caretPosition
-              );
-            }
-          }, 100);
-        }
-
-        // Save the undone state
-        onSaveDocumentContent(true);
-        toast.success("Undone");
-      } catch (error) {
-        console.error("Error during undo:", error);
-        toast.error("Failed to undo");
-      }
-    }
-  }, [undo, captureEditorState, onSaveDocumentContent]);
-
-  // Handle redo operation
-  const handleRedo = useCallback(async () => {
-    const nextState = redo();
-    if (nextState && editorRef.current) {
-      try {
-        await editorRef.current.render(nextState.content);
-
-        // Restore cursor position if available
-        if (nextState.cursorPosition) {
-          setTimeout(() => {
-            if (editorRef.current) {
-              editorRef.current.caret.setToBlock(
-                nextState.cursorPosition!.blockIndex,
-                nextState.cursorPosition!.caretPosition
-              );
-            }
-          }, 100);
-        }
-
-        // Save the redone state
-        onSaveDocumentContent(true);
-        toast.success("Redone");
-      } catch (error) {
-        console.error("Error during redo:", error);
-        toast.error("Failed to redo");
-      }
-    }
-  }, [redo, onSaveDocumentContent]);
-
-  // Keyboard shortcuts for undo/redo
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (
-        (event.ctrlKey || event.metaKey) &&
-        !event.shiftKey &&
-        event.key === "z"
-      ) {
-        event.preventDefault();
-        handleUndo();
-      } else if (
-        ((event.ctrlKey || event.metaKey) &&
-          event.shiftKey &&
-          event.key === "Z") ||
-        ((event.ctrlKey || event.metaKey) && event.key === "y")
-      ) {
-        event.preventDefault();
-        handleRedo();
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [handleUndo, handleRedo]);
-
-  // Optimized debounced save with undo/redo state tracking
-  const debouncedSave = useCallback(
-    debounce(async () => {
-      if (!isUndoRedoOperation && editorRef.current) {
-        const outputData = await editorRef.current.save();
-        const currentState = captureEditorState();
-
-        // Save to undo/redo history
-        saveState(
-          outputData,
-          currentState
-            ? {
-                blockIndex: currentState.blockIndex,
-                caretPosition: currentState.caretPosition,
-              }
-            : undefined
-        );
-
-        // Save to server
-        onSaveDocumentContent();
-      }
-    }, 800),
-    [onSaveDocumentContent, saveState, captureEditorState, isUndoRedoOperation]
-  );
-
-  // Immediate save for critical updates
-  const immediateSave = useCallback(
-    debounce(
-      async () => {
-        if (!isUndoRedoOperation && editorRef.current) {
-          const outputData = await editorRef.current.save();
-          const currentState = captureEditorState();
-
-          // Save to undo/redo history
-          saveState(
-            outputData,
-            currentState
-              ? {
-                  blockIndex: currentState.blockIndex,
-                  caretPosition: currentState.caretPosition,
-                }
-              : undefined
-          );
-
-          // Save to server
-          onSaveDocumentContent(true);
-        }
-      },
-      100,
-      true
-    ),
-    [onSaveDocumentContent, saveState, captureEditorState, isUndoRedoOperation]
-  );
-
   const getDocumentContent = useCallback(async () => {
     if (!isFetchedRef.current) {
       try {
@@ -351,11 +223,20 @@ const DocumentNoteEditorWithUndoRedo: React.FC<DocumentNoteEditorProps> = ({
           response.data.data?.content
         ) {
           const content = response.data.data.content;
-          editorRef.current?.render(content);
+
+          // Render content to editor
+          await editorRef.current?.render(content);
           lastSavedContentRef.current = JSON.stringify(content);
 
-          // Save initial state to history
-          saveState(content);
+          // Clear history and save initial state
+          clearHistory();
+
+          // Add a small delay to ensure editor is fully rendered
+          setTimeout(() => {
+            // Save initial state to history
+            saveState(content);
+            console.log("Initial state saved to history");
+          }, 300);
         } else {
           toast.error(
             response.data?.message || "Failed to load document content."
@@ -369,7 +250,7 @@ const DocumentNoteEditorWithUndoRedo: React.FC<DocumentNoteEditorProps> = ({
         );
       }
     }
-  }, [workspaceId, documentId, saveState]);
+  }, [workspaceId, documentId, saveState, clearHistory]);
 
   // Alternative simpler upload method using next-cloudinary
   const handleImageUploadSimple = useCallback(
@@ -500,19 +381,107 @@ const DocumentNoteEditorWithUndoRedo: React.FC<DocumentNoteEditorProps> = ({
         },
       });
     }
-  }, [
-    debouncedSave,
-    immediateSave,
-    getDocumentContent,
-    placeholder,
-    handleImageUploadSimple,
-  ]);
+  }, [getDocumentContent, placeholder, handleImageUploadSimple]);
+
+  const handleUndo = useCallback(() => {
+    undo();
+  }, [undo]);
+
+  const handleRedo = useCallback(() => {
+    redo();
+  }, [redo]);
 
   useEffect(() => {
     if (session) {
       initEditor();
     }
   }, [session, initEditor]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Check if we're in an input field or contentEditable element
+      const target = event.target as HTMLElement;
+      const isInput =
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable;
+
+      // Only handle shortcuts if we're in the editor
+      if (isInput && (event.ctrlKey || event.metaKey)) {
+        if (!event.shiftKey && event.key.toLowerCase() === "z") {
+          event.preventDefault();
+          event.stopPropagation();
+          handleUndo();
+          console.log("Undo shortcut triggered");
+        } else if (
+          (event.shiftKey && event.key.toLowerCase() === "z") ||
+          event.key.toLowerCase() === "y"
+        ) {
+          event.preventDefault();
+          event.stopPropagation();
+          handleRedo();
+          console.log("Redo shortcut triggered");
+        }
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [handleUndo, handleRedo]);
+
+  // Optimized debounced save with undo/redo state tracking
+  const debouncedSave = useCallback(
+    debounce(async () => {
+      if (!isUndoRedoOperation && editorRef.current) {
+        const outputData = await editorRef.current.save();
+        const currentState = captureEditorState();
+
+        // Save to undo/redo history
+        saveState(
+          outputData,
+          currentState
+            ? {
+                blockIndex: currentState.blockIndex,
+                caretPosition: currentState.caretPosition,
+              }
+            : undefined
+        );
+
+        // Save to server
+        onSaveDocumentContent();
+      }
+    }, 800),
+    [onSaveDocumentContent, saveState, captureEditorState, isUndoRedoOperation]
+  );
+
+  // Immediate save for critical updates
+  const immediateSave = useCallback(
+    debounce(
+      async () => {
+        if (!isUndoRedoOperation && editorRef.current) {
+          const outputData = await editorRef.current.save();
+          const currentState = captureEditorState();
+
+          // Save to undo/redo history
+          saveState(
+            outputData,
+            currentState
+              ? {
+                  blockIndex: currentState.blockIndex,
+                  caretPosition: currentState.caretPosition,
+                }
+              : undefined
+          );
+
+          // Save to server
+          onSaveDocumentContent(true);
+        }
+      },
+      100,
+      true
+    ),
+    [onSaveDocumentContent, saveState, captureEditorState, isUndoRedoOperation]
+  );
 
   function convertEditorDataToHtml(data: OutputData): OutputData {
     const newData = { ...data };
