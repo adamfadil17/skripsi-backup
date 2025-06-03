@@ -129,13 +129,11 @@ model Document {
 }
 
 model DocumentContent {
-  id           String   @id @default(auto()) @map("_id") @db.ObjectId
-  documentId   String   @db.ObjectId
-  content      Json
-  editedAt     DateTime @default(now())
-  editedById   String   @db.ObjectId
-  version      Int      @default(1)
-  lastEditedAt DateTime @default(now()) @updatedAt
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  documentId String   @db.ObjectId
+  content    Json
+  editedAt   DateTime @default(now())
+  editedById String   @db.ObjectId
 
   document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
   editedBy User     @relation(fields: [editedById], references: [id], onDelete: Cascade)

@@ -1,24 +1,15 @@
 import prisma from "@/lib/prismadb";
-import type { User } from "@prisma/client";
+import { User } from "@prisma/client";
 import { pusherServer } from "@/lib/pusher";
 
-// In-memory version tracking since we don't have it in the database
-const documentVersions = new Map<string, number>();
-const documentLastEdited = new Map<string, Date>();
 const notificationTimeouts = new Map<string, NodeJS.Timeout>();
-
-interface UpdateOptions {
-  timestamp?: number;
-  skipBroadcast?: boolean;
-}
 
 export async function updateDocumentContentById(
   workspaceId: string,
   documentId: string,
   content: any,
   editorEmail: string,
-  currentUser: User,
-  options: UpdateOptions = {}
+  currentUser: User
 ) {
   try {
     if (!currentUser?.id || !currentUser?.email) {
@@ -81,42 +72,10 @@ export async function updateDocumentContentById(
     }
 
     const safeContent = content ?? {};
-    const currentTime = new Date();
 
-    // Enhanced conflict detection using in-memory tracking
     const existingContent = await prisma.documentContent.findFirst({
       where: { documentId },
-      orderBy: { editedAt: "desc" },
     });
-
-    // Check for conflicts using timestamps
-    const lastEditTime = documentLastEdited.get(documentId);
-    if (lastEditTime && options.timestamp) {
-      const clientEditTime = new Date(options.timestamp);
-
-      // If client's edit is based on an older version than what's on the server
-      if (clientEditTime < lastEditTime) {
-        // Conflict detected - client is behind
-        throw {
-          error_type: "Conflict",
-          message: "Document was modified by another user",
-          serverContent: existingContent?.content,
-          conflicts: [
-            {
-              type: "timestamp_conflict",
-              clientTimestamp: clientEditTime.toISOString(),
-              serverTimestamp: lastEditTime.toISOString(),
-            },
-          ],
-        };
-      }
-    }
-
-    // Update in-memory version tracking
-    const currentVersion = documentVersions.get(documentId) || 0;
-    const newVersion = currentVersion + 1;
-    documentVersions.set(documentId, newVersion);
-    documentLastEdited.set(documentId, currentTime);
 
     let updatedContent;
     if (existingContent) {
@@ -124,7 +83,7 @@ export async function updateDocumentContentById(
         where: { id: existingContent.id },
         data: {
           content: safeContent,
-          editedAt: currentTime,
+          editedAt: new Date(),
           editedById: user.id,
         },
       });
@@ -133,7 +92,7 @@ export async function updateDocumentContentById(
         data: {
           documentId,
           content: safeContent,
-          editedAt: currentTime,
+          editedAt: new Date(),
           editedById: user.id,
         },
       });
@@ -143,31 +102,26 @@ export async function updateDocumentContentById(
       where: { id: documentId },
       data: {
         updatedById: user.id,
-        updatedAt: currentTime,
+        updatedAt: new Date(),
       },
     });
 
-    // Enhanced Pusher broadcast with metadata
-    if (!options.skipBroadcast) {
-      await pusherServer.trigger(
-        `workspace-${workspaceId}`,
-        "document-content-updated",
-        {
-          documentId,
-          content: safeContent,
-          editorEmail,
-          timestamp: currentTime.toISOString(),
-          documentName: document?.title,
-          version: newVersion, // Virtual version for conflict resolution
-          editedBy: {
-            id: currentUser.id,
-            name: currentUser.name,
-            image: currentUser.image,
-          },
-          operation: determineOperation(existingContent?.content, safeContent),
-        }
-      );
-    }
+    await pusherServer.trigger(
+      `workspace-${workspaceId}`,
+      "document-content-updated",
+      {
+        documentId,
+        content: safeContent,
+        editorEmail,
+        timestamp: new Date().toISOString(),
+        documentName: document?.title,
+        editedBy: {
+          id: currentUser.id,
+          name: currentUser.name,
+          image: currentUser.image,
+        },
+      }
+    );
 
     handleDelayedNotification(
       workspaceId,
@@ -175,35 +129,16 @@ export async function updateDocumentContentById(
       document.title,
       currentUser,
       safeContent,
-      editorEmail,
-      newVersion
+      editorEmail
     );
 
     return {
       updatedContent,
-      version: newVersion,
-      conflicts: [],
     };
   } catch (error) {
     console.error("Error updating document content:", error);
     throw error;
   }
-}
-
-// Determine the type of operation performed
-function determineOperation(
-  oldContent: any,
-  newContent: any
-): "insert" | "delete" | "modify" {
-  if (!oldContent || !oldContent.blocks) return "insert";
-  if (!newContent || !newContent.blocks) return "delete";
-
-  const oldBlockCount = oldContent.blocks.length;
-  const newBlockCount = newContent.blocks.length;
-
-  if (newBlockCount > oldBlockCount) return "insert";
-  if (newBlockCount < oldBlockCount) return "delete";
-  return "modify";
 }
 
 async function handleDelayedNotification(
@@ -212,8 +147,7 @@ async function handleDelayedNotification(
   documentTitle: string,
   currentUser: User,
   content: any,
-  editorEmail: string,
-  version: number
+  editorEmail: string
 ) {
   const existingTimeout = notificationTimeouts.get(documentId);
   if (existingTimeout) {
@@ -241,7 +175,6 @@ async function handleDelayedNotification(
           editorEmail,
           timestamp: new Date().toISOString(),
           documentName: documentTitle,
-          version,
           editedBy: {
             id: currentUser.id,
             name: currentUser.name,
@@ -259,7 +192,6 @@ async function handleDelayedNotification(
       console.error("Error sending delayed notification:", error);
       notificationTimeouts.delete(documentId);
     }
-  }, 180000); // 3 minutes
-
+  }, 180000);
   notificationTimeouts.set(documentId, timeout);
 }

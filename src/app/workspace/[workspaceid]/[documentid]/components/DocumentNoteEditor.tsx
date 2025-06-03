@@ -6,7 +6,6 @@ import { useRef, useEffect, useCallback, useState } from "react";
 import EditorJS, {
   type ToolConstructable,
   type OutputData,
-  type BlockToolData,
 } from "@editorjs/editorjs";
 import Header from "@editorjs/header";
 import Delimiter from "@editorjs/delimiter";
@@ -19,7 +18,6 @@ import ImageTool from "@editorjs/image";
 import axios from "axios";
 import toast from "react-hot-toast";
 import InlineCode from "@editorjs/inline-code";
-import { pusherClient } from "@/lib/pusher";
 
 interface DocumentNoteEditorProps {
   workspaceId: string;
@@ -32,138 +30,6 @@ interface EditorState {
   blockIndex: number;
   caretPosition: "end" | "start" | "default";
   blockContent?: string;
-  scrollTop: number;
-  activeBlockId?: string;
-  selection?: {
-    start: number;
-    end: number;
-  };
-}
-
-interface BlockChangeEvent {
-  type: string;
-  detail: {
-    target: {
-      id: string;
-      name: string;
-    };
-    data: BlockToolData;
-  };
-}
-
-// Define a consistent type for current editing block
-interface CurrentEditingBlock {
-  index: number;
-  content: string;
-  cursorPos: number;
-  timestamp: number;
-}
-
-// Operational Transform untuk menangani konflik editing
-class OperationalTransform {
-  static transformContent(
-    localContent: OutputData,
-    remoteContent: OutputData,
-    currentEditingBlock?: { index: number; content: string; cursorPos: number }
-  ): OutputData {
-    if (!currentEditingBlock) {
-      return remoteContent;
-    }
-
-    const transformedBlocks = [...remoteContent.blocks];
-
-    // Jika user sedang mengedit blok tertentu, prioritaskan konten lokal untuk blok tersebut
-    if (
-      currentEditingBlock.index < transformedBlocks.length &&
-      transformedBlocks[currentEditingBlock.index]?.type === "paragraph"
-    ) {
-      const localBlock = localContent.blocks[currentEditingBlock.index];
-      const remoteBlock = transformedBlocks[currentEditingBlock.index];
-
-      if (
-        localBlock &&
-        remoteBlock &&
-        localBlock.type === "paragraph" &&
-        remoteBlock.type === "paragraph"
-      ) {
-        // Merge konten dengan prioritas pada teks yang sedang diketik
-        const mergedText = this.mergeTextContent(
-          localBlock.data.text || "",
-          remoteBlock.data.text || "",
-          currentEditingBlock.cursorPos
-        );
-
-        transformedBlocks[currentEditingBlock.index] = {
-          ...remoteBlock,
-          data: {
-            ...remoteBlock.data,
-            text: mergedText,
-          },
-        };
-      }
-    }
-
-    return {
-      ...remoteContent,
-      blocks: transformedBlocks,
-    };
-  }
-
-  private static mergeTextContent(
-    localText: string,
-    remoteText: string,
-    cursorPos: number
-  ): string {
-    // Jika teks remote kosong atau sama dengan lokal, gunakan lokal
-    if (!remoteText || remoteText === localText) {
-      return localText;
-    }
-
-    // Jika teks lokal kosong, gunakan remote
-    if (!localText) {
-      return remoteText;
-    }
-
-    // Strategi merge: pertahankan perubahan di sekitar cursor position
-    const beforeCursor = localText.substring(0, cursorPos);
-    const afterCursor = localText.substring(cursorPos);
-
-    // Cari common prefix dan suffix untuk mendeteksi perubahan
-    let commonPrefix = "";
-    let commonSuffix = "";
-
-    const minLength = Math.min(localText.length, remoteText.length);
-
-    // Find common prefix
-    for (let i = 0; i < minLength; i++) {
-      if (localText[i] === remoteText[i]) {
-        commonPrefix += localText[i];
-      } else {
-        break;
-      }
-    }
-
-    // Find common suffix
-    for (let i = 0; i < minLength - commonPrefix.length; i++) {
-      const localChar = localText[localText.length - 1 - i];
-      const remoteChar = remoteText[remoteText.length - 1 - i];
-      if (localChar === remoteChar) {
-        commonSuffix = localChar + commonSuffix;
-      } else {
-        break;
-      }
-    }
-
-    // Jika cursor berada di area yang berubah, prioritaskan konten lokal
-    if (
-      cursorPos > commonPrefix.length &&
-      cursorPos < localText.length - commonSuffix.length
-    ) {
-      return localText;
-    }
-
-    return remoteText;
-  }
 }
 
 const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
@@ -186,12 +52,8 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const pendingUpdatesRef = useRef<OutputData[]>([]);
   const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const currentEditingBlockRef = useRef<CurrentEditingBlock | null>(null);
-  const lastServerTimestampRef = useRef<number>(0);
-  const isTypingRef = useRef(false);
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Enhanced debounce with priority handling
+  // Enhanced debounce with immediate execution option
   function debounce(func: Function, wait: number, immediate = false) {
     let timeout: NodeJS.Timeout;
     return function executedFunction(...args: any[]) {
@@ -206,18 +68,10 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     };
   }
 
-  // Helper function to convert CurrentEditingBlock to the format expected by OperationalTransform
-  const getCurrentEditingBlockForTransform = useCallback((): { index: number; content: string; cursorPos: number } | undefined => {
-    if (!currentEditingBlockRef.current) {
-      return undefined;
-    }
-    
-    const { index, content, cursorPos } = currentEditingBlockRef.current;
-    return { index, content, cursorPos };
-  }, []);
-
-  // Capture current editor state dengan detail yang lebih lengkap
-  const captureEditorState = useCallback((): EditorState | null => {
+  // Capture current editor state including scroll position
+  const captureEditorState = useCallback(():
+    | (EditorState & { scrollTop: number })
+    | null => {
     if (!editorRef.current) return null;
 
     try {
@@ -227,36 +81,11 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
       const editorElement = document.getElementById("editorjs");
       const scrollTop = editorElement?.scrollTop || window.scrollY;
 
-      // Capture selection/cursor position
-      const selection = window.getSelection();
-      let selectionData = undefined;
-
-      if (selection && selection.rangeCount > 0) {
-        const range = selection.getRangeAt(0);
-        selectionData = {
-          start: range.startOffset,
-          end: range.endOffset,
-        };
-      }
-
-      // Update current editing block tracking
-      if (currentBlock && currentBlock.holder) {
-        const blockContent = currentBlock.holder.textContent || "";
-        currentEditingBlockRef.current = {
-          index: currentBlockIndex,
-          content: blockContent,
-          cursorPos: selectionData?.start || 0,
-          timestamp: Date.now(),
-        };
-      }
-
       return {
         blockIndex: currentBlockIndex >= 0 ? currentBlockIndex : 0,
         caretPosition: "end" as const,
         blockContent: currentBlock?.holder?.textContent || "",
         scrollTop: scrollTop,
-        activeBlockId: currentBlock?.id,
-        selection: selectionData,
       };
     } catch (error) {
       console.log("Could not capture editor state:", error);
@@ -269,9 +98,9 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     }
   }, []);
 
-  // Restore editor state dengan preservasi yang lebih baik
+  // Restore editor state with smooth transition and scroll position
   const restoreEditorState = useCallback(
-    (state: EditorState | null, delay = 100) => {
+    (state: (EditorState & { scrollTop: number }) | null, delay = 50) => {
       if (!state || !editorRef.current) return;
 
       setTimeout(() => {
@@ -287,49 +116,16 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
             const editorElement = document.getElementById("editorjs");
             if (editorElement && state.scrollTop > 0) {
               editorElement.scrollTop = state.scrollTop;
+            } else if (state.scrollTop > 0) {
+              window.scrollTo({ top: state.scrollTop, behavior: "auto" });
             }
 
-            // Restore cursor position dengan lebih presisi
+            // Then restore cursor position
             if (targetIndex >= 0 && totalBlocks > 0) {
-              const targetBlock =
-                editorRef.current.blocks.getBlockByIndex(targetIndex);
-              if (targetBlock && targetBlock.holder) {
-                editorRef.current.caret.setToBlock(
-                  targetIndex,
-                  state.caretPosition
-                );
-
-                // Restore selection jika ada
-                if (state.selection && targetBlock.holder.firstChild) {
-                  setTimeout(() => {
-                    try {
-                      const textNode = targetBlock.holder.firstChild;
-                      const range = document.createRange();
-                      const selection = window.getSelection();
-
-                      if (textNode && textNode.textContent) {
-                        const maxPos = textNode.textContent.length;
-                        const startPos = Math.min(
-                          state.selection!.start,
-                          maxPos
-                        );
-                        const endPos = Math.min(state.selection!.end, maxPos);
-
-                        range.setStart(textNode, startPos);
-                        range.setEnd(textNode, endPos);
-
-                        selection?.removeAllRanges();
-                        selection?.addRange(range);
-                      }
-                    } catch (selectionError) {
-                      console.log(
-                        "Could not restore selection:",
-                        selectionError
-                      );
-                    }
-                  }, 50);
-                }
-              }
+              editorRef.current.caret.setToBlock(
+                targetIndex,
+                state.caretPosition
+              );
             }
           } catch (error) {
             console.log("Could not restore editor state:", error);
@@ -340,7 +136,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     []
   );
 
-  // Enhanced save dengan conflict resolution dan timestamp
+  // Enhanced save with conflict resolution
   const onSaveDocumentContent = useCallback(
     async (force = false) => {
       if (
@@ -365,38 +161,18 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
               content: formattedContent,
               userEmail: userEmail,
               timestamp: Date.now(),
-              currentEditingBlock: currentEditingBlockRef.current,
             }
           );
 
-          if (response.data?.status === "success") {
-            lastServerTimestampRef.current =
-              response.data.data.timestamp || Date.now();
-          } else {
+          if (response.data?.status !== "success") {
             toast.error(
               response.data?.message || "Failed to save document content"
             );
           }
         } catch (error: any) {
           if (error.response?.status === 409) {
-            // Conflict detected - handle gracefully
-            const conflictData = error.response.data.data;
-            if (conflictData?.serverContent) {
-              // Apply operational transform
-              const currentContent = await editorRef.current.save();
-              const transformedContent = OperationalTransform.transformContent(
-                currentContent,
-                conflictData.serverContent,
-                getCurrentEditingBlockForTransform()
-              );
-
-              // Apply transformed content without disrupting current editing
-              await handleContentUpdate(transformedContent, true);
-
-              toast.error("Document synchronized with other changes", {
-                duration: 2000,
-              });
-            }
+            toast.error("Document was updated by another user. Refreshing...");
+            await getDocumentContent();
           } else {
             toast.error(
               error.response?.data?.message || "An unexpected error occurred."
@@ -405,42 +181,24 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
         }
       }
     },
-    [workspaceId, documentId, userEmail, getCurrentEditingBlockForTransform]
+    [workspaceId, documentId, userEmail]
   );
 
-  // Typing detection
-  const handleTypingStart = useCallback(() => {
-    isTypingRef.current = true;
-
-    // Clear existing timeout
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-    }
-
-    // Set timeout untuk mendeteksi ketika user berhenti mengetik
-    typingTimeoutRef.current = setTimeout(() => {
-      isTypingRef.current = false;
-      currentEditingBlockRef.current = null;
-    }, 2000); // 2 detik setelah berhenti mengetik
-  }, []);
-
-  // Optimized debounced save dengan typing detection
+  // Optimized debounced save
   const debouncedSave = useCallback(
     debounce(() => {
-      if (!isTypingRef.current) {
-        onSaveDocumentContent();
-      }
-    }, 1000),
+      onSaveDocumentContent();
+    }, 800),
     [onSaveDocumentContent]
   );
 
-  // Immediate save untuk operasi penting
+  // Immediate save for critical updates
   const immediateSave = useCallback(
     debounce(
       () => {
         onSaveDocumentContent(true);
       },
-      200,
+      100,
       true
     ),
     [onSaveDocumentContent]
@@ -458,9 +216,6 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
           response.data.data?.content
         ) {
           const content = response.data.data.content;
-          lastServerTimestampRef.current =
-            response.data.data.timestamp || Date.now();
-
           editorRef.current?.render(content);
           lastSavedContentRef.current = JSON.stringify(content);
         } else {
@@ -478,60 +233,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     }
   }, [workspaceId, documentId]);
 
-  // Enhanced content update handler
-  const handleContentUpdate = useCallback(
-    async (updateData: OutputData, skipStateCapture = false) => {
-      if (!editorRef.current || isProcessingExternalUpdateRef.current) {
-        return;
-      }
-
-      const currentState = skipStateCapture ? null : captureEditorState();
-
-      try {
-        isProcessingExternalUpdateRef.current = true;
-        setIsCollaborating(true);
-
-        // Get current content to compare
-        const currentContent = await editorRef.current.save();
-
-        // Apply operational transform jika user sedang mengetik
-        const transformedContent = OperationalTransform.transformContent(
-          currentContent,
-          updateData,
-          getCurrentEditingBlockForTransform()
-        );
-
-        const currentContentString = JSON.stringify(currentContent);
-        const newContentString = JSON.stringify(transformedContent);
-
-        // Only update if content is actually different
-        if (currentContentString !== newContentString) {
-          await editorRef.current.render(transformedContent);
-          lastSavedContentRef.current = JSON.stringify(transformedContent);
-
-          // Restore state dengan delay yang disesuaikan
-          if (currentState && !skipStateCapture) {
-            const delay = isTypingRef.current ? 50 : 150;
-            restoreEditorState(currentState, delay);
-          }
-        }
-
-        // Hide collaboration indicator
-        setTimeout(() => {
-          setIsCollaborating(false);
-        }, 1000);
-      } catch (error) {
-        console.error("Error processing update:", error);
-      } finally {
-        setTimeout(() => {
-          isProcessingExternalUpdateRef.current = false;
-        }, 200);
-      }
-    },
-    [captureEditorState, restoreEditorState, getCurrentEditingBlockForTransform]
-  );
-
-  // Process pending updates dengan prioritas
+  // Batch process pending updates with better state preservation
   const processPendingUpdates = useCallback(async () => {
     if (
       pendingUpdatesRef.current.length === 0 ||
@@ -540,56 +242,48 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
       return;
     }
 
-    // Jika user sedang mengetik, tunda update
-    if (isTypingRef.current) {
-      setTimeout(() => processPendingUpdates(), 500);
-      return;
-    }
-
     const latestUpdate =
       pendingUpdatesRef.current[pendingUpdatesRef.current.length - 1];
     pendingUpdatesRef.current = [];
 
-    await handleContentUpdate(latestUpdate);
-  }, [handleContentUpdate]);
+    if (editorRef.current) {
+      const currentState = captureEditorState();
 
-  // Setup Pusher untuk real-time collaboration
-  useEffect(() => {
-    if (!workspaceId || !session?.user?.email) return;
+      try {
+        isProcessingExternalUpdateRef.current = true;
 
-    const channel = pusherClient.subscribe(`workspace-${workspaceId}`);
+        // Show collaboration indicator
+        setIsCollaborating(true);
 
-    channel.bind("document-content-updated", (data: any) => {
-      // Ignore updates from current user
-      if (data.editorEmail === session.user?.email) {
-        return;
-      }
+        // Get current content to compare
+        const currentContent = await editorRef.current.save();
+        const currentContentString = JSON.stringify(currentContent);
+        const newContentString = JSON.stringify(latestUpdate);
 
-      // Check timestamp untuk menghindari update yang sudah outdated
-      if (data.timestamp && lastServerTimestampRef.current) {
-        const updateTime = new Date(data.timestamp).getTime();
-        if (updateTime <= lastServerTimestampRef.current) {
-          return; // Skip outdated update
+        // Only update if content is actually different
+        if (currentContentString !== newContentString) {
+          await editorRef.current.render(latestUpdate);
+          lastSavedContentRef.current = JSON.stringify(latestUpdate);
+
+          // Restore state with longer delay to ensure render is complete
+          restoreEditorState(currentState, 200);
         }
+
+        // Hide collaboration indicator after animation
+        setTimeout(() => {
+          setIsCollaborating(false);
+        }, 800);
+      } catch (error) {
+        console.error("Error processing update:", error);
+      } finally {
+        setTimeout(() => {
+          isProcessingExternalUpdateRef.current = false;
+        }, 300);
       }
+    }
+  }, [captureEditorState, restoreEditorState]);
 
-      if (data.content && data.documentId === documentId) {
-        pendingUpdatesRef.current.push(data.content);
-
-        // Process update immediately jika user tidak sedang mengetik
-        if (!isTypingRef.current) {
-          processPendingUpdates();
-        }
-      }
-    });
-
-    return () => {
-      channel.unbind("document-content-updated");
-      pusherClient.unsubscribe(`workspace-${workspaceId}`);
-    };
-  }, [workspaceId, documentId, session, processPendingUpdates]);
-
-  // Image upload handler
+  // Alternative simpler upload method using next-cloudinary
   const handleImageUploadSimple = useCallback(
     async (file: File): Promise<{ success: number; file: { url: string } }> => {
       try {
@@ -646,11 +340,9 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
       editorRef.current = new EditorJS({
         placeholder: placeholder,
         onChange: (api, event) => {
-          // Detect typing
-          handleTypingStart();
-
-          // Handle different event types
+          // Handle different event types safely
           let eventType = "";
+
           if (Array.isArray(event)) {
             eventType =
               event.length > 0 &&
@@ -662,9 +354,6 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
           } else if (event && typeof event === "object" && "type" in event) {
             eventType = (event as any).type;
           }
-
-          // Capture current editing state
-          captureEditorState();
 
           // Use different save strategies based on event type
           if (
@@ -729,11 +418,9 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     getDocumentContent,
     placeholder,
     handleImageUploadSimple,
-    handleTypingStart,
-    captureEditorState,
   ]);
 
-  // Enhanced model response appending
+  // Enhanced model response appending with smooth scrolling
   const appendModelResponse = useCallback(
     async (response: any) => {
       if (!editorRef.current) return;
@@ -838,18 +525,6 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     }
   }, [modelResponse, appendModelResponse]);
 
-  // Cleanup function
-  useEffect(() => {
-    return () => {
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
-      if (updateTimeoutRef.current) {
-        clearTimeout(updateTimeoutRef.current);
-      }
-    };
-  }, []);
-
   function convertEditorDataToHtml(data: OutputData): OutputData {
     const newData = { ...data };
     newData.blocks = newData.blocks.map((block) => {
@@ -888,9 +563,9 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
 
   return (
     <div className="w-full relative">
-      {/* Enhanced collaboration indicator */}
+      {/* Collaboration indicator */}
       {isCollaborating && (
-        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 bg-blue-500 text-white px-4 py-2 rounded-md text-sm shadow-lg transition-all duration-300">
+        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 bg-blue-500 text-white px-4 py-2 rounded-md text-sm shadow-lg">
           <div className="flex items-center space-x-2">
             <div className="flex space-x-1">
               <div className="w-2 h-2 bg-white rounded-full animate-bounce"></div>
@@ -903,7 +578,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
                 style={{ animationDelay: "0.2s" }}
               ></div>
             </div>
-            <span>Syncing with collaborators...</span>
+            <span>Someone is editing...</span>
           </div>
         </div>
       )}
