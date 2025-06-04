@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import React, { ReactNode, useState } from 'react';
-import Image from 'next/image';
+import { type ReactNode, useState } from "react";
+import Image from "next/image";
 import {
   Dialog,
   DialogContent,
@@ -10,22 +10,23 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '../../../../../components/ui/dialog';
-import { Input } from '../../../../../components/ui/input';
-import { Button } from '../../../../../components/ui/button';
-import { Loader2, Sparkles } from 'lucide-react';
-import { z } from 'zod';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { AlertCircle, Loader2 } from "lucide-react";
+import { z } from "zod";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Form,
   FormControl,
   FormField,
   FormItem,
   FormMessage,
-} from '../../../../../components/ui/form';
-import { chatSession } from '@/lib/gemini-ai-model';
-import toast from 'react-hot-toast';
+} from "@/components/ui/form";
+import { chatSession } from "@/lib/gemini-ai-model";
+import { toast } from "react-hot-toast";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface AITemplateDialogProps {
   children: ReactNode;
@@ -35,8 +36,8 @@ interface AITemplateDialogProps {
 const formSchema = z.object({
   prompt: z
     .string()
-    .min(1, 'Please enter a prompt.')
-    .max(100, 'Prompt must be 100 characters or less'),
+    .min(1, "Please enter a prompt.")
+    .max(100, "Prompt must be 100 characters or less"),
 });
 
 function AITemplateDialog({
@@ -45,38 +46,89 @@ function AITemplateDialog({
 }: AITemplateDialogProps) {
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [modelError, setModelError] = useState<string | null>(null);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      prompt: '',
+      prompt: "",
     },
   });
 
   const handleCancel = () => {
     setOpen(false);
     form.reset();
+    setModelError(null);
   };
 
   const onModelReq = async (values: z.infer<typeof formSchema>) => {
     try {
       setIsSubmitting(true);
+      setModelError(null);
 
       const prompt = `Generate template for editor.js in JSON for ${values.prompt}`;
-      const result = await chatSession.sendMessage(prompt);
-      const responseText = await result.response.text();
-      const output = JSON.parse(responseText);
 
-      onGenerateTemplate(output);
-      setOpen(false);
-      form.reset();
-    } catch (error: any) {
-      if (error?.response?.status === 400) {
-        form.setError('prompt', {
-          message: 'Failed to generate a prompt.',
-        });
+      // Add timeout to prevent hanging requests
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error("Request timed out")), 30000);
+      });
+
+      // Race the model request against the timeout
+      const result = (await Promise.race([
+        chatSession.sendMessage(prompt),
+        timeoutPromise,
+      ])) as any;
+
+      const responseText = await result.response.text();
+
+      // Validate that the response is valid JSON
+      let output;
+      try {
+        output = JSON.parse(responseText);
+
+        // Validate the output has the expected structure
+        if (!output.blocks || !Array.isArray(output.blocks)) {
+          throw new Error("Invalid template structure");
+        }
+
+        onGenerateTemplate(output);
+        setOpen(false);
+        form.reset();
+      } catch (jsonError) {
+        console.error("JSON parsing error:", jsonError);
+        setModelError(
+          "The AI generated an invalid response. Please try a different prompt."
+        );
+        throw new Error("Invalid JSON response");
       }
-      toast.error('Failed to create workspace');
+    } catch (error: any) {
+      console.error("AI template generation error:", error);
+
+      // Handle specific error types
+      if (error.message === "Request timed out") {
+        setModelError("The request timed out. Please try again.");
+      } else if (error?.response?.status === 400) {
+        setModelError(
+          "The AI model could not process your prompt. Please try a different prompt."
+        );
+        form.setError("prompt", {
+          message: "Failed to generate a template.",
+        });
+      } else if (error?.response?.status === 429) {
+        setModelError("Rate limit exceeded. Please try again later.");
+      } else if (error?.name === "AbortError") {
+        setModelError("The request was aborted. Please try again.");
+      } else if (error?.message?.includes("safety")) {
+        setModelError(
+          "Your prompt was flagged by safety filters. Please try a different prompt."
+        );
+      } else {
+        setModelError(
+          "An error occurred while generating the template. Please try again."
+        );
+      }
+
+      toast.error("Failed to generate template");
     } finally {
       setIsSubmitting(false);
     }
@@ -92,7 +144,7 @@ function AITemplateDialog({
         <DialogHeader>
           <div className="flex items-center gap-2">
             <Image
-              src={'/images/gemini-icon.svg'}
+              src={"/images/gemini-icon.svg"}
               alt="Gemini"
               width={24}
               height={24}
@@ -104,6 +156,15 @@ function AITemplateDialog({
           <DialogDescription className="pb-3">
             What do you want to write in this document?
           </DialogDescription>
+
+          {modelError && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{modelError}</AlertDescription>
+            </Alert>
+          )}
+
           <Form {...form}>
             <form
               onSubmit={form.handleSubmit(onModelReq)}
@@ -141,7 +202,7 @@ function AITemplateDialog({
                         Generating...
                       </>
                     ) : (
-                      'Generate'
+                      "Generate"
                     )}
                   </Button>
                 </div>
