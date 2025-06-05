@@ -17,7 +17,6 @@ import CodeTool from "@editorjs/code";
 import ImageTool from "@editorjs/image";
 import axios from "axios";
 import toast from "react-hot-toast";
-import InlineCode from "@editorjs/inline-code";
 import { usePusherChannelContext } from "../../components/PusherChannelProvider";
 
 interface DocumentNoteEditorProps {
@@ -31,6 +30,22 @@ interface EditorState {
   blockIndex: number;
   caretPosition: "end" | "start" | "default";
   blockContent?: string;
+}
+
+// Add proper type for Editor.js events
+interface BlockMutationEvent {
+  type: string;
+  detail: {
+    target: {
+      name: string;
+    };
+    index?: number;
+  };
+}
+
+interface EditorChangeEvent {
+  type?: string;
+  detail?: any;
 }
 
 const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
@@ -53,6 +68,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const pendingUpdatesRef = useRef<OutputData[]>([]);
   const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const uploadWidgetRef = useRef<any>(null);
 
   const { channel: workspaceChannel } = usePusherChannelContext();
 
@@ -163,7 +179,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
             {
               content: formattedContent,
               userEmail: userEmail,
-              timestamp: Date.now(),
+              timestamp: Date.now(), // Add timestamp for conflict resolution
             }
           );
 
@@ -174,6 +190,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
           }
         } catch (error: any) {
           if (error.response?.status === 409) {
+            // Conflict detected - refresh content
             toast.error("Document was updated by another user. Refreshing...");
             await getDocumentContent();
           } else {
@@ -191,7 +208,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
   const debouncedSave = useCallback(
     debounce(() => {
       onSaveDocumentContent();
-    }, 800),
+    }, 800), // Increased delay to reduce server load
     [onSaveDocumentContent]
   );
 
@@ -347,6 +364,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
           let eventType = "";
 
           if (Array.isArray(event)) {
+            // If event is an array, get the first event's type
             eventType =
               event.length > 0 &&
               event[0] &&
@@ -396,10 +414,6 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
             inlineToolbar: true,
           },
           code: { class: CodeTool, shortcut: "CMD+SHIFT+P" },
-          inlineCode: {
-            class: InlineCode,
-            shortcut: "CMD+SHIFT+M",
-          },
           image: {
             class: ImageTool,
             config: {
@@ -421,6 +435,73 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     getDocumentContent,
     placeholder,
     handleImageUploadSimple,
+  ]);
+
+  useEffect(() => {
+    if (!workspaceChannel || !userEmail || !editorReady) return;
+
+    console.log(
+      "Setting up Pusher listeners for document content:",
+      documentId
+    );
+
+    const handleDocumentContentUpdated = async (data: {
+      content: OutputData;
+      documentId: string;
+      editorEmail: string;
+      timestamp?: number;
+    }) => {
+      console.log("🔥 EVENT RECEIVED document-content-updated:", data);
+
+      if (data.documentId === documentId && data.editorEmail !== userEmail) {
+        // Add to pending updates queue
+        pendingUpdatesRef.current.push(data.content);
+
+        // Clear existing timeout and set new one
+        if (updateTimeoutRef.current) {
+          clearTimeout(updateTimeoutRef.current);
+        }
+
+        // Process updates with a slightly longer delay to reduce flicker
+        updateTimeoutRef.current = setTimeout(() => {
+          processPendingUpdates();
+        }, 150);
+      }
+    };
+
+    const handleUserTyping = (data: {
+      documentId: string;
+      userEmail: string;
+      isTyping: boolean;
+    }) => {
+      if (data.documentId === documentId && data.userEmail !== userEmail) {
+        setIsCollaborating(data.isTyping);
+      }
+    };
+
+    workspaceChannel.bind(
+      "document-content-updated",
+      handleDocumentContentUpdated
+    );
+    workspaceChannel.bind("user-typing", handleUserTyping);
+
+    return () => {
+      workspaceChannel.unbind(
+        "document-content-updated",
+        handleDocumentContentUpdated
+      );
+      workspaceChannel.unbind("user-typing", handleUserTyping);
+
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+      }
+    };
+  }, [
+    workspaceChannel,
+    documentId,
+    userEmail,
+    editorReady,
+    processPendingUpdates,
   ]);
 
   // Enhanced model response appending with smooth scrolling
@@ -528,73 +609,6 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     }
   }, [modelResponse, appendModelResponse]);
 
-  useEffect(() => {
-    if (!workspaceChannel || !userEmail || !editorReady) return;
-
-    console.log(
-      "Setting up Pusher listeners for document content:",
-      documentId
-    );
-
-    const handleDocumentContentUpdated = async (data: {
-      content: OutputData;
-      documentId: string;
-      editorEmail: string;
-      timestamp?: number;
-    }) => {
-      console.log("🔥 EVENT RECEIVED document-content-updated:", data);
-
-      if (data.documentId === documentId && data.editorEmail !== userEmail) {
-        // Add to pending updates queue
-        pendingUpdatesRef.current.push(data.content);
-
-        // Clear existing timeout and set new one
-        if (updateTimeoutRef.current) {
-          clearTimeout(updateTimeoutRef.current);
-        }
-
-        // Process updates with a slightly longer delay to reduce flicker
-        updateTimeoutRef.current = setTimeout(() => {
-          processPendingUpdates();
-        }, 150);
-      }
-    };
-
-    const handleUserTyping = (data: {
-      documentId: string;
-      userEmail: string;
-      isTyping: boolean;
-    }) => {
-      if (data.documentId === documentId && data.userEmail !== userEmail) {
-        setIsCollaborating(data.isTyping);
-      }
-    };
-
-    workspaceChannel.bind(
-      "document-content-updated",
-      handleDocumentContentUpdated
-    );
-    workspaceChannel.bind("user-typing", handleUserTyping);
-
-    return () => {
-      workspaceChannel.unbind(
-        "document-content-updated",
-        handleDocumentContentUpdated
-      );
-      workspaceChannel.unbind("user-typing", handleUserTyping);
-
-      if (updateTimeoutRef.current) {
-        clearTimeout(updateTimeoutRef.current);
-      }
-    };
-  }, [
-    workspaceChannel,
-    documentId,
-    userEmail,
-    editorReady,
-    processPendingUpdates,
-  ]);
-
   function convertEditorDataToHtml(data: OutputData): OutputData {
     const newData = { ...data };
     newData.blocks = newData.blocks.map((block) => {
@@ -633,7 +647,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
 
   return (
     <div className="w-full relative">
-      {/* Collaboration indicator */}
+      {/* Collaboration indicator - moved to left */}
       {isCollaborating && (
         <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 bg-blue-500 text-white px-4 py-2 rounded-md text-sm shadow-lg">
           <div className="flex items-center space-x-2">
