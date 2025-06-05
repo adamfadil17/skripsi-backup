@@ -18,6 +18,9 @@ import ImageTool from "@editorjs/image";
 import axios from "axios";
 import toast from "react-hot-toast";
 import InlineCode from "@editorjs/inline-code";
+import Pusher from "pusher-js";
+import { Badge } from "@/components/ui/badge";
+import { Check, Wifi, WifiOff } from "lucide-react";
 
 interface DocumentNoteEditorProps {
   workspaceId: string;
@@ -32,6 +35,11 @@ interface EditorState {
   blockContent?: string;
 }
 
+interface ActiveUser {
+  email: string;
+  lastActive: number;
+}
+
 const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
   workspaceId,
   documentId,
@@ -41,247 +49,258 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
   const { data: session } = useSession();
   const userEmail = session?.user?.email;
 
+  // Core refs
   const editorRef = useRef<EditorJS | null>(null);
-  const isFetchedRef = useRef(false);
-  const hasInitialized = useRef(false);
-  const prevModelResponseRef = useRef<any>(null);
   const lastSavedContentRef = useRef<string>("");
-  const isProcessingExternalUpdateRef = useRef(false);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const prevModelResponseRef = useRef<any>(null);
+
+  // State
   const [editorReady, setEditorReady] = useState(false);
   const [isCollaborating, setIsCollaborating] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const pendingUpdatesRef = useRef<OutputData[]>([]);
-  const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<
+    "connected" | "connecting" | "disconnected"
+  >("connecting");
+  const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([]);
 
-  // Enhanced debounce with immediate execution option
-  function debounce(func: Function, wait: number, immediate = false) {
-    let timeout: NodeJS.Timeout;
+  // Pusher refs
+  const pusherRef = useRef<Pusher | null>(null);
+  const channelRef = useRef<any>(null);
+  const isExternalUpdateRef = useRef(false);
+
+  // Enhanced debounce function
+  const debounce = useCallback((func: Function, wait: number) => {
     return function executedFunction(...args: any[]) {
-      const later = () => {
-        clearTimeout(timeout);
-        if (!immediate) func(...args);
-      };
-      const callNow = immediate && !timeout;
-      clearTimeout(timeout);
-      timeout = setTimeout(later, wait);
-      if (callNow) func(...args);
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+
+      saveTimeoutRef.current = setTimeout(() => {
+        func(...args);
+      }, wait);
     };
-  }
-
-  // Capture current editor state including scroll position
-  const captureEditorState = useCallback(():
-    | (EditorState & { scrollTop: number })
-    | null => {
-    if (!editorRef.current) return null;
-
-    try {
-      const currentBlockIndex = editorRef.current.blocks.getCurrentBlockIndex();
-      const currentBlock =
-        editorRef.current.blocks.getBlockByIndex(currentBlockIndex);
-      const editorElement = document.getElementById("editorjs");
-      const scrollTop = editorElement?.scrollTop || window.scrollY;
-
-      return {
-        blockIndex: currentBlockIndex >= 0 ? currentBlockIndex : 0,
-        caretPosition: "end" as const,
-        blockContent: currentBlock?.holder?.textContent || "",
-        scrollTop: scrollTop,
-      };
-    } catch (error) {
-      console.log("Could not capture editor state:", error);
-      return {
-        blockIndex: 0,
-        caretPosition: "end" as const,
-        blockContent: "",
-        scrollTop: window.scrollY,
-      };
-    }
   }, []);
 
-  // Restore editor state with smooth transition and scroll position
-  const restoreEditorState = useCallback(
-    (state: (EditorState & { scrollTop: number }) | null, delay = 50) => {
-      if (!state || !editorRef.current) return;
+  // Save document content with optimized conflict resolution
+  const saveDocumentContent = useCallback(async () => {
+    if (!editorRef.current || !userEmail || isExternalUpdateRef.current) return;
 
-      setTimeout(() => {
-        if (editorRef.current) {
-          try {
-            const totalBlocks = editorRef.current.blocks.getBlocksCount();
-            const targetIndex = Math.min(
-              Math.max(state.blockIndex, 0),
-              totalBlocks - 1
-            );
+    try {
+      const outputData = await editorRef.current.save();
+      const contentString = JSON.stringify(outputData);
 
-            // Restore scroll position first
-            const editorElement = document.getElementById("editorjs");
-            if (editorElement && state.scrollTop > 0) {
-              editorElement.scrollTop = state.scrollTop;
-            } else if (state.scrollTop > 0) {
-              window.scrollTo({ top: state.scrollTop, behavior: "auto" });
-            }
+      // Don't save if content hasn't changed
+      if (contentString === lastSavedContentRef.current) return;
 
-            // Then restore cursor position
-            if (targetIndex >= 0 && totalBlocks > 0) {
-              editorRef.current.caret.setToBlock(
-                targetIndex,
-                state.caretPosition
-              );
-            }
-          } catch (error) {
-            console.log("Could not restore editor state:", error);
-          }
+      lastSavedContentRef.current = contentString;
+
+      const response = await axios.put(
+        `/api/workspace/${workspaceId}/document/${documentId}/content/`,
+        {
+          content: outputData,
+          userEmail: userEmail,
+          timestamp: Date.now(),
         }
-      }, delay);
-    },
-    []
-  );
+      );
 
-  // Enhanced save with conflict resolution
-  const onSaveDocumentContent = useCallback(
-    async (force = false) => {
-      if (
-        editorRef.current &&
-        !isProcessingExternalUpdateRef.current &&
-        userEmail
-      ) {
-        try {
-          const outputData = await editorRef.current.save();
-          const formattedContent = convertEditorDataToHtml(outputData);
-          const contentString = JSON.stringify(formattedContent);
-
-          if (!force && contentString === lastSavedContentRef.current) {
-            return;
-          }
-
-          lastSavedContentRef.current = contentString;
-
-          const response = await axios.put(
-            `/api/workspace/${workspaceId}/document/${documentId}/content/`,
-            {
-              content: formattedContent,
-              userEmail: userEmail,
-              timestamp: Date.now(),
-            }
-          );
-
-          if (response.data?.status !== "success") {
-            toast.error(
-              response.data?.message || "Failed to save document content"
-            );
-          }
-        } catch (error: any) {
-          if (error.response?.status === 409) {
-            toast.error("Document was updated by another user. Refreshing...");
-            await getDocumentContent();
-          } else {
-            toast.error(
-              error.response?.data?.message || "An unexpected error occurred."
-            );
-          }
-        }
+      if (response.data?.status !== "success") {
+        toast.error(
+          response.data?.message || "Failed to save document content"
+        );
       }
-    },
-    [workspaceId, documentId, userEmail]
-  );
+    } catch (error: any) {
+      console.error("Save error:", error);
+      toast.error("Failed to save changes. Please try again.");
+    }
+  }, [workspaceId, documentId, userEmail]);
 
   // Optimized debounced save
   const debouncedSave = useCallback(
-    debounce(() => {
-      onSaveDocumentContent();
-    }, 800),
-    [onSaveDocumentContent]
+    debounce(() => saveDocumentContent(), 800),
+    [saveDocumentContent, debounce]
   );
 
-  // Immediate save for critical updates
-  const immediateSave = useCallback(
-    debounce(
-      () => {
-        onSaveDocumentContent(true);
-      },
-      100,
-      true
-    ),
-    [onSaveDocumentContent]
-  );
-
+  // Fetch document content
   const getDocumentContent = useCallback(async () => {
-    if (!isFetchedRef.current) {
-      try {
-        const response = await axios.get(
-          `/api/workspace/${workspaceId}/document/${documentId}/content/`
-        );
+    try {
+      const response = await axios.get(
+        `/api/workspace/${workspaceId}/document/${documentId}/content/`
+      );
 
-        if (
-          response.data?.status === "success" &&
-          response.data.data?.content
-        ) {
-          const content = response.data.data.content;
-          editorRef.current?.render(content);
+      if (response.data?.status === "success" && response.data.data?.content) {
+        const content = response.data.data.content;
+
+        if (editorRef.current) {
+          await editorRef.current.render(content);
           lastSavedContentRef.current = JSON.stringify(content);
-        } else {
-          toast.error(
-            response.data?.message || "Failed to load document content."
-          );
         }
-        isFetchedRef.current = true;
-        setEditorReady(true);
-      } catch (error: any) {
+      } else {
         toast.error(
-          error.response?.data?.message || "An unexpected error occurred."
+          response.data?.message || "Failed to load document content."
         );
       }
+
+      setEditorReady(true);
+    } catch (error: any) {
+      toast.error(
+        error.response?.data?.message || "An unexpected error occurred."
+      );
     }
   }, [workspaceId, documentId]);
 
-  // Batch process pending updates with better state preservation
-  const processPendingUpdates = useCallback(async () => {
-    if (
-      pendingUpdatesRef.current.length === 0 ||
-      isProcessingExternalUpdateRef.current
-    ) {
-      return;
-    }
-
-    const latestUpdate =
-      pendingUpdatesRef.current[pendingUpdatesRef.current.length - 1];
-    pendingUpdatesRef.current = [];
-
-    if (editorRef.current) {
-      const currentState = captureEditorState();
+  // Handle external updates from Pusher
+  const handleExternalUpdate = useCallback(
+    async (data: any) => {
+      if (!editorRef.current || data.userEmail === userEmail) return;
 
       try {
-        isProcessingExternalUpdateRef.current = true;
-
         // Show collaboration indicator
         setIsCollaborating(true);
 
-        // Get current content to compare
-        const currentContent = await editorRef.current.save();
-        const currentContentString = JSON.stringify(currentContent);
-        const newContentString = JSON.stringify(latestUpdate);
+        // Mark that we're processing an external update
+        isExternalUpdateRef.current = true;
 
-        // Only update if content is actually different
-        if (currentContentString !== newContentString) {
-          await editorRef.current.render(latestUpdate);
-          lastSavedContentRef.current = JSON.stringify(latestUpdate);
+        // Get current cursor position
+        const currentBlockIndex =
+          editorRef.current.blocks.getCurrentBlockIndex();
+        const scrollPosition = window.scrollY;
 
-          // Restore state with longer delay to ensure render is complete
-          restoreEditorState(currentState, 200);
-        }
+        // Update editor content
+        await editorRef.current.render(data.content);
+        lastSavedContentRef.current = JSON.stringify(data.content);
 
-        // Hide collaboration indicator after animation
+        // Restore cursor position if possible
         setTimeout(() => {
-          setIsCollaborating(false);
-        }, 800);
+          if (editorRef.current) {
+            const totalBlocks = editorRef.current.blocks.getBlocksCount();
+            if (currentBlockIndex >= 0 && currentBlockIndex < totalBlocks) {
+              editorRef.current.caret.setToBlock(currentBlockIndex, "end");
+            }
+            window.scrollTo(0, scrollPosition);
+          }
+
+          // Reset flags
+          isExternalUpdateRef.current = false;
+
+          // Hide collaboration indicator after animation
+          setTimeout(() => {
+            setIsCollaborating(false);
+          }, 800);
+        }, 100);
       } catch (error) {
-        console.error("Error processing update:", error);
-      } finally {
-        setTimeout(() => {
-          isProcessingExternalUpdateRef.current = false;
-        }, 300);
+        console.error("Error handling external update:", error);
+        isExternalUpdateRef.current = false;
+        setIsCollaborating(false);
       }
+    },
+    [userEmail]
+  );
+
+  // Handle user presence
+  const handleUserPresence = useCallback((data: any) => {
+    setActiveUsers((prev) => {
+      // Filter out old entries for this user
+      const filtered = prev.filter((user) => user.email !== data.userEmail);
+
+      // Add the new entry
+      return [
+        ...filtered,
+        {
+          email: data.userEmail,
+          lastActive: Date.now(),
+        },
+      ];
+    });
+  }, []);
+
+  // Clean up stale users
+  const cleanupStaleUsers = useCallback(() => {
+    const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+    setActiveUsers((prev) =>
+      prev.filter((user) => user.lastActive > fiveMinutesAgo)
+    );
+  }, []);
+
+  // Initialize Pusher
+  const initializePusher = useCallback(() => {
+    if (!userEmail) return;
+
+    // Clean up existing connection if any
+    if (pusherRef.current) {
+      pusherRef.current.disconnect();
     }
-  }, [captureEditorState, restoreEditorState]);
+
+    // Create new Pusher instance
+    pusherRef.current = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY!, {
+      cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
+      forceTLS: true,
+    });
+
+    // Subscribe to document channel
+    const channelName = `document-${documentId}`;
+    channelRef.current = pusherRef.current.subscribe(channelName);
+
+    // Set up event handlers
+    channelRef.current.bind("content-update", handleExternalUpdate);
+    channelRef.current.bind("user-presence", handleUserPresence);
+
+    // Handle connection states
+    pusherRef.current.connection.bind("connected", () => {
+      setConnectionStatus("connected");
+
+      // Broadcast presence when connected
+      broadcastPresence();
+    });
+
+    pusherRef.current.connection.bind("connecting", () => {
+      setConnectionStatus("connecting");
+    });
+
+    pusherRef.current.connection.bind("disconnected", () => {
+      setConnectionStatus("disconnected");
+    });
+
+    pusherRef.current.connection.bind("failed", () => {
+      setConnectionStatus("disconnected");
+      toast.error(
+        "Real-time connection failed. Some changes may not sync automatically."
+      );
+    });
+
+    // Set up interval to clean up stale users
+    const interval = setInterval(cleanupStaleUsers, 60000);
+
+    return () => {
+      clearInterval(interval);
+      if (pusherRef.current) {
+        pusherRef.current.disconnect();
+      }
+    };
+  }, [
+    documentId,
+    userEmail,
+    handleExternalUpdate,
+    handleUserPresence,
+    cleanupStaleUsers,
+  ]);
+
+  // Broadcast user presence
+  const broadcastPresence = useCallback(async () => {
+    if (!userEmail) return;
+
+    try {
+      await axios.post(
+        `/api/workspace/${workspaceId}/document/${documentId}/presence`,
+        {
+          userEmail,
+          timestamp: Date.now(),
+        }
+      );
+    } catch (error) {
+      console.error("Failed to broadcast presence:", error);
+    }
+  }, [workspaceId, documentId, userEmail]);
 
   // Alternative simpler upload method using next-cloudinary
   const handleImageUploadSimple = useCallback(
@@ -334,93 +353,65 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     [workspaceId, documentId]
   );
 
+  // Initialize editor
   const initEditor = useCallback(() => {
-    if (!hasInitialized.current) {
-      hasInitialized.current = true;
-      editorRef.current = new EditorJS({
-        placeholder: placeholder,
-        onChange: (api, event) => {
-          // Handle different event types safely
-          let eventType = "";
+    if (editorRef.current) return;
 
-          if (Array.isArray(event)) {
-            eventType =
-              event.length > 0 &&
-              event[0] &&
-              typeof event[0] === "object" &&
-              "type" in event[0]
-                ? (event[0] as any).type
-                : "";
-          } else if (event && typeof event === "object" && "type" in event) {
-            eventType = (event as any).type;
-          }
-
-          // Use different save strategies based on event type
-          if (
-            eventType === "block-added" ||
-            eventType === "block-removed" ||
-            eventType === "block-moved"
-          ) {
-            immediateSave();
-          } else {
-            debouncedSave();
-          }
+    editorRef.current = new EditorJS({
+      placeholder: placeholder,
+      onChange: () => {
+        if (!isExternalUpdateRef.current) {
+          debouncedSave();
+        }
+      },
+      onReady: () => {
+        getDocumentContent();
+      },
+      holder: "editorjs",
+      tools: {
+        header: Header,
+        delimiter: Delimiter,
+        paragraph: {
+          class: Paragraph as unknown as ToolConstructable,
+          inlineToolbar: true,
+          config: {
+            placeholder: placeholder,
+          },
         },
-        onReady: () => {
-          getDocumentContent();
+        table: Table,
+        list: {
+          class: List as unknown as ToolConstructable,
+          inlineToolbar: true,
+          shortcut: "CMD+SHIFT+L",
+          config: { defaultStyle: "unordered" },
         },
-        holder: "editorjs",
-        tools: {
-          header: Header,
-          delimiter: Delimiter,
-          paragraph: {
-            class: Paragraph as unknown as ToolConstructable,
-            inlineToolbar: true,
-            config: {
-              placeholder: placeholder,
+        checklist: {
+          class: Checklist,
+          shortcut: "CMD+SHIFT+C",
+          inlineToolbar: true,
+        },
+        code: { class: CodeTool, shortcut: "CMD+SHIFT+P" },
+        inlineCode: {
+          class: InlineCode,
+          shortcut: "CMD+SHIFT+M",
+        },
+        image: {
+          class: ImageTool,
+          config: {
+            uploader: {
+              uploadByFile: handleImageUploadSimple,
             },
-          },
-          table: Table,
-          list: {
-            class: List as unknown as ToolConstructable,
-            inlineToolbar: true,
-            shortcut: "CMD+SHIFT+L",
-            config: { defaultStyle: "unordered" },
-          },
-          checklist: {
-            class: Checklist,
-            shortcut: "CMD+SHIFT+C",
-            inlineToolbar: true,
-          },
-          code: { class: CodeTool, shortcut: "CMD+SHIFT+P" },
-          inlineCode: {
-            class: InlineCode,
-            shortcut: "CMD+SHIFT+M",
-          },
-          image: {
-            class: ImageTool,
-            config: {
-              uploader: {
-                uploadByFile: handleImageUploadSimple,
-              },
-              captionPlaceholder: "Add image caption...",
-              withBorder: true,
-              withBackground: false,
-              stretched: false,
-            },
+            captionPlaceholder: "Add image caption...",
+            withBorder: true,
+            withBackground: false,
+            stretched: false,
           },
         },
-      });
-    }
-  }, [
-    debouncedSave,
-    immediateSave,
-    getDocumentContent,
-    placeholder,
-    handleImageUploadSimple,
-  ]);
+      },
+    });
+  }, [debouncedSave, getDocumentContent, placeholder, handleImageUploadSimple]);
 
-  // Enhanced model response appending with smooth scrolling
+  // Enhanced model response appending
   const appendModelResponse = useCallback(
     async (response: any) => {
       if (!editorRef.current) return;
@@ -500,24 +491,59 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
           }
         }, 200);
 
-        onSaveDocumentContent(true);
+        saveDocumentContent();
       } catch (error) {
         console.error("Error appending model response:", error);
       }
     },
-    [onSaveDocumentContent]
+    [saveDocumentContent]
   );
 
+  // Initialize editor when session is available
   useEffect(() => {
     if (session) {
       initEditor();
     }
+
+    return () => {
+      if (editorRef.current) {
+        editorRef.current.destroy();
+        editorRef.current = null;
+      }
+
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
   }, [session, initEditor]);
 
+  // Initialize Pusher when user is authenticated
+  useEffect(() => {
+    if (userEmail) {
+      const cleanup = initializePusher();
+      return cleanup;
+    }
+  }, [userEmail, initializePusher]);
+
+  // Broadcast presence periodically
+  useEffect(() => {
+    if (!userEmail) return;
+
+    // Broadcast presence immediately
+    broadcastPresence();
+
+    // Then broadcast every minute
+    const interval = setInterval(broadcastPresence, 60000);
+
+    return () => clearInterval(interval);
+  }, [userEmail, broadcastPresence]);
+
+  // Handle model response changes
   useEffect(() => {
     if (
       modelResponse &&
-      modelResponse !== prevModelResponseRef.current &&
+      JSON.stringify(modelResponse) !==
+        JSON.stringify(prevModelResponseRef.current) &&
       editorRef.current
     ) {
       appendModelResponse(modelResponse);
@@ -525,44 +551,51 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     }
   }, [modelResponse, appendModelResponse]);
 
-  function convertEditorDataToHtml(data: OutputData): OutputData {
-    const newData = { ...data };
-    newData.blocks = newData.blocks.map((block) => {
-      if (block.type === "paragraph" && block.data.inlineToolbar) {
-        let text = block.data.text;
-        const inlineTools = [...block.data.inlineToolbar];
-
-        inlineTools.sort((a: any, b: any) => b.offset - a.offset);
-
-        inlineTools.forEach((tool: any) => {
-          if (tool.type === "bold") {
-            const startTag = "<b>";
-            const endTag = "</b>";
-            text =
-              text.slice(0, tool.offset) +
-              startTag +
-              text.slice(tool.offset, tool.offset + tool.length) +
-              endTag +
-              text.slice(tool.offset + tool.length);
-          }
-        });
-
-        return {
-          ...block,
-          data: {
-            ...block.data,
-            text: text,
-            inlineToolbar: undefined,
-          },
-        };
-      }
-      return block;
-    });
-    return newData;
-  }
-
   return (
     <div className="w-full relative">
+      {/* Status indicators */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center space-x-2">
+          {connectionStatus === "connected" ? (
+            <Badge
+              variant="outline"
+              className="bg-green-50 text-green-700 border-green-200 flex items-center gap-1"
+            >
+              <Wifi className="h-3 w-3" />
+              <span>Connected</span>
+            </Badge>
+          ) : connectionStatus === "connecting" ? (
+            <Badge
+              variant="outline"
+              className="bg-yellow-50 text-yellow-700 border-yellow-200 flex items-center gap-1"
+            >
+              <div className="h-2 w-2 rounded-full bg-yellow-500 animate-pulse"></div>
+              <span>Connecting...</span>
+            </Badge>
+          ) : (
+            <Badge
+              variant="outline"
+              className="bg-red-50 text-red-700 border-red-200 flex items-center gap-1"
+            >
+              <WifiOff className="h-3 w-3" />
+              <span>Disconnected</span>
+            </Badge>
+          )}
+        </div>
+
+        <div className="flex items-center space-x-2">
+          {activeUsers.length > 0 && (
+            <Badge
+              variant="outline"
+              className="bg-blue-50 text-blue-700 border-blue-200"
+            >
+              {activeUsers.length} active{" "}
+              {activeUsers.length === 1 ? "user" : "users"}
+            </Badge>
+          )}
+        </div>
+      </div>
+
       {/* Collaboration indicator */}
       {isCollaborating && (
         <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 bg-blue-500 text-white px-4 py-2 rounded-md text-sm shadow-lg">
@@ -592,6 +625,27 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
           </div>
         </div>
       )}
+
+      {/* Save status indicator */}
+      <div className="fixed bottom-4 right-4 z-50">
+        {saveTimeoutRef.current ? (
+          <Badge
+            variant="outline"
+            className="bg-blue-50 text-blue-700 border-blue-200 flex items-center gap-1"
+          >
+            <div className="animate-spin h-3 w-3 border border-blue-700 rounded-full border-t-transparent"></div>
+            <span>Saving...</span>
+          </Badge>
+        ) : (
+          <Badge
+            variant="outline"
+            className="bg-green-50 text-green-700 border-green-200 flex items-center gap-1 opacity-70"
+          >
+            <Check className="h-3 w-3" />
+            <span>Saved</span>
+          </Badge>
+        )}
+      </div>
 
       <div
         id="editorjs"
