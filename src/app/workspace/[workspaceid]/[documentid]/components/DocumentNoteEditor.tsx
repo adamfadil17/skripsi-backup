@@ -57,9 +57,9 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     };
   }
 
-  // Streamlined save function
+  // Enhanced save with better conflict resolution and retry logic
   const onSaveDocumentContent = useCallback(
-    async (force = false) => {
+    async (force = false, retryCount = 0) => {
       if (
         editorRef.current &&
         !isProcessingExternalUpdateRef.current &&
@@ -76,19 +76,49 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
 
           lastSavedContentRef.current = contentString;
 
-          await axios.put(
+          const response = await axios.put(
             `/api/workspace/${workspaceId}/document/${documentId}/content/`,
             {
               content: formattedContent,
               userEmail: userEmail,
               timestamp: Date.now(),
+              version: outputData.version || "2.30.8", // Add version for conflict detection
             }
           );
+
+          if (response.data?.status === "success") {
+            // Update last saved content only on successful save
+            lastSavedContentRef.current = contentString;
+          }
         } catch (error: any) {
           if (error.response?.status === 409) {
-            await getDocumentContent();
+            // Conflict detected - implement retry with exponential backoff
+            if (retryCount < 3) {
+              console.log(
+                `Conflict detected, retrying... (${retryCount + 1}/3)`
+              );
+
+              // Wait before retry with exponential backoff
+              const delay = Math.pow(2, retryCount) * 500; // 500ms, 1s, 2s
+              setTimeout(() => {
+                // Refresh content first, then retry save
+                getDocumentContent().then(() => {
+                  onSaveDocumentContent(true, retryCount + 1);
+                });
+              }, delay);
+            } else {
+              // Max retries reached, show user-friendly message
+              toast.error(
+                "Document updated by another user. Please refresh the page."
+              );
+            }
           } else {
-            toast.error("Failed to save document");
+            // Only show error for non-conflict issues
+            console.error("Save error:", error);
+            if (retryCount === 0) {
+              // Only show toast on first attempt
+              toast.error("Failed to save document");
+            }
           }
         }
       }
@@ -96,11 +126,11 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     [workspaceId, documentId, userEmail]
   );
 
-  // Immediate save with minimal delay
+  // Longer debounce to reduce conflicts
   const debouncedSave = useCallback(
     debounce(() => {
       onSaveDocumentContent();
-    }, 300),
+    }, 1000), // Increased from 300ms to 1000ms
     [onSaveDocumentContent]
   );
 
@@ -127,7 +157,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     }
   }, [workspaceId, documentId]);
 
-  // Simplified update processing for immediate response
+  // Improved update processing with conflict prevention
   const processPendingUpdates = useCallback(async () => {
     if (
       pendingUpdatesRef.current.length === 0 ||
@@ -144,18 +174,49 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
       try {
         isProcessingExternalUpdateRef.current = true;
 
+        // Get current content hash for comparison
         const currentContent = await editorRef.current.save();
-        const currentContentString = JSON.stringify(currentContent);
-        const newContentString = JSON.stringify(latestUpdate);
+        const currentHash = JSON.stringify(currentContent);
+        const newHash = JSON.stringify(latestUpdate);
 
-        if (currentContentString !== newContentString) {
+        // Only update if content is actually different
+        if (currentHash !== newHash) {
+          // Store current cursor position
+          let currentBlockIndex = 0;
+          try {
+            currentBlockIndex = editorRef.current.blocks.getCurrentBlockIndex();
+          } catch (e) {
+            // Ignore cursor position errors
+          }
+
           await editorRef.current.render(latestUpdate);
           lastSavedContentRef.current = JSON.stringify(latestUpdate);
+
+          // Restore cursor position after a short delay
+          setTimeout(() => {
+            if (editorRef.current && currentBlockIndex >= 0) {
+              try {
+                const totalBlocks = editorRef.current.blocks.getBlocksCount();
+                const targetIndex = Math.min(
+                  currentBlockIndex,
+                  totalBlocks - 1
+                );
+                if (targetIndex >= 0) {
+                  editorRef.current.caret.setToBlock(targetIndex, "end");
+                }
+              } catch (e) {
+                // Ignore cursor restoration errors
+              }
+            }
+          }, 100);
         }
       } catch (error) {
         console.error("Error processing update:", error);
       } finally {
-        isProcessingExternalUpdateRef.current = false;
+        // Reset flag after a short delay to prevent race conditions
+        setTimeout(() => {
+          isProcessingExternalUpdateRef.current = false;
+        }, 200);
       }
     }
   }, []);
@@ -303,21 +364,31 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     }
   }, [modelResponse, appendModelResponse]);
 
-  // Streamlined Pusher integration for immediate updates
+  // Optimized Pusher integration with reduced update frequency
   useEffect(() => {
     if (!workspaceChannel || !userEmail || !editorReady) return;
+
+    let updateTimeout: NodeJS.Timeout;
 
     const handleDocumentContentUpdated = async (data: {
       content: OutputData;
       documentId: string;
       editorEmail: string;
+      timestamp?: number;
     }) => {
       if (data.documentId === documentId && data.editorEmail !== userEmail) {
+        // Clear existing timeout
+        if (updateTimeout) {
+          clearTimeout(updateTimeout);
+        }
+
+        // Add to pending updates
         pendingUpdatesRef.current.push(data.content);
-        // Immediate processing for smooth updates
-        setTimeout(() => {
+
+        // Process updates with slight delay to batch multiple rapid changes
+        updateTimeout = setTimeout(() => {
           processPendingUpdates();
-        }, 50);
+        }, 200); // Increased delay to batch updates
       }
     };
 
@@ -331,6 +402,9 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
         "document-content-updated",
         handleDocumentContentUpdated
       );
+      if (updateTimeout) {
+        clearTimeout(updateTimeout);
+      }
     };
   }, [
     workspaceChannel,
