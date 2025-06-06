@@ -26,13 +26,6 @@ interface DocumentNoteEditorProps {
   placeholder?: string;
 }
 
-interface EditorState {
-  blockIndex: number;
-  caretPosition: "end" | "start" | "default";
-  blockContent?: string;
-  scrollTop: number;
-}
-
 const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
   workspaceId,
   documentId,
@@ -48,90 +41,23 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
   const prevModelResponseRef = useRef<any>(null);
   const lastSavedContentRef = useRef<string>("");
   const isProcessingExternalUpdateRef = useRef(false);
-
   const [editorReady, setEditorReady] = useState(false);
-  const [isCollaborating, setIsCollaborating] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
 
-  const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
+  // Get the Pusher channel from context
   const { channel: workspaceChannel } = usePusherChannelContext();
 
-  // Enhanced debounce with queue management
-  function debounce(func: Function, wait: number, immediate = false) {
+  // Debounce function to limit the frequency of function calls
+  function debounce(func: Function, wait: number) {
     let timeout: NodeJS.Timeout;
     return function executedFunction(...args: any[]) {
       const later = () => {
         clearTimeout(timeout);
-        if (!immediate) func(...args);
+        func(...args);
       };
-      const callNow = immediate && !timeout;
       clearTimeout(timeout);
       timeout = setTimeout(later, wait);
-      if (callNow) func(...args);
     };
   }
-
-  // Capture current editor state with enhanced error handling
-  const captureEditorState = useCallback((): EditorState | null => {
-    if (!editorRef.current) return null;
-
-    try {
-      const currentBlockIndex = editorRef.current.blocks.getCurrentBlockIndex();
-      const editorElement = document.getElementById("editorjs");
-      const scrollTop = editorElement?.scrollTop || window.scrollY;
-
-      return {
-        blockIndex: Math.max(currentBlockIndex, 0),
-        caretPosition: "end" as const,
-        scrollTop: scrollTop,
-      };
-    } catch (error) {
-      console.log("Could not capture editor state:", error);
-      return {
-        blockIndex: 0,
-        caretPosition: "end" as const,
-        scrollTop: window.scrollY,
-      };
-    }
-  }, []);
-
-  // Restore editor state with improved reliability
-  const restoreEditorState = useCallback(
-    (state: EditorState | null, delay = 100) => {
-      if (!state || !editorRef.current) return;
-
-      setTimeout(() => {
-        if (editorRef.current) {
-          try {
-            const totalBlocks = editorRef.current.blocks.getBlocksCount();
-            const targetIndex = Math.min(
-              Math.max(state.blockIndex, 0),
-              totalBlocks - 1
-            );
-
-            // Restore scroll position
-            const editorElement = document.getElementById("editorjs");
-            if (editorElement && state.scrollTop > 0) {
-              editorElement.scrollTop = state.scrollTop;
-            }
-
-            // Restore cursor position
-            if (targetIndex >= 0 && totalBlocks > 0) {
-              editorRef.current.caret.setToBlock(
-                targetIndex,
-                state.caretPosition
-              );
-            }
-          } catch (error) {
-            console.log("Could not restore editor state:", error);
-          }
-        }
-      }, delay);
-    },
-    []
-  );
 
   const saveDocument = useCallback(async () => {
     if (
@@ -141,9 +67,11 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     ) {
       try {
         const outputData = await editorRef.current.save();
-        const contentString = JSON.stringify(outputData);
+        // Convert inlineToolbar to <b> tags before saving
+        const formattedContent = convertEditorDataToHtml(outputData);
 
         // Check if content has actually changed to avoid unnecessary saves
+        const contentString = JSON.stringify(formattedContent);
         if (contentString === lastSavedContentRef.current) {
           return; // Skip save if content hasn't changed
         }
@@ -153,7 +81,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
         const response = await axios.put(
           `/api/workspace/${workspaceId}/document/${documentId}/content/`,
           {
-            content: outputData,
+            content: formattedContent,
             userEmail: userEmail,
           }
         );
@@ -171,39 +99,12 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     }
   }, [workspaceId, documentId, userEmail]);
 
-  // Optimized debounced save with typing indicators
+  // Add debounced save to prevent too many saves during typing
   const debouncedSave = useCallback(
     debounce(() => {
       saveDocument();
     }, 500),
     [saveDocument]
-  );
-
-  // Send typing indicator
-  const sendTypingIndicator = useCallback(
-    debounce(() => {
-      if (workspaceChannel && userEmail) {
-        workspaceChannel.trigger("client-user-typing", {
-          documentId: documentId,
-          userEmail: userEmail,
-          isTyping: true,
-        });
-
-        // Auto-clear typing indicator after 3 seconds
-        if (typingTimeoutRef.current) {
-          clearTimeout(typingTimeoutRef.current);
-        }
-
-        typingTimeoutRef.current = setTimeout(() => {
-          workspaceChannel.trigger("client-user-typing", {
-            documentId: documentId,
-            userEmail: userEmail,
-            isTyping: false,
-          });
-        }, 3000);
-      }
-    }, 300),
-    [workspaceChannel, userEmail, documentId]
   );
 
   const getDocumentOutput = useCallback(async () => {
@@ -236,7 +137,90 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     }
   }, [workspaceId, documentId]);
 
-  // Enhanced Pusher event handling - simplified
+  // Image upload handler
+  const handleImageUpload = useCallback(
+    async (file: File): Promise<{ success: number; file: { url: string } }> => {
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append(
+          "upload_preset",
+          process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET!
+        );
+        formData.append("folder", `documents/${workspaceId}/${documentId}`);
+
+        const response = await fetch(
+          `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`,
+          {
+            method: "POST",
+            body: formData,
+          }
+        );
+
+        const data = await response.json();
+
+        if (data.secure_url) {
+          toast.success("Image uploaded successfully!");
+          return { success: 1, file: { url: data.secure_url } };
+        } else {
+          throw new Error("Upload failed");
+        }
+      } catch (error) {
+        console.error("Image upload error:", error);
+        toast.error("Failed to upload image. Please try again.");
+        return { success: 0, file: { url: "" } };
+      }
+    },
+    [workspaceId, documentId]
+  );
+
+  const initEditor = useCallback(() => {
+    if (!hasInitialized.current) {
+      hasInitialized.current = true;
+      editorRef.current = new EditorJS({
+        onChange: () => {
+          debouncedSave();
+        },
+        onReady: () => {
+          getDocumentOutput();
+        },
+        holder: "editorjs",
+        tools: {
+          header: Header,
+          delimiter: Delimiter,
+          paragraph: {
+            class: Paragraph as unknown as ToolConstructable,
+            inlineToolbar: true,
+          },
+          table: Table,
+          list: {
+            class: List as unknown as ToolConstructable,
+            inlineToolbar: true,
+            shortcut: "CMD+SHIFT+L",
+            config: { defaultStyle: "unordered" },
+          },
+          checklist: {
+            class: Checklist,
+            shortcut: "CMD+SHIFT+C",
+            inlineToolbar: true,
+          },
+          code: { class: CodeTool, shortcut: "CMD+SHIFT+P" },
+          image: {
+            class: ImageTool,
+            config: {
+              uploader: { uploadByFile: handleImageUpload },
+              captionPlaceholder: "Add image caption...",
+              withBorder: true,
+              withBackground: false,
+              stretched: false,
+            },
+          },
+        },
+      });
+    }
+  }, [debouncedSave, getDocumentOutput, handleImageUpload]);
+
+  // Set up Pusher event listeners for real-time updates
   useEffect(() => {
     if (!workspaceChannel || !userEmail || !editorReady) return;
 
@@ -318,94 +302,6 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     };
   }, [workspaceChannel, documentId, userEmail, editorReady]);
 
-  // Image upload with better error handling
-  const handleImageUploadSimple = useCallback(
-    async (file: File): Promise<{ success: number; file: { url: string } }> => {
-      try {
-        setIsUploading(true);
-
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append(
-          "upload_preset",
-          process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET!
-        );
-        formData.append("folder", `documents/${workspaceId}/${documentId}`);
-
-        const response = await fetch(
-          `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`,
-          {
-            method: "POST",
-            body: formData,
-          }
-        );
-
-        const data = await response.json();
-
-        if (data.secure_url) {
-          toast.success("Image uploaded successfully!");
-          return { success: 1, file: { url: data.secure_url } };
-        } else {
-          throw new Error("Upload failed");
-        }
-      } catch (error) {
-        console.error("Image upload error:", error);
-        toast.error("Failed to upload image. Please try again.");
-        return { success: 0, file: { url: "" } };
-      } finally {
-        setIsUploading(false);
-      }
-    },
-    [workspaceId, documentId]
-  );
-
-  const initEditor = useCallback(() => {
-    if (!hasInitialized.current) {
-      hasInitialized.current = true;
-      editorRef.current = new EditorJS({
-        onChange: () => {
-          debouncedSave();
-        },
-        onReady: () => {
-          getDocumentOutput();
-        },
-        holder: "editorjs",
-        tools: {
-          header: Header,
-          delimiter: Delimiter,
-          paragraph: {
-            class: Paragraph as unknown as ToolConstructable,
-            inlineToolbar: true,
-          },
-          table: Table,
-          list: {
-            class: List as unknown as ToolConstructable,
-            inlineToolbar: true,
-            shortcut: "CMD+SHIFT+L",
-            config: { defaultStyle: "unordered" },
-          },
-          checklist: {
-            class: Checklist,
-            shortcut: "CMD+SHIFT+C",
-            inlineToolbar: true,
-          },
-          code: { class: CodeTool, shortcut: "CMD+SHIFT+P" },
-          image: {
-            class: ImageTool,
-            config: {
-              uploader: { uploadByFile: handleImageUploadSimple },
-              captionPlaceholder: "Add image caption...",
-              withBorder: true,
-              withBackground: false,
-              stretched: false,
-            },
-          },
-        },
-      });
-    }
-  }, [debouncedSave, getDocumentOutput, handleImageUploadSimple]);
-
-  // Model response handling
   const appendModelResponse = useCallback(
     async (response: any) => {
       if (!editorRef.current) return;
@@ -483,6 +379,23 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     [saveDocument]
   );
 
+  useEffect(() => {
+    if (session) {
+      initEditor();
+    }
+  }, [session, initEditor]);
+
+  useEffect(() => {
+    if (
+      modelResponse &&
+      modelResponse !== prevModelResponseRef.current &&
+      editorRef.current
+    ) {
+      appendModelResponse(modelResponse);
+      prevModelResponseRef.current = modelResponse;
+    }
+  }, [modelResponse, appendModelResponse]);
+
   // Function to convert Editor.js data to HTML with <b> tags
   function convertEditorDataToHtml(data: OutputData): OutputData {
     const newData = { ...data };
@@ -522,36 +435,17 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     return newData;
   }
 
-  useEffect(() => {
-    if (session) {
-      initEditor();
-    }
-  }, [session, initEditor]);
-
-  useEffect(() => {
-    if (
-      modelResponse &&
-      modelResponse !== prevModelResponseRef.current &&
-      editorRef.current
-    ) {
-      appendModelResponse(modelResponse);
-      prevModelResponseRef.current = modelResponse;
-    }
-  }, [modelResponse, appendModelResponse]);
-
   return (
     <div className="w-full relative">
-      {/* Status indicators removed as requested */}
-
       <div
         id="editorjs"
-        className="prose max-w-none w-full transition-opacity duration-200"
+        className="prose max-w-none w-full"
+        data-placeholder={placeholder}
       ></div>
 
       <style jsx>{`
         :global(.codex-editor__redactor) {
           padding-bottom: 300px !important;
-          transition: all 0.2s ease-in-out;
         }
 
         :global(.ce-paragraph[data-placeholder]:empty::before) {
@@ -572,26 +466,6 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
           color: #a1a1aa;
           font-style: italic;
           opacity: 0.7;
-        }
-
-        :global(.ce-block) {
-          transition: all 0.15s ease-in-out;
-        }
-
-        :global(.ce-block:hover) {
-          transform: translateX(2px);
-        }
-
-        :global(.ce-block--selected) {
-          background-color: rgba(59, 130, 246, 0.05);
-          border-left: 3px solid #3b82f6;
-          padding-left: 12px;
-        }
-
-        .transition-opacity {
-          transition-property: opacity;
-          transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-          transition-duration: 200ms;
         }
 
         :global(.image-tool) {
