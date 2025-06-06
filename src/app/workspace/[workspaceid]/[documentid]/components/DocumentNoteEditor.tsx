@@ -33,14 +33,6 @@ interface EditorState {
   scrollTop: number;
 }
 
-interface DocumentVersion {
-  documentId: string;
-  content: OutputData;
-  version: number;
-  timestamp: number;
-  userEmail: string;
-}
-
 const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
   workspaceId,
   documentId,
@@ -56,21 +48,12 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
   const prevModelResponseRef = useRef<any>(null);
   const lastSavedContentRef = useRef<string>("");
   const isProcessingExternalUpdateRef = useRef(false);
-  const isSavingRef = useRef(false);
-  const saveQueueRef = useRef<(() => Promise<void>)[]>([]);
-  const currentVersionRef = useRef<number>(0);
-  const lastKnownVersionRef = useRef<number>(0);
 
   const [editorReady, setEditorReady] = useState(false);
   const [isCollaborating, setIsCollaborating] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [conflictResolutionInProgress, setConflictResolutionInProgress] =
-    useState(false);
 
-  const pendingUpdatesRef = useRef<DocumentVersion[]>([]);
   const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const { channel: workspaceChannel } = usePusherChannelContext();
@@ -89,36 +72,6 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
       if (callNow) func(...args);
     };
   }
-
-  // Process save queue to prevent race conditions
-  const processSaveQueue = useCallback(async () => {
-    if (isSavingRef.current || saveQueueRef.current.length === 0) {
-      return;
-    }
-
-    isSavingRef.current = true;
-    setIsSaving(true);
-
-    try {
-      // Process only the latest save operation
-      const latestSave = saveQueueRef.current.pop();
-      saveQueueRef.current = []; // Clear the queue
-
-      if (latestSave) {
-        await latestSave();
-      }
-    } catch (error) {
-      console.error("Error processing save queue:", error);
-    } finally {
-      isSavingRef.current = false;
-      setIsSaving(false);
-
-      // Process remaining items in queue if any
-      if (saveQueueRef.current.length > 0) {
-        setTimeout(processSaveQueue, 100);
-      }
-    }
-  }, []);
 
   // Capture current editor state with enhanced error handling
   const captureEditorState = useCallback((): EditorState | null => {
@@ -180,162 +133,50 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     []
   );
 
-  // Enhanced save with version control and conflict resolution
-  const onSaveDocumentContent = useCallback(
-    async (force = false) => {
-      if (
-        !editorRef.current ||
-        !userEmail ||
-        isProcessingExternalUpdateRef.current
-      ) {
-        return;
-      }
+  const saveDocument = useCallback(async () => {
+    if (
+      editorRef.current &&
+      !isProcessingExternalUpdateRef.current &&
+      userEmail
+    ) {
+      try {
+        const outputData = await editorRef.current.save();
+        const contentString = JSON.stringify(outputData);
 
-      const saveOperation = async () => {
-        try {
-          const outputData = await editorRef.current!.save();
-          const contentString = JSON.stringify(outputData);
+        // Check if content has actually changed to avoid unnecessary saves
+        if (contentString === lastSavedContentRef.current) {
+          return; // Skip save if content hasn't changed
+        }
 
-          // Skip save if content hasn't changed and not forced
-          if (!force && contentString === lastSavedContentRef.current) {
-            return;
-          }
+        lastSavedContentRef.current = contentString;
 
-          // Prepare save payload with version information
-          const savePayload = {
+        const response = await axios.put(
+          `/api/workspace/${workspaceId}/document/${documentId}/content/`,
+          {
             content: outputData,
             userEmail: userEmail,
-            timestamp: Date.now(),
-            version: currentVersionRef.current + 1,
-            lastKnownVersion: lastKnownVersionRef.current,
-          };
+          }
+        );
 
-          const response = await axios.put(
-            `/api/workspace/${workspaceId}/document/${documentId}/content/`,
-            savePayload
+        if (response.data?.status !== "success") {
+          toast.error(
+            response.data?.message || "Failed to save document content"
           );
-
-          if (response.data?.status === "success") {
-            lastSavedContentRef.current = contentString;
-            currentVersionRef.current =
-              response.data.version || currentVersionRef.current + 1;
-            lastKnownVersionRef.current = currentVersionRef.current;
-
-            // Broadcast the update to other users
-            if (workspaceChannel) {
-              workspaceChannel.trigger("client-document-content-updated", {
-                content: outputData,
-                documentId: documentId,
-                editorEmail: userEmail,
-                version: currentVersionRef.current,
-                timestamp: Date.now(),
-              });
-            }
-          } else {
-            toast.error(
-              response.data?.message || "Failed to save document content"
-            );
-          }
-        } catch (error: any) {
-          if (error.response?.status === 409) {
-            // Conflict detected - handle merge
-            setConflictResolutionInProgress(true);
-            await handleConflictResolution(error.response.data);
-          } else {
-            toast.error(
-              error.response?.data?.message ||
-                "An unexpected error occurred while saving."
-            );
-          }
         }
-      };
-
-      // Add to save queue
-      saveQueueRef.current.push(saveOperation);
-      processSaveQueue();
-    },
-    [workspaceId, documentId, userEmail, workspaceChannel, processSaveQueue]
-  );
-
-  // Handle conflict resolution with three-way merge
-  const handleConflictResolution = useCallback(async (conflictData: any) => {
-    try {
-      const currentContent = await editorRef.current!.save();
-      const serverContent = conflictData.serverContent;
-      const baseContent = conflictData.baseContent;
-
-      // Simple merge strategy: prefer server content but preserve user's latest changes
-      const mergedContent = mergeDocumentContent(
-        currentContent,
-        serverContent,
-        baseContent
-      );
-
-      // Update editor with merged content
-      await editorRef.current!.render(mergedContent);
-
-      // Update version tracking
-      currentVersionRef.current = conflictData.serverVersion;
-      lastKnownVersionRef.current = conflictData.serverVersion;
-      lastSavedContentRef.current = JSON.stringify(mergedContent);
-
-      toast.success("Document conflicts resolved automatically");
-    } catch (error) {
-      console.error("Error resolving conflicts:", error);
-      toast.error(
-        "Failed to resolve document conflicts. Please refresh the page."
-      );
-    } finally {
-      setConflictResolutionInProgress(false);
+      } catch (error: any) {
+        toast.error(
+          error.response?.data?.message || "An unexpected error occurred."
+        );
+      }
     }
-  }, []);
-
-  // Simple three-way merge for document content
-  const mergeDocumentContent = (
-    current: OutputData,
-    server: OutputData,
-    base: OutputData
-  ): OutputData => {
-    // For now, implement a simple strategy: use server content as base and append unique blocks from current
-    const serverBlockIds = new Set(
-      server.blocks.map(
-        (block, index) =>
-          `${block.type}-${index}-${JSON.stringify(block.data).slice(0, 50)}`
-      )
-    );
-    const uniqueCurrentBlocks = current.blocks.filter((block, index) => {
-      const blockId = `${block.type}-${index}-${JSON.stringify(
-        block.data
-      ).slice(0, 50)}`;
-      return !serverBlockIds.has(blockId);
-    });
-
-    return {
-      time: Math.max(current.time || 0, server.time || 0),
-      blocks: [...server.blocks, ...uniqueCurrentBlocks],
-      version: server.version || "2.30.8",
-    };
-  };
+  }, [workspaceId, documentId, userEmail]);
 
   // Optimized debounced save with typing indicators
   const debouncedSave = useCallback(
     debounce(() => {
-      onSaveDocumentContent();
-
-      // Clear typing indicator
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
-
-      if (workspaceChannel && userEmail) {
-        workspaceChannel.trigger("client-user-typing", {
-          documentId: documentId,
-          userEmail: userEmail,
-          isTyping: false,
-        });
-      }
-    }, 1000),
-    [onSaveDocumentContent, workspaceChannel, userEmail, documentId]
+      saveDocument();
+    }, 500),
+    [saveDocument]
   );
 
   // Send typing indicator
@@ -365,8 +206,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     [workspaceChannel, userEmail, documentId]
   );
 
-  // Get document content with version tracking
-  const getDocumentContent = useCallback(async () => {
+  const getDocumentOutput = useCallback(async () => {
     if (!isFetchedRef.current) {
       try {
         const response = await axios.get(
@@ -378,90 +218,105 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
           response.data.data?.content
         ) {
           const content = response.data.data.content;
-          const version = response.data.data.version || 0;
-
-          await editorRef.current?.render(content);
+          editorRef.current?.render(content);
+          // Store the initial content hash to avoid duplicate saves
           lastSavedContentRef.current = JSON.stringify(content);
-          currentVersionRef.current = version;
-          lastKnownVersionRef.current = version;
         } else {
           toast.error(
             response.data?.message || "Failed to load document content."
           );
         }
-
         isFetchedRef.current = true;
         setEditorReady(true);
       } catch (error: any) {
         toast.error(
-          error.response?.data?.message ||
-            "An unexpected error occurred while loading."
+          error.response?.data?.message || "An unexpected error occurred."
         );
       }
     }
   }, [workspaceId, documentId]);
 
-  // Process pending updates with improved conflict handling
-  const processPendingUpdates = useCallback(async () => {
-    if (
-      pendingUpdatesRef.current.length === 0 ||
-      isProcessingExternalUpdateRef.current
-    ) {
-      return;
-    }
+  // Enhanced Pusher event handling - simplified
+  useEffect(() => {
+    if (!workspaceChannel || !userEmail || !editorReady) return;
 
-    // Get the latest update
-    const latestUpdate = pendingUpdatesRef.current.reduce((latest, current) =>
-      current.timestamp > latest.timestamp ? current : latest
+    console.log(
+      "Setting up Pusher listeners for document content:",
+      documentId
     );
 
-    pendingUpdatesRef.current = [];
+    // Document content update event handler
+    const handleDocumentContentUpdated = async (data: {
+      content: OutputData;
+      documentId: string;
+      editorEmail: string;
+    }) => {
+      console.log("🔥 EVENT RECEIVED document-content-updated:", data);
 
-    if (
-      editorRef.current &&
-      latestUpdate.version > lastKnownVersionRef.current
-    ) {
-      const currentState = captureEditorState();
+      // Only update if it's the current document and not from the current user
+      if (data.documentId === documentId && data.editorEmail !== userEmail) {
+        if (editorRef.current) {
+          try {
+            // Set flag to prevent triggering another save
+            isProcessingExternalUpdateRef.current = true;
 
-      try {
-        isProcessingExternalUpdateRef.current = true;
-        setIsCollaborating(true);
+            // Store cursor position
+            const currentBlockIndex =
+              editorRef.current.blocks.getCurrentBlockIndex();
+            const cursorPosition = "end";
 
-        // Check if we need to merge changes
-        const currentContent = await editorRef.current.save();
-        const hasLocalChanges =
-          JSON.stringify(currentContent) !== lastSavedContentRef.current;
+            // Update the editor content
+            await editorRef.current.render(data.content);
 
-        if (hasLocalChanges) {
-          // Merge the changes
-          const mergedContent = mergeDocumentContent(
-            currentContent,
-            latestUpdate.content,
-            JSON.parse(lastSavedContentRef.current || '{"blocks":[],"time":0}')
-          );
-          await editorRef.current.render(mergedContent);
-        } else {
-          // No local changes, safe to update
-          await editorRef.current.render(latestUpdate.content);
+            // Update the last saved content to prevent duplicate saves
+            lastSavedContentRef.current = JSON.stringify(data.content);
+
+            // Restore cursor position
+            setTimeout(() => {
+              if (editorRef.current && currentBlockIndex !== undefined) {
+                try {
+                  // Try to restore cursor to the same block if it still exists
+                  if (
+                    editorRef.current.blocks.getBlockByIndex(currentBlockIndex)
+                  ) {
+                    editorRef.current.caret.setToBlock(
+                      currentBlockIndex,
+                      cursorPosition
+                    );
+                  }
+                } catch (e) {
+                  console.log("Could not restore cursor position", e);
+                }
+
+                // Reset the flag after a short delay to ensure rendering is complete
+                setTimeout(() => {
+                  isProcessingExternalUpdateRef.current = false;
+                }, 100);
+              }
+            }, 100);
+          } catch (error) {
+            console.error("Error updating editor content:", error);
+            isProcessingExternalUpdateRef.current = false;
+          }
         }
-
-        // Update version tracking
-        lastKnownVersionRef.current = latestUpdate.version;
-        lastSavedContentRef.current = JSON.stringify(latestUpdate.content);
-
-        // Restore editor state
-        restoreEditorState(currentState, 150);
-
-        setTimeout(() => setIsCollaborating(false), 1000);
-      } catch (error) {
-        console.error("Error processing update:", error);
-      } finally {
-        setTimeout(() => {
-          isProcessingExternalUpdateRef.current = false;
-        }, 200);
       }
-    }
-  }, [captureEditorState, restoreEditorState]);
+    };
+
+    // Subscribe to document content events
+    workspaceChannel.bind(
+      "document-content-updated",
+      handleDocumentContentUpdated
+    );
+
+    // Cleanup
+    return () => {
+      console.log("Cleaning up Pusher listeners for document content");
+      workspaceChannel.unbind(
+        "document-content-updated",
+        handleDocumentContentUpdated
+      );
+    };
+  }, [workspaceChannel, documentId, userEmail, editorReady]);
 
   // Image upload with better error handling
   const handleImageUploadSimple = useCallback(
@@ -504,35 +359,15 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     [workspaceId, documentId]
   );
 
-  // Initialize editor with enhanced change handling
   const initEditor = useCallback(() => {
     if (!hasInitialized.current) {
       hasInitialized.current = true;
       editorRef.current = new EditorJS({
-        placeholder: placeholder,
-        onChange: (api, event) => {
-          // Send typing indicator
-          sendTypingIndicator();
-
-          // Handle saves based on event type
-          let eventType = "";
-          if (Array.isArray(event) && event.length > 0) {
-            eventType = event[0]?.type || "";
-          } else if (event && typeof event === "object" && "type" in event) {
-            eventType = (event as any).type;
-          }
-
-          // Immediate save for structural changes
-          if (
-            ["block-added", "block-removed", "block-moved"].includes(eventType)
-          ) {
-            onSaveDocumentContent(true);
-          } else {
-            debouncedSave();
-          }
+        onChange: () => {
+          debouncedSave();
         },
         onReady: () => {
-          getDocumentContent();
+          getDocumentOutput();
         },
         holder: "editorjs",
         tools: {
@@ -541,7 +376,6 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
           paragraph: {
             class: Paragraph as unknown as ToolConstructable,
             inlineToolbar: true,
-            config: { placeholder: placeholder },
           },
           table: Table,
           list: {
@@ -569,65 +403,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
         },
       });
     }
-  }, [
-    debouncedSave,
-    sendTypingIndicator,
-    onSaveDocumentContent,
-    getDocumentContent,
-    placeholder,
-    handleImageUploadSimple,
-  ]);
-
-  // Enhanced Pusher event handling
-  useEffect(() => {
-    if (!workspaceChannel || !userEmail || !editorReady) return;
-
-    const handleDocumentContentUpdated = async (data: DocumentVersion) => {
-      if (data.documentId === documentId && data.userEmail !== userEmail) {
-        pendingUpdatesRef.current.push(data);
-
-        if (updateTimeoutRef.current) {
-          clearTimeout(updateTimeoutRef.current);
-        }
-
-        updateTimeoutRef.current = setTimeout(processPendingUpdates, 200);
-      }
-    };
-
-    const handleUserTyping = (data: {
-      documentId: string;
-      userEmail: string;
-      isTyping: boolean;
-    }) => {
-      if (data.documentId === documentId && data.userEmail !== userEmail) {
-        setIsCollaborating(data.isTyping);
-      }
-    };
-
-    workspaceChannel.bind(
-      "document-content-updated",
-      handleDocumentContentUpdated
-    );
-    workspaceChannel.bind("user-typing", handleUserTyping);
-
-    return () => {
-      workspaceChannel.unbind(
-        "document-content-updated",
-        handleDocumentContentUpdated
-      );
-      workspaceChannel.unbind("user-typing", handleUserTyping);
-
-      if (updateTimeoutRef.current) clearTimeout(updateTimeoutRef.current);
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    };
-  }, [
-    workspaceChannel,
-    documentId,
-    userEmail,
-    editorReady,
-    processPendingUpdates,
-  ]);
+  }, [debouncedSave, getDocumentOutput, handleImageUploadSimple]);
 
   // Model response handling
   const appendModelResponse = useCallback(
@@ -636,20 +412,42 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
 
       try {
         const currentContent = await editorRef.current.save();
-        let newBlocks;
+        let newBlock;
 
-        if (response?.blocks) {
-          newBlocks = response.blocks.map((block: any) => {
+        if (response && response.blocks) {
+          newBlock = response.blocks.map((block: any) => {
             if (block.type === "paragraph" && block.data.text) {
               let text = block.data.text;
+              const inlineTools = [];
+
+              // Find bold sections using Markdown syntax (**bold text**)
               const boldRegex = /\*\*(.*?)\*\*/g;
-              text = text.replace(boldRegex, "<b>$1</b>");
-              return { ...block, data: { ...block.data, text } };
+              let match;
+
+              while ((match = boldRegex.exec(text)) !== null) {
+                const boldText = match[1];
+                const startIndex = match.index;
+                inlineTools.push({
+                  offset: startIndex,
+                  length: boldText.length,
+                  type: "bold",
+                });
+                text = text.replace(`**${boldText}**`, boldText); // Remove the markdown bold characters
+              }
+
+              return {
+                ...block,
+                data: {
+                  ...block.data,
+                  text: text,
+                  inlineToolbar: inlineTools,
+                },
+              };
             }
             return block;
           });
         } else {
-          newBlocks = [
+          newBlock = [
             {
               type: "paragraph",
               data: {
@@ -663,8 +461,8 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
         }
 
         const updatedContent: OutputData = {
-          time: Date.now(),
-          blocks: [...(currentContent.blocks || []), ...newBlocks],
+          time: new Date().getTime(),
+          blocks: [...(currentContent.blocks || []), ...newBlock],
           version: currentContent.version || "2.30.8",
         };
 
@@ -675,15 +473,54 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
             const lastBlockIndex = updatedContent.blocks.length - 1;
             editorRef.current.caret.setToBlock(lastBlockIndex, "end");
           }
-        }, 200);
+        }, 300);
 
-        onSaveDocumentContent(true);
+        saveDocument();
       } catch (error) {
         console.error("Error appending model response:", error);
       }
     },
-    [onSaveDocumentContent]
+    [saveDocument]
   );
+
+  // Function to convert Editor.js data to HTML with <b> tags
+  function convertEditorDataToHtml(data: OutputData): OutputData {
+    const newData = { ...data };
+    newData.blocks = newData.blocks.map((block) => {
+      if (block.type === "paragraph" && block.data.inlineToolbar) {
+        let text = block.data.text;
+        const inlineTools = [...block.data.inlineToolbar];
+
+        // Sort inline tools by offset (descending) to apply them correctly
+        inlineTools.sort((a: any, b: any) => b.offset - a.offset);
+
+        inlineTools.forEach((tool: any) => {
+          if (tool.type === "bold") {
+            const startTag = "<b>";
+            const endTag = "</b>";
+            text =
+              text.slice(0, tool.offset) +
+              startTag +
+              text.slice(tool.offset, tool.offset + tool.length) +
+              endTag +
+              text.slice(tool.offset + tool.length);
+          }
+        });
+
+        return {
+          ...block,
+          data: {
+            ...block.data,
+            text: text,
+            // Remove inlineToolbar after conversion
+            inlineToolbar: undefined,
+          },
+        };
+      }
+      return block;
+    });
+    return newData;
+  }
 
   useEffect(() => {
     if (session) {
