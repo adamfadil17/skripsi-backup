@@ -30,22 +30,15 @@ interface EditorState {
   blockIndex: number;
   caretPosition: "end" | "start" | "default";
   blockContent?: string;
+  scrollTop: number;
 }
 
-// Add proper type for Editor.js events
-interface BlockMutationEvent {
-  type: string;
-  detail: {
-    target: {
-      name: string;
-    };
-    index?: number;
-  };
-}
-
-interface EditorChangeEvent {
-  type?: string;
-  detail?: any;
+interface DocumentVersion {
+  documentId: string;
+  content: OutputData;
+  version: number;
+  timestamp: number;
+  userEmail: string;
 }
 
 const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
@@ -63,16 +56,26 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
   const prevModelResponseRef = useRef<any>(null);
   const lastSavedContentRef = useRef<string>("");
   const isProcessingExternalUpdateRef = useRef(false);
+  const isSavingRef = useRef(false);
+  const saveQueueRef = useRef<(() => Promise<void>)[]>([]);
+  const currentVersionRef = useRef<number>(0);
+  const lastKnownVersionRef = useRef<number>(0);
+
   const [editorReady, setEditorReady] = useState(false);
   const [isCollaborating, setIsCollaborating] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const pendingUpdatesRef = useRef<OutputData[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [conflictResolutionInProgress, setConflictResolutionInProgress] =
+    useState(false);
+
+  const pendingUpdatesRef = useRef<DocumentVersion[]>([]);
   const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const uploadWidgetRef = useRef<any>(null);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const { channel: workspaceChannel } = usePusherChannelContext();
 
-  // Enhanced debounce with immediate execution option
+  // Enhanced debounce with queue management
   function debounce(func: Function, wait: number, immediate = false) {
     let timeout: NodeJS.Timeout;
     return function executedFunction(...args: any[]) {
@@ -87,23 +90,48 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     };
   }
 
-  // Capture current editor state including scroll position
-  const captureEditorState = useCallback(():
-    | (EditorState & { scrollTop: number })
-    | null => {
+  // Process save queue to prevent race conditions
+  const processSaveQueue = useCallback(async () => {
+    if (isSavingRef.current || saveQueueRef.current.length === 0) {
+      return;
+    }
+
+    isSavingRef.current = true;
+    setIsSaving(true);
+
+    try {
+      // Process only the latest save operation
+      const latestSave = saveQueueRef.current.pop();
+      saveQueueRef.current = []; // Clear the queue
+
+      if (latestSave) {
+        await latestSave();
+      }
+    } catch (error) {
+      console.error("Error processing save queue:", error);
+    } finally {
+      isSavingRef.current = false;
+      setIsSaving(false);
+
+      // Process remaining items in queue if any
+      if (saveQueueRef.current.length > 0) {
+        setTimeout(processSaveQueue, 100);
+      }
+    }
+  }, []);
+
+  // Capture current editor state with enhanced error handling
+  const captureEditorState = useCallback((): EditorState | null => {
     if (!editorRef.current) return null;
 
     try {
       const currentBlockIndex = editorRef.current.blocks.getCurrentBlockIndex();
-      const currentBlock =
-        editorRef.current.blocks.getBlockByIndex(currentBlockIndex);
       const editorElement = document.getElementById("editorjs");
       const scrollTop = editorElement?.scrollTop || window.scrollY;
 
       return {
-        blockIndex: currentBlockIndex >= 0 ? currentBlockIndex : 0,
+        blockIndex: Math.max(currentBlockIndex, 0),
         caretPosition: "end" as const,
-        blockContent: currentBlock?.holder?.textContent || "",
         scrollTop: scrollTop,
       };
     } catch (error) {
@@ -111,15 +139,14 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
       return {
         blockIndex: 0,
         caretPosition: "end" as const,
-        blockContent: "",
         scrollTop: window.scrollY,
       };
     }
   }, []);
 
-  // Restore editor state with smooth transition and scroll position
+  // Restore editor state with improved reliability
   const restoreEditorState = useCallback(
-    (state: (EditorState & { scrollTop: number }) | null, delay = 50) => {
+    (state: EditorState | null, delay = 100) => {
       if (!state || !editorRef.current) return;
 
       setTimeout(() => {
@@ -131,15 +158,13 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
               totalBlocks - 1
             );
 
-            // Restore scroll position first
+            // Restore scroll position
             const editorElement = document.getElementById("editorjs");
             if (editorElement && state.scrollTop > 0) {
               editorElement.scrollTop = state.scrollTop;
-            } else if (state.scrollTop > 0) {
-              window.scrollTo({ top: state.scrollTop, behavior: "auto" });
             }
 
-            // Then restore cursor position
+            // Restore cursor position
             if (targetIndex >= 0 && totalBlocks > 0) {
               editorRef.current.caret.setToBlock(
                 targetIndex,
@@ -155,75 +180,192 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     []
   );
 
-  // Enhanced save with conflict resolution
+  // Enhanced save with version control and conflict resolution
   const onSaveDocumentContent = useCallback(
     async (force = false) => {
       if (
-        editorRef.current &&
-        !isProcessingExternalUpdateRef.current &&
-        userEmail
+        !editorRef.current ||
+        !userEmail ||
+        isProcessingExternalUpdateRef.current
       ) {
-        try {
-          const outputData = await editorRef.current.save();
-          const formattedContent = convertEditorDataToHtml(outputData);
-          const contentString = JSON.stringify(formattedContent);
+        return;
+      }
 
+      const saveOperation = async () => {
+        try {
+          const outputData = await editorRef.current!.save();
+          const contentString = JSON.stringify(outputData);
+
+          // Skip save if content hasn't changed and not forced
           if (!force && contentString === lastSavedContentRef.current) {
             return;
           }
 
-          lastSavedContentRef.current = contentString;
+          // Prepare save payload with version information
+          const savePayload = {
+            content: outputData,
+            userEmail: userEmail,
+            timestamp: Date.now(),
+            version: currentVersionRef.current + 1,
+            lastKnownVersion: lastKnownVersionRef.current,
+          };
 
           const response = await axios.put(
             `/api/workspace/${workspaceId}/document/${documentId}/content/`,
-            {
-              content: formattedContent,
-              userEmail: userEmail,
-              timestamp: Date.now(), // Add timestamp for conflict resolution
-            }
+            savePayload
           );
 
-          if (response.data?.status !== "success") {
+          if (response.data?.status === "success") {
+            lastSavedContentRef.current = contentString;
+            currentVersionRef.current =
+              response.data.version || currentVersionRef.current + 1;
+            lastKnownVersionRef.current = currentVersionRef.current;
+
+            // Broadcast the update to other users
+            if (workspaceChannel) {
+              workspaceChannel.trigger("client-document-content-updated", {
+                content: outputData,
+                documentId: documentId,
+                editorEmail: userEmail,
+                version: currentVersionRef.current,
+                timestamp: Date.now(),
+              });
+            }
+          } else {
             toast.error(
               response.data?.message || "Failed to save document content"
             );
           }
         } catch (error: any) {
           if (error.response?.status === 409) {
-            // Conflict detected - refresh content
-            toast.error("Document was updated by another user. Refreshing...");
-            await getDocumentContent();
+            // Conflict detected - handle merge
+            setConflictResolutionInProgress(true);
+            await handleConflictResolution(error.response.data);
           } else {
             toast.error(
-              error.response?.data?.message || "An unexpected error occurred."
+              error.response?.data?.message ||
+                "An unexpected error occurred while saving."
             );
           }
         }
-      }
+      };
+
+      // Add to save queue
+      saveQueueRef.current.push(saveOperation);
+      processSaveQueue();
     },
-    [workspaceId, documentId, userEmail]
+    [workspaceId, documentId, userEmail, workspaceChannel, processSaveQueue]
   );
 
-  // Optimized debounced save
+  // Handle conflict resolution with three-way merge
+  const handleConflictResolution = useCallback(async (conflictData: any) => {
+    try {
+      const currentContent = await editorRef.current!.save();
+      const serverContent = conflictData.serverContent;
+      const baseContent = conflictData.baseContent;
+
+      // Simple merge strategy: prefer server content but preserve user's latest changes
+      const mergedContent = mergeDocumentContent(
+        currentContent,
+        serverContent,
+        baseContent
+      );
+
+      // Update editor with merged content
+      await editorRef.current!.render(mergedContent);
+
+      // Update version tracking
+      currentVersionRef.current = conflictData.serverVersion;
+      lastKnownVersionRef.current = conflictData.serverVersion;
+      lastSavedContentRef.current = JSON.stringify(mergedContent);
+
+      toast.success("Document conflicts resolved automatically");
+    } catch (error) {
+      console.error("Error resolving conflicts:", error);
+      toast.error(
+        "Failed to resolve document conflicts. Please refresh the page."
+      );
+    } finally {
+      setConflictResolutionInProgress(false);
+    }
+  }, []);
+
+  // Simple three-way merge for document content
+  const mergeDocumentContent = (
+    current: OutputData,
+    server: OutputData,
+    base: OutputData
+  ): OutputData => {
+    // For now, implement a simple strategy: use server content as base and append unique blocks from current
+    const serverBlockIds = new Set(
+      server.blocks.map(
+        (block, index) =>
+          `${block.type}-${index}-${JSON.stringify(block.data).slice(0, 50)}`
+      )
+    );
+    const uniqueCurrentBlocks = current.blocks.filter((block, index) => {
+      const blockId = `${block.type}-${index}-${JSON.stringify(
+        block.data
+      ).slice(0, 50)}`;
+      return !serverBlockIds.has(blockId);
+    });
+
+    return {
+      time: Math.max(current.time || 0, server.time || 0),
+      blocks: [...server.blocks, ...uniqueCurrentBlocks],
+      version: server.version || "2.30.8",
+    };
+  };
+
+  // Optimized debounced save with typing indicators
   const debouncedSave = useCallback(
     debounce(() => {
       onSaveDocumentContent();
-    }, 800), // Increased delay to reduce server load
-    [onSaveDocumentContent]
+
+      // Clear typing indicator
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+
+      if (workspaceChannel && userEmail) {
+        workspaceChannel.trigger("client-user-typing", {
+          documentId: documentId,
+          userEmail: userEmail,
+          isTyping: false,
+        });
+      }
+    }, 1000),
+    [onSaveDocumentContent, workspaceChannel, userEmail, documentId]
   );
 
-  // Immediate save for critical updates
-  const immediateSave = useCallback(
-    debounce(
-      () => {
-        onSaveDocumentContent(true);
-      },
-      100,
-      true
-    ),
-    [onSaveDocumentContent]
+  // Send typing indicator
+  const sendTypingIndicator = useCallback(
+    debounce(() => {
+      if (workspaceChannel && userEmail) {
+        workspaceChannel.trigger("client-user-typing", {
+          documentId: documentId,
+          userEmail: userEmail,
+          isTyping: true,
+        });
+
+        // Auto-clear typing indicator after 3 seconds
+        if (typingTimeoutRef.current) {
+          clearTimeout(typingTimeoutRef.current);
+        }
+
+        typingTimeoutRef.current = setTimeout(() => {
+          workspaceChannel.trigger("client-user-typing", {
+            documentId: documentId,
+            userEmail: userEmail,
+            isTyping: false,
+          });
+        }, 3000);
+      }
+    }, 300),
+    [workspaceChannel, userEmail, documentId]
   );
 
+  // Get document content with version tracking
   const getDocumentContent = useCallback(async () => {
     if (!isFetchedRef.current) {
       try {
@@ -236,24 +378,30 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
           response.data.data?.content
         ) {
           const content = response.data.data.content;
-          editorRef.current?.render(content);
+          const version = response.data.data.version || 0;
+
+          await editorRef.current?.render(content);
           lastSavedContentRef.current = JSON.stringify(content);
+          currentVersionRef.current = version;
+          lastKnownVersionRef.current = version;
         } else {
           toast.error(
             response.data?.message || "Failed to load document content."
           );
         }
+
         isFetchedRef.current = true;
         setEditorReady(true);
       } catch (error: any) {
         toast.error(
-          error.response?.data?.message || "An unexpected error occurred."
+          error.response?.data?.message ||
+            "An unexpected error occurred while loading."
         );
       }
     }
   }, [workspaceId, documentId]);
 
-  // Batch process pending updates with better state preservation
+  // Process pending updates with improved conflict handling
   const processPendingUpdates = useCallback(async () => {
     if (
       pendingUpdatesRef.current.length === 0 ||
@@ -262,48 +410,60 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
       return;
     }
 
-    const latestUpdate =
-      pendingUpdatesRef.current[pendingUpdatesRef.current.length - 1];
+    // Get the latest update
+    const latestUpdate = pendingUpdatesRef.current.reduce((latest, current) =>
+      current.timestamp > latest.timestamp ? current : latest
+    );
+
     pendingUpdatesRef.current = [];
 
-    if (editorRef.current) {
+    if (
+      editorRef.current &&
+      latestUpdate.version > lastKnownVersionRef.current
+    ) {
       const currentState = captureEditorState();
 
       try {
         isProcessingExternalUpdateRef.current = true;
-
-        // Show collaboration indicator
         setIsCollaborating(true);
 
-        // Get current content to compare
+        // Check if we need to merge changes
         const currentContent = await editorRef.current.save();
-        const currentContentString = JSON.stringify(currentContent);
-        const newContentString = JSON.stringify(latestUpdate);
+        const hasLocalChanges =
+          JSON.stringify(currentContent) !== lastSavedContentRef.current;
 
-        // Only update if content is actually different
-        if (currentContentString !== newContentString) {
-          await editorRef.current.render(latestUpdate);
-          lastSavedContentRef.current = JSON.stringify(latestUpdate);
-
-          // Restore state with longer delay to ensure render is complete
-          restoreEditorState(currentState, 200);
+        if (hasLocalChanges) {
+          // Merge the changes
+          const mergedContent = mergeDocumentContent(
+            currentContent,
+            latestUpdate.content,
+            JSON.parse(lastSavedContentRef.current || '{"blocks":[],"time":0}')
+          );
+          await editorRef.current.render(mergedContent);
+        } else {
+          // No local changes, safe to update
+          await editorRef.current.render(latestUpdate.content);
         }
 
-        // Hide collaboration indicator after animation
-        setTimeout(() => {
-          setIsCollaborating(false);
-        }, 800);
+        // Update version tracking
+        lastKnownVersionRef.current = latestUpdate.version;
+        lastSavedContentRef.current = JSON.stringify(latestUpdate.content);
+
+        // Restore editor state
+        restoreEditorState(currentState, 150);
+
+        setTimeout(() => setIsCollaborating(false), 1000);
       } catch (error) {
         console.error("Error processing update:", error);
       } finally {
         setTimeout(() => {
           isProcessingExternalUpdateRef.current = false;
-        }, 300);
+        }, 200);
       }
     }
   }, [captureEditorState, restoreEditorState]);
 
-  // Alternative simpler upload method using next-cloudinary
+  // Image upload with better error handling
   const handleImageUploadSimple = useCallback(
     async (file: File): Promise<{ success: number; file: { url: string } }> => {
       try {
@@ -316,10 +476,6 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
           process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET!
         );
         formData.append("folder", `documents/${workspaceId}/${documentId}`);
-        formData.append(
-          "tags",
-          `workspace:${workspaceId},document:${documentId}`
-        );
 
         const response = await fetch(
           `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`,
@@ -333,20 +489,14 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
 
         if (data.secure_url) {
           toast.success("Image uploaded successfully!");
-          return {
-            success: 1,
-            file: { url: data.secure_url },
-          };
+          return { success: 1, file: { url: data.secure_url } };
         } else {
           throw new Error("Upload failed");
         }
       } catch (error) {
         console.error("Image upload error:", error);
         toast.error("Failed to upload image. Please try again.");
-        return {
-          success: 0,
-          file: { url: "" },
-        };
+        return { success: 0, file: { url: "" } };
       } finally {
         setIsUploading(false);
       }
@@ -354,35 +504,29 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     [workspaceId, documentId]
   );
 
+  // Initialize editor with enhanced change handling
   const initEditor = useCallback(() => {
     if (!hasInitialized.current) {
       hasInitialized.current = true;
       editorRef.current = new EditorJS({
         placeholder: placeholder,
         onChange: (api, event) => {
-          // Handle different event types safely
-          let eventType = "";
+          // Send typing indicator
+          sendTypingIndicator();
 
-          if (Array.isArray(event)) {
-            // If event is an array, get the first event's type
-            eventType =
-              event.length > 0 &&
-              event[0] &&
-              typeof event[0] === "object" &&
-              "type" in event[0]
-                ? (event[0] as any).type
-                : "";
+          // Handle saves based on event type
+          let eventType = "";
+          if (Array.isArray(event) && event.length > 0) {
+            eventType = event[0]?.type || "";
           } else if (event && typeof event === "object" && "type" in event) {
             eventType = (event as any).type;
           }
 
-          // Use different save strategies based on event type
+          // Immediate save for structural changes
           if (
-            eventType === "block-added" ||
-            eventType === "block-removed" ||
-            eventType === "block-moved"
+            ["block-added", "block-removed", "block-moved"].includes(eventType)
           ) {
-            immediateSave();
+            onSaveDocumentContent(true);
           } else {
             debouncedSave();
           }
@@ -397,9 +541,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
           paragraph: {
             class: Paragraph as unknown as ToolConstructable,
             inlineToolbar: true,
-            config: {
-              placeholder: placeholder,
-            },
+            config: { placeholder: placeholder },
           },
           table: Table,
           list: {
@@ -417,9 +559,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
           image: {
             class: ImageTool,
             config: {
-              uploader: {
-                uploadByFile: handleImageUploadSimple,
-              },
+              uploader: { uploadByFile: handleImageUploadSimple },
               captionPlaceholder: "Add image caption...",
               withBorder: true,
               withBackground: false,
@@ -431,41 +571,26 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     }
   }, [
     debouncedSave,
-    immediateSave,
+    sendTypingIndicator,
+    onSaveDocumentContent,
     getDocumentContent,
     placeholder,
     handleImageUploadSimple,
   ]);
 
+  // Enhanced Pusher event handling
   useEffect(() => {
     if (!workspaceChannel || !userEmail || !editorReady) return;
 
-    console.log(
-      "Setting up Pusher listeners for document content:",
-      documentId
-    );
+    const handleDocumentContentUpdated = async (data: DocumentVersion) => {
+      if (data.documentId === documentId && data.userEmail !== userEmail) {
+        pendingUpdatesRef.current.push(data);
 
-    const handleDocumentContentUpdated = async (data: {
-      content: OutputData;
-      documentId: string;
-      editorEmail: string;
-      timestamp?: number;
-    }) => {
-      console.log("🔥 EVENT RECEIVED document-content-updated:", data);
-
-      if (data.documentId === documentId && data.editorEmail !== userEmail) {
-        // Add to pending updates queue
-        pendingUpdatesRef.current.push(data.content);
-
-        // Clear existing timeout and set new one
         if (updateTimeoutRef.current) {
           clearTimeout(updateTimeoutRef.current);
         }
 
-        // Process updates with a slightly longer delay to reduce flicker
-        updateTimeoutRef.current = setTimeout(() => {
-          processPendingUpdates();
-        }, 150);
+        updateTimeoutRef.current = setTimeout(processPendingUpdates, 200);
       }
     };
 
@@ -492,9 +617,9 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
       );
       workspaceChannel.unbind("user-typing", handleUserTyping);
 
-      if (updateTimeoutRef.current) {
-        clearTimeout(updateTimeoutRef.current);
-      }
+      if (updateTimeoutRef.current) clearTimeout(updateTimeoutRef.current);
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
   }, [
     workspaceChannel,
@@ -504,48 +629,27 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     processPendingUpdates,
   ]);
 
-  // Enhanced model response appending with smooth scrolling
+  // Model response handling
   const appendModelResponse = useCallback(
     async (response: any) => {
       if (!editorRef.current) return;
 
       try {
         const currentContent = await editorRef.current.save();
-        let newBlock;
+        let newBlocks;
 
-        if (response && response.blocks) {
-          newBlock = response.blocks.map((block: any) => {
+        if (response?.blocks) {
+          newBlocks = response.blocks.map((block: any) => {
             if (block.type === "paragraph" && block.data.text) {
               let text = block.data.text;
-              const inlineTools = [];
-
               const boldRegex = /\*\*(.*?)\*\*/g;
-              let match;
-
-              while ((match = boldRegex.exec(text)) !== null) {
-                const boldText = match[1];
-                const startIndex = match.index;
-                inlineTools.push({
-                  offset: startIndex,
-                  length: boldText.length,
-                  type: "bold",
-                });
-                text = text.replace(`**${boldText}**`, boldText);
-              }
-
-              return {
-                ...block,
-                data: {
-                  ...block.data,
-                  text: text,
-                  inlineToolbar: inlineTools,
-                },
-              };
+              text = text.replace(boldRegex, "<b>$1</b>");
+              return { ...block, data: { ...block.data, text } };
             }
             return block;
           });
         } else {
-          newBlock = [
+          newBlocks = [
             {
               type: "paragraph",
               data: {
@@ -559,28 +663,17 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
         }
 
         const updatedContent: OutputData = {
-          time: new Date().getTime(),
-          blocks: [...(currentContent.blocks || []), ...newBlock],
+          time: Date.now(),
+          blocks: [...(currentContent.blocks || []), ...newBlocks],
           version: currentContent.version || "2.30.8",
         };
 
         await editorRef.current.render(updatedContent);
 
-        // Smooth scroll to new content
         setTimeout(() => {
           if (editorRef.current) {
             const lastBlockIndex = updatedContent.blocks.length - 1;
             editorRef.current.caret.setToBlock(lastBlockIndex, "end");
-
-            // Smooth scroll into view
-            const editorElement = document.getElementById("editorjs");
-            if (editorElement) {
-              const lastBlock = editorElement.lastElementChild;
-              lastBlock?.scrollIntoView({
-                behavior: "smooth",
-                block: "end",
-              });
-            }
           }
         }, 200);
 
@@ -609,73 +702,9 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     }
   }, [modelResponse, appendModelResponse]);
 
-  function convertEditorDataToHtml(data: OutputData): OutputData {
-    const newData = { ...data };
-    newData.blocks = newData.blocks.map((block) => {
-      if (block.type === "paragraph" && block.data.inlineToolbar) {
-        let text = block.data.text;
-        const inlineTools = [...block.data.inlineToolbar];
-
-        inlineTools.sort((a: any, b: any) => b.offset - a.offset);
-
-        inlineTools.forEach((tool: any) => {
-          if (tool.type === "bold") {
-            const startTag = "<b>";
-            const endTag = "</b>";
-            text =
-              text.slice(0, tool.offset) +
-              startTag +
-              text.slice(tool.offset, tool.offset + tool.length) +
-              endTag +
-              text.slice(tool.offset + tool.length);
-          }
-        });
-
-        return {
-          ...block,
-          data: {
-            ...block.data,
-            text: text,
-            inlineToolbar: undefined,
-          },
-        };
-      }
-      return block;
-    });
-    return newData;
-  }
-
   return (
     <div className="w-full relative">
-      {/* Collaboration indicator - moved to left */}
-      {isCollaborating && (
-        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 bg-blue-500 text-white px-4 py-2 rounded-md text-sm shadow-lg">
-          <div className="flex items-center space-x-2">
-            <div className="flex space-x-1">
-              <div className="w-2 h-2 bg-white rounded-full animate-bounce"></div>
-              <div
-                className="w-2 h-2 bg-white rounded-full animate-bounce"
-                style={{ animationDelay: "0.1s" }}
-              ></div>
-              <div
-                className="w-2 h-2 bg-white rounded-full animate-bounce"
-                style={{ animationDelay: "0.2s" }}
-              ></div>
-            </div>
-            <span>Someone is editing...</span>
-          </div>
-        </div>
-      )}
-
-      {/* Image upload indicator */}
-      {isUploading && (
-        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 bg-green-500 text-white px-4 py-2 rounded-md text-sm shadow-lg">
-          <div className="flex items-center space-x-2">
-            <div className="animate-spin h-4 w-4 border-2 border-white rounded-full border-t-transparent"></div>
-            <span>Uploading image...</span>
-          </div>
-        </div>
-      )}
+      {/* Status indicators removed as requested */}
 
       <div
         id="editorjs"
@@ -708,7 +737,6 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
           opacity: 0.7;
         }
 
-        /* Smooth transitions for collaborative editing */
         :global(.ce-block) {
           transition: all 0.15s ease-in-out;
         }
@@ -717,21 +745,18 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
           transform: translateX(2px);
         }
 
-        /* Collaboration highlight effect */
         :global(.ce-block--selected) {
           background-color: rgba(59, 130, 246, 0.05);
           border-left: 3px solid #3b82f6;
           padding-left: 12px;
         }
 
-        /* Loading state for content updates */
         .transition-opacity {
           transition-property: opacity;
           transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
           transition-duration: 200ms;
         }
 
-        /* Image block styling */
         :global(.image-tool) {
           margin: 1.5rem 0;
         }
