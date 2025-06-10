@@ -499,7 +499,7 @@ export default function MeetingDialog({
             <DialogDescription>
               {googleMeetUrl
                 ? "Join your workspace's permanent meeting room or create a new session."
-                : "Generate a permanent meeting room for your workspace or create a one-time meeting."}
+                : "Generate a permanent meeting room for your workspace or create a session meeting."}
             </DialogDescription>
           </DialogHeader>
 
