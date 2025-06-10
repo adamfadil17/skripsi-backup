@@ -642,7 +642,7 @@ export default function MeetingDialog({
                     }`}
                     onClick={() => setActiveTab("oneSession")}
                   >
-                    One Session
+                    One Session Room
                   </button>
                 </div>
 
