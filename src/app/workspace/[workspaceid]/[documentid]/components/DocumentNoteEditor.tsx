@@ -185,6 +185,11 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
           getDocumentOutput();
         },
         holder: "editorjs",
+        autofocus: true,
+        placeholder: placeholder,
+        inlineToolbar: true,
+        // Enable built-in undo/redo functionality
+        // enableDefaultShortcuts: true,
         tools: {
           header: Header,
           delimiter: Delimiter,
@@ -218,7 +223,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
         },
       });
     }
-  }, [debouncedSave, getDocumentOutput, handleImageUpload]);
+  }, [debouncedSave, getDocumentOutput, handleImageUpload, placeholder]);
 
   // Set up Pusher event listeners for real-time updates
   useEffect(() => {
@@ -396,6 +401,45 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     }
   }, [modelResponse, appendModelResponse]);
 
+  // Add keyboard shortcuts for undo/redo
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!editorRef.current) return;
+
+      const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
+      const isCtrlOrCmd = isMac ? event.metaKey : event.ctrlKey;
+
+      if (isCtrlOrCmd && event.key === "z" && !event.shiftKey) {
+        event.preventDefault();
+        // Undo functionality
+        if (
+          editorRef.current &&
+          typeof (editorRef.current as any).undo === "function"
+        ) {
+          (editorRef.current as any).undo();
+        }
+      } else if (
+        (isCtrlOrCmd && event.key === "z" && event.shiftKey) ||
+        (isCtrlOrCmd && event.key === "y")
+      ) {
+        event.preventDefault();
+        // Redo functionality
+        if (
+          editorRef.current &&
+          typeof (editorRef.current as any).redo === "function"
+        ) {
+          (editorRef.current as any).redo();
+        }
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [editorReady]);
+
   // Function to convert Editor.js data to HTML with <b> tags
   function convertEditorDataToHtml(data: OutputData): OutputData {
     const newData = { ...data };
@@ -448,8 +492,26 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
           padding-bottom: 300px !important;
         }
 
+        :global(.ce-block .ce-paragraph[data-placeholder]:empty::before) {
+          content: "Type '/' for commands or start writing...";
+          color: #a1a1aa;
+          font-style: italic;
+          opacity: 0.7;
+          pointer-events: none;
+        }
+
+        :global(
+            .ce-block:first-child .ce-paragraph[data-placeholder]:empty::before
+          ) {
+          content: "${placeholder}";
+          color: #a1a1aa;
+          font-style: italic;
+          opacity: 0.7;
+          pointer-events: none;
+        }
+
         :global(.ce-paragraph[data-placeholder]:empty::before) {
-          content: attr(data-placeholder);
+          content: "Type something...";
           color: #a1a1aa;
           font-style: italic;
           opacity: 0.7;

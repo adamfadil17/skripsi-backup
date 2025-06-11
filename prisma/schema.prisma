@@ -53,7 +53,7 @@ model Account {
   session_state     String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  
   @@unique([provider, providerAccountId])
 }
 
@@ -159,8 +159,8 @@ model Message {
   editedAt  DateTime?
   isDeleted Boolean   @default(false)
   deletedAt DateTime?
-
   seenIds      String[]     @db.ObjectId
+  
   seenBy       User[]       @relation("MessageSeen", fields: [seenIds], references: [id])
   sender       User         @relation(fields: [senderId], references: [id])
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
