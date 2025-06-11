@@ -3,21 +3,44 @@
 import type React from "react";
 import { useSession } from "next-auth/react";
 import { useRef, useEffect, useCallback, useState } from "react";
-import EditorJS, {
-  type ToolConstructable,
-  type OutputData,
-} from "@editorjs/editorjs";
-import Header from "@editorjs/header";
-import Delimiter from "@editorjs/delimiter";
-import Paragraph from "@editorjs/paragraph";
-import Table from "@editorjs/table";
-import List from "@editorjs/list";
-import Checklist from "@editorjs/checklist";
-import CodeTool from "@editorjs/code";
-import ImageTool from "@editorjs/image";
+import { useEditor, EditorContent } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import Image from "@tiptap/extension-image";
+import Table from "@tiptap/extension-table";
+import TableRow from "@tiptap/extension-table-row";
+import TableHeader from "@tiptap/extension-table-header";
+import TableCell from "@tiptap/extension-table-cell";
+import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
+import TaskList from "@tiptap/extension-task-list";
+import TaskItem from "@tiptap/extension-task-item";
+import Underline from "@tiptap/extension-underline";
+import Collaboration from "@tiptap/extension-collaboration";
+import CollaborationCursor from "@tiptap/extension-collaboration-cursor";
+import Placeholder from "@tiptap/extension-placeholder";
+import { createLowlight } from "lowlight";
+import * as Y from "yjs";
 import axios from "axios";
 import toast from "react-hot-toast";
 import { usePusherChannelContext } from "../../components/PusherChannelProvider";
+import { Button } from "@/components/ui/button";
+import {
+  Bold,
+  Italic,
+  Underline as UnderlineIcon,
+  Strikethrough,
+  Code,
+  Heading1,
+  Heading2,
+  Heading3,
+  List,
+  ListOrdered,
+  Quote,
+  Minus,
+  ImageIcon,
+  TableIcon,
+  Undo,
+  Redo,
+} from "lucide-react";
 
 interface DocumentNoteEditorProps {
   workspaceId: string;
@@ -25,6 +48,26 @@ interface DocumentNoteEditorProps {
   modelResponse?: any;
   placeholder?: string;
 }
+
+// Create lowlight instance
+const lowlight = createLowlight();
+
+// Generate random colors for user cursors
+const getRandomColor = () => {
+  const colors = [
+    "#FF6B6B",
+    "#4ECDC4",
+    "#45B7D1",
+    "#96CEB4",
+    "#FFEAA7",
+    "#DDA0DD",
+    "#98D8C8",
+    "#F7DC6F",
+    "#BB8FCE",
+    "#85C1E9",
+  ];
+  return colors[Math.floor(Math.random() * colors.length)];
+};
 
 const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
   workspaceId,
@@ -34,19 +77,32 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
 }) => {
   const { data: session } = useSession();
   const userEmail = session?.user?.email;
+  const userName =
+    session?.user?.name || userEmail?.split("@")[0] || "Anonymous";
 
-  const editorRef = useRef<EditorJS | null>(null);
-  const isFetchedRef = useRef(false);
-  const hasInitialized = useRef(false);
-  const prevModelResponseRef = useRef<any>(null);
+  const [editorReady, setEditorReady] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const lastSavedContentRef = useRef<string>("");
   const isProcessingExternalUpdateRef = useRef(false);
-  const [editorReady, setEditorReady] = useState(false);
+  const ydocRef = useRef<Y.Doc | null>(null);
+  const providerRef = useRef<any>(null);
 
   // Get the Pusher channel from context
   const { channel: workspaceChannel } = usePusherChannelContext();
 
-  // Debounce function to limit the frequency of function calls
+  // Initialize Yjs document
+  useEffect(() => {
+    if (!ydocRef.current) {
+      ydocRef.current = new Y.Doc();
+    }
+    return () => {
+      if (ydocRef.current) {
+        ydocRef.current.destroy();
+      }
+    };
+  }, []);
+
+  // Debounce function
   function debounce(func: Function, wait: number) {
     let timeout: NodeJS.Timeout;
     return function executedFunction(...args: any[]) {
@@ -60,20 +116,13 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
   }
 
   const saveDocument = useCallback(async () => {
-    if (
-      editorRef.current &&
-      !isProcessingExternalUpdateRef.current &&
-      userEmail
-    ) {
+    if (editor && !isProcessingExternalUpdateRef.current && userEmail) {
       try {
-        const outputData = await editorRef.current.save();
-        // Convert inlineToolbar to <b> tags before saving
-        const formattedContent = convertEditorDataToHtml(outputData);
+        const content = editor.getJSON();
+        const contentString = JSON.stringify(content);
 
-        // Check if content has actually changed to avoid unnecessary saves
-        const contentString = JSON.stringify(formattedContent);
         if (contentString === lastSavedContentRef.current) {
-          return; // Skip save if content hasn't changed
+          return;
         }
 
         lastSavedContentRef.current = contentString;
@@ -81,7 +130,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
         const response = await axios.put(
           `/api/workspace/${workspaceId}/document/${documentId}/content/`,
           {
-            content: formattedContent,
+            content: content,
             userEmail: userEmail,
           }
         );
@@ -99,47 +148,16 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     }
   }, [workspaceId, documentId, userEmail]);
 
-  // Add debounced save to prevent too many saves during typing
   const debouncedSave = useCallback(
     debounce(() => {
       saveDocument();
-    }, 500),
+    }, 1000),
     [saveDocument]
   );
 
-  const getDocumentOutput = useCallback(async () => {
-    if (!isFetchedRef.current) {
-      try {
-        const response = await axios.get(
-          `/api/workspace/${workspaceId}/document/${documentId}/content/`
-        );
-
-        if (
-          response.data?.status === "success" &&
-          response.data.data?.content
-        ) {
-          const content = response.data.data.content;
-          editorRef.current?.render(content);
-          // Store the initial content hash to avoid duplicate saves
-          lastSavedContentRef.current = JSON.stringify(content);
-        } else {
-          toast.error(
-            response.data?.message || "Failed to load document content."
-          );
-        }
-        isFetchedRef.current = true;
-        setEditorReady(true);
-      } catch (error: any) {
-        toast.error(
-          error.response?.data?.message || "An unexpected error occurred."
-        );
-      }
-    }
-  }, [workspaceId, documentId]);
-
   // Image upload handler
   const handleImageUpload = useCallback(
-    async (file: File): Promise<{ success: number; file: { url: string } }> => {
+    async (file: File): Promise<string> => {
       try {
         const formData = new FormData();
         formData.append("file", file);
@@ -161,128 +179,127 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
 
         if (data.secure_url) {
           toast.success("Image uploaded successfully!");
-          return { success: 1, file: { url: data.secure_url } };
+          return data.secure_url;
         } else {
           throw new Error("Upload failed");
         }
       } catch (error) {
         console.error("Image upload error:", error);
         toast.error("Failed to upload image. Please try again.");
-        return { success: 0, file: { url: "" } };
+        throw error;
       }
     },
     [workspaceId, documentId]
   );
 
-  const initEditor = useCallback(() => {
-    if (!hasInitialized.current) {
-      hasInitialized.current = true;
-      editorRef.current = new EditorJS({
-        onChange: () => {
-          debouncedSave();
+  // Initialize TipTap editor
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({
+        history: false, // We'll use Yjs for history
+      }),
+      Underline, // Add the Underline extension
+      Collaboration.configure({
+        document: ydocRef.current!,
+      }),
+      CollaborationCursor.configure({
+        provider: providerRef.current,
+        user: {
+          name: userName,
+          color: getRandomColor(),
         },
-        onReady: () => {
-          getDocumentOutput();
-        },
-        holder: "editorjs",
-        autofocus: true,
+      }),
+      Placeholder.configure({
         placeholder: placeholder,
-        inlineToolbar: true,
-        // Enable built-in undo/redo functionality
-        // enableDefaultShortcuts: true,
-        tools: {
-          header: Header,
-          delimiter: Delimiter,
-          paragraph: {
-            class: Paragraph as unknown as ToolConstructable,
-            inlineToolbar: true,
-          },
-          table: Table,
-          list: {
-            class: List as unknown as ToolConstructable,
-            inlineToolbar: true,
-            shortcut: "CMD+SHIFT+L",
-            config: { defaultStyle: "unordered" },
-          },
-          checklist: {
-            class: Checklist,
-            shortcut: "CMD+SHIFT+C",
-            inlineToolbar: true,
-          },
-          code: { class: CodeTool, shortcut: "CMD+SHIFT+P" },
-          image: {
-            class: ImageTool,
-            config: {
-              uploader: { uploadByFile: handleImageUpload },
-              captionPlaceholder: "Add image caption...",
-              withBorder: true,
-              withBackground: false,
-              stretched: false,
-            },
-          },
+      }),
+      Image.configure({
+        HTMLAttributes: {
+          class: "rounded-lg max-w-full h-auto",
         },
-      });
+      }),
+      Table.configure({
+        resizable: true,
+      }),
+      TableRow,
+      TableHeader,
+      TableCell,
+      CodeBlockLowlight.configure({
+        lowlight,
+      }),
+      TaskList,
+      TaskItem.configure({
+        nested: true,
+      }),
+    ],
+    content: "",
+    onUpdate: ({ editor }) => {
+      debouncedSave();
+    },
+    onCreate: ({ editor }) => {
+      setEditorReady(true);
+      loadDocumentContent();
+    },
+  });
+
+  const loadDocumentContent = useCallback(async () => {
+    if (!editor) return;
+
+    try {
+      const response = await axios.get(
+        `/api/workspace/${workspaceId}/document/${documentId}/content/`
+      );
+
+      if (response.data?.status === "success" && response.data.data?.content) {
+        const content = response.data.data.content;
+        editor.commands.setContent(content);
+        lastSavedContentRef.current = JSON.stringify(content);
+      }
+      setIsLoading(false);
+    } catch (error: any) {
+      toast.error(
+        error.response?.data?.message || "Failed to load document content."
+      );
+      setIsLoading(false);
     }
-  }, [debouncedSave, getDocumentOutput, handleImageUpload, placeholder]);
+  }, [workspaceId, documentId, editor]);
 
-  // Set up Pusher event listeners for real-time updates
+  // Handle Pusher real-time updates
   useEffect(() => {
-    if (!workspaceChannel || !userEmail || !editorReady) return;
+    if (!workspaceChannel || !userEmail || !editor || !editorReady) return;
 
-    console.log(
-      "Setting up Pusher listeners for document content:",
-      documentId
-    );
-
-    // Document content update event handler
     const handleDocumentContentUpdated = async (data: {
-      content: OutputData;
+      content: any;
       documentId: string;
       editorEmail: string;
     }) => {
-      console.log("🔥 EVENT RECEIVED document-content-updated:", data);
-
-      // Only update if it's the current document and not from the current user
       if (data.documentId === documentId && data.editorEmail !== userEmail) {
-        if (editorRef.current) {
+        if (editor && !editor.isDestroyed) {
           try {
-            // Set flag to prevent triggering another save
             isProcessingExternalUpdateRef.current = true;
 
-            // Store cursor position
-            const currentBlockIndex =
-              editorRef.current.blocks.getCurrentBlockIndex();
-            const cursorPosition = "end";
+            // Get current selection
+            const { from, to } = editor.state.selection;
 
-            // Update the editor content
-            await editorRef.current.render(data.content);
+            // Update content
+            editor.commands.setContent(data.content, false);
 
-            // Update the last saved content to prevent duplicate saves
-            lastSavedContentRef.current = JSON.stringify(data.content);
-
-            // Restore cursor position
+            // Restore selection if possible
             setTimeout(() => {
-              if (editorRef.current && currentBlockIndex !== undefined) {
-                try {
-                  // Try to restore cursor to the same block if it still exists
-                  if (
-                    editorRef.current.blocks.getBlockByIndex(currentBlockIndex)
-                  ) {
-                    editorRef.current.caret.setToBlock(
-                      currentBlockIndex,
-                      cursorPosition
-                    );
-                  }
-                } catch (e) {
-                  console.log("Could not restore cursor position", e);
+              try {
+                if (
+                  from <= editor.state.doc.content.size &&
+                  to <= editor.state.doc.content.size
+                ) {
+                  editor.commands.setTextSelection({ from, to });
                 }
-
-                // Reset the flag after a short delay to ensure rendering is complete
-                setTimeout(() => {
-                  isProcessingExternalUpdateRef.current = false;
-                }, 100);
+              } catch (e) {
+                console.log("Could not restore selection", e);
               }
+
+              isProcessingExternalUpdateRef.current = false;
             }, 100);
+
+            lastSavedContentRef.current = JSON.stringify(data.content);
           } catch (error) {
             console.error("Error updating editor content:", error);
             isProcessingExternalUpdateRef.current = false;
@@ -291,272 +308,471 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
       }
     };
 
-    // Subscribe to document content events
     workspaceChannel.bind(
       "document-content-updated",
       handleDocumentContentUpdated
     );
 
-    // Cleanup
     return () => {
-      console.log("Cleaning up Pusher listeners for document content");
       workspaceChannel.unbind(
         "document-content-updated",
         handleDocumentContentUpdated
       );
     };
-  }, [workspaceChannel, documentId, userEmail, editorReady]);
+  }, [workspaceChannel, documentId, userEmail, editor, editorReady]);
 
-  const appendModelResponse = useCallback(
-    async (response: any) => {
-      if (!editorRef.current) return;
-
+  // Handle AI model response
+  useEffect(() => {
+    if (modelResponse && editor && editorReady) {
       try {
-        const currentContent = await editorRef.current.save();
-        let newBlock;
+        if (modelResponse.blocks && Array.isArray(modelResponse.blocks)) {
+          // Convert Editor.js format to TipTap format
+          const tiptapContent = convertEditorJSToTipTap(modelResponse);
 
-        if (response && response.blocks) {
-          newBlock = response.blocks.map((block: any) => {
-            if (block.type === "paragraph" && block.data.text) {
-              let text = block.data.text;
-              const inlineTools = [];
+          // Get current content and append new content
+          const currentContent = editor.getJSON();
+          const newContent = {
+            ...currentContent,
+            content: [
+              ...(currentContent.content || []),
+              ...tiptapContent.content,
+            ],
+          };
 
-              // Find bold sections using Markdown syntax (**bold text**)
-              const boldRegex = /\*\*(.*?)\*\*/g;
-              let match;
+          editor.commands.setContent(newContent);
 
-              while ((match = boldRegex.exec(text)) !== null) {
-                const boldText = match[1];
-                const startIndex = match.index;
-                inlineTools.push({
-                  offset: startIndex,
-                  length: boldText.length,
-                  type: "bold",
-                });
-                text = text.replace(`**${boldText}**`, boldText); // Remove the markdown bold characters
-              }
+          // Focus at the end
+          setTimeout(() => {
+            editor.commands.focus("end");
+          }, 100);
 
-              return {
-                ...block,
-                data: {
-                  ...block.data,
-                  text: text,
-                  inlineToolbar: inlineTools,
-                },
-              };
-            }
-            return block;
-          });
-        } else {
-          newBlock = [
-            {
-              type: "paragraph",
-              data: {
-                text:
-                  typeof response === "string"
-                    ? response
-                    : JSON.stringify(response),
-              },
-            },
-          ];
+          debouncedSave();
         }
-
-        const updatedContent: OutputData = {
-          time: new Date().getTime(),
-          blocks: [...(currentContent.blocks || []), ...newBlock],
-          version: currentContent.version || "2.30.8",
-        };
-
-        await editorRef.current.render(updatedContent);
-
-        setTimeout(() => {
-          if (editorRef.current) {
-            const lastBlockIndex = updatedContent.blocks.length - 1;
-            editorRef.current.caret.setToBlock(lastBlockIndex, "end");
-          }
-        }, 300);
-
-        saveDocument();
       } catch (error) {
         console.error("Error appending model response:", error);
       }
-    },
-    [saveDocument]
-  );
-
-  useEffect(() => {
-    if (session) {
-      initEditor();
     }
-  }, [session, initEditor]);
+  }, [modelResponse, editor, editorReady, debouncedSave]);
 
-  useEffect(() => {
-    if (
-      modelResponse &&
-      modelResponse !== prevModelResponseRef.current &&
-      editorRef.current
-    ) {
-      appendModelResponse(modelResponse);
-      prevModelResponseRef.current = modelResponse;
+  // Convert Editor.js format to TipTap format
+  const convertEditorJSToTipTap = (editorJSData: any) => {
+    const content: any[] = [];
+
+    if (editorJSData.blocks) {
+      editorJSData.blocks.forEach((block: any) => {
+        switch (block.type) {
+          case "paragraph":
+            content.push({
+              type: "paragraph",
+              content: block.data.text
+                ? [{ type: "text", text: block.data.text }]
+                : [],
+            });
+            break;
+          case "header":
+            content.push({
+              type: "heading",
+              attrs: { level: block.data.level || 1 },
+              content: [{ type: "text", text: block.data.text || "" }],
+            });
+            break;
+          case "list":
+            content.push({
+              type:
+                block.data.style === "ordered" ? "orderedList" : "bulletList",
+              content: block.data.items.map((item: string) => ({
+                type: "listItem",
+                content: [
+                  {
+                    type: "paragraph",
+                    content: [{ type: "text", text: item }],
+                  },
+                ],
+              })),
+            });
+            break;
+          case "checklist":
+            content.push({
+              type: "taskList",
+              content: block.data.items.map((item: any) => ({
+                type: "taskItem",
+                attrs: { checked: item.checked || false },
+                content: [
+                  {
+                    type: "paragraph",
+                    content: [{ type: "text", text: item.text || "" }],
+                  },
+                ],
+              })),
+            });
+            break;
+          case "code":
+            content.push({
+              type: "codeBlock",
+              content: [{ type: "text", text: block.data.code || "" }],
+            });
+            break;
+          case "delimiter":
+            content.push({
+              type: "horizontalRule",
+            });
+            break;
+          default:
+            // Fallback to paragraph
+            content.push({
+              type: "paragraph",
+              content: [{ type: "text", text: JSON.stringify(block.data) }],
+            });
+        }
+      });
     }
-  }, [modelResponse, appendModelResponse]);
 
-  // Add keyboard shortcuts for undo/redo
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (!editorRef.current) return;
+    return { type: "doc", content };
+  };
 
-      const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
-      const isCtrlOrCmd = isMac ? event.metaKey : event.ctrlKey;
+  // Toolbar component
+  const Toolbar = () => {
+    if (!editor) return null;
 
-      if (isCtrlOrCmd && event.key === "z" && !event.shiftKey) {
-        event.preventDefault();
-        // Undo functionality
-        if (
-          editorRef.current &&
-          typeof (editorRef.current as any).undo === "function"
-        ) {
-          (editorRef.current as any).undo();
-        }
-      } else if (
-        (isCtrlOrCmd && event.key === "z" && event.shiftKey) ||
-        (isCtrlOrCmd && event.key === "y")
-      ) {
-        event.preventDefault();
-        // Redo functionality
-        if (
-          editorRef.current &&
-          typeof (editorRef.current as any).redo === "function"
-        ) {
-          (editorRef.current as any).redo();
-        }
-      }
-    };
+    return (
+      <div className="border-b border-gray-200 p-2 flex flex-wrap gap-1 bg-gray-50 rounded-t-lg">
+        <Button
+          variant={editor.isActive("bold") ? "default" : "ghost"}
+          size="sm"
+          onClick={() => editor.chain().focus().toggleBold().run()}
+        >
+          <Bold className="h-4 w-4" />
+        </Button>
 
-    document.addEventListener("keydown", handleKeyDown);
+        <Button
+          variant={editor.isActive("italic") ? "default" : "ghost"}
+          size="sm"
+          onClick={() => editor.chain().focus().toggleItalic().run()}
+        >
+          <Italic className="h-4 w-4" />
+        </Button>
 
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [editorReady]);
+        <Button
+          variant={editor.isActive("underline") ? "default" : "ghost"}
+          size="sm"
+          onClick={() => editor.chain().focus().toggleUnderline().run()}
+        >
+          <UnderlineIcon className="h-4 w-4" />
+        </Button>
 
-  // Function to convert Editor.js data to HTML with <b> tags
-  function convertEditorDataToHtml(data: OutputData): OutputData {
-    const newData = { ...data };
-    newData.blocks = newData.blocks.map((block) => {
-      if (block.type === "paragraph" && block.data.inlineToolbar) {
-        let text = block.data.text;
-        const inlineTools = [...block.data.inlineToolbar];
+        <Button
+          variant={editor.isActive("strike") ? "default" : "ghost"}
+          size="sm"
+          onClick={() => editor.chain().focus().toggleStrike().run()}
+        >
+          <Strikethrough className="h-4 w-4" />
+        </Button>
 
-        // Sort inline tools by offset (descending) to apply them correctly
-        inlineTools.sort((a: any, b: any) => b.offset - a.offset);
+        <Button
+          variant={editor.isActive("code") ? "default" : "ghost"}
+          size="sm"
+          onClick={() => editor.chain().focus().toggleCode().run()}
+        >
+          <Code className="h-4 w-4" />
+        </Button>
 
-        inlineTools.forEach((tool: any) => {
-          if (tool.type === "bold") {
-            const startTag = "<b>";
-            const endTag = "</b>";
-            text =
-              text.slice(0, tool.offset) +
-              startTag +
-              text.slice(tool.offset, tool.offset + tool.length) +
-              endTag +
-              text.slice(tool.offset + tool.length);
+        <div className="w-px h-6 bg-gray-300 mx-1" />
+
+        <Button
+          variant={
+            editor.isActive("heading", { level: 1 }) ? "default" : "ghost"
           }
-        });
+          size="sm"
+          onClick={() =>
+            editor.chain().focus().toggleHeading({ level: 1 }).run()
+          }
+        >
+          <Heading1 className="h-4 w-4" />
+        </Button>
 
-        return {
-          ...block,
-          data: {
-            ...block.data,
-            text: text,
-            // Remove inlineToolbar after conversion
-            inlineToolbar: undefined,
-          },
-        };
-      }
-      return block;
-    });
-    return newData;
+        <Button
+          variant={
+            editor.isActive("heading", { level: 2 }) ? "default" : "ghost"
+          }
+          size="sm"
+          onClick={() =>
+            editor.chain().focus().toggleHeading({ level: 2 }).run()
+          }
+        >
+          <Heading2 className="h-4 w-4" />
+        </Button>
+
+        <Button
+          variant={
+            editor.isActive("heading", { level: 3 }) ? "default" : "ghost"
+          }
+          size="sm"
+          onClick={() =>
+            editor.chain().focus().toggleHeading({ level: 3 }).run()
+          }
+        >
+          <Heading3 className="h-4 w-4" />
+        </Button>
+
+        <div className="w-px h-6 bg-gray-300 mx-1" />
+
+        <Button
+          variant={editor.isActive("bulletList") ? "default" : "ghost"}
+          size="sm"
+          onClick={() => editor.chain().focus().toggleBulletList().run()}
+        >
+          <List className="h-4 w-4" />
+        </Button>
+
+        <Button
+          variant={editor.isActive("orderedList") ? "default" : "ghost"}
+          size="sm"
+          onClick={() => editor.chain().focus().toggleOrderedList().run()}
+        >
+          <ListOrdered className="h-4 w-4" />
+        </Button>
+
+        <Button
+          variant={editor.isActive("taskList") ? "default" : "ghost"}
+          size="sm"
+          onClick={() => editor.chain().focus().toggleTaskList().run()}
+        >
+          ☑️
+        </Button>
+
+        <div className="w-px h-6 bg-gray-300 mx-1" />
+
+        <Button
+          variant={editor.isActive("blockquote") ? "default" : "ghost"}
+          size="sm"
+          onClick={() => editor.chain().focus().toggleBlockquote().run()}
+        >
+          <Quote className="h-4 w-4" />
+        </Button>
+
+        <Button
+          variant={editor.isActive("codeBlock") ? "default" : "ghost"}
+          size="sm"
+          onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+        >
+          {"</>"}
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => editor.chain().focus().setHorizontalRule().run()}
+        >
+          <Minus className="h-4 w-4" />
+        </Button>
+
+        <div className="w-px h-6 bg-gray-300 mx-1" />
+
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            const input = document.createElement("input");
+            input.type = "file";
+            input.accept = "image/*";
+            input.onchange = async (e) => {
+              const file = (e.target as HTMLInputElement).files?.[0];
+              if (file) {
+                try {
+                  const url = await handleImageUpload(file);
+                  editor.chain().focus().setImage({ src: url }).run();
+                } catch (error) {
+                  console.error("Failed to upload image:", error);
+                }
+              }
+            };
+            input.click();
+          }}
+        >
+          <ImageIcon className="h-4 w-4" />
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() =>
+            editor
+              .chain()
+              .focus()
+              .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
+              .run()
+          }
+        >
+          <TableIcon className="h-4 w-4" />
+        </Button>
+
+        <div className="w-px h-6 bg-gray-300 mx-1" />
+
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => editor.chain().focus().undo().run()}
+          disabled={!editor.can().undo()}
+        >
+          <Undo className="h-4 w-4" />
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => editor.chain().focus().redo().run()}
+          disabled={!editor.can().redo()}
+        >
+          <Redo className="h-4 w-4" />
+        </Button>
+      </div>
+    );
+  };
+
+  if (isLoading) {
+    return (
+      <div className="w-full flex items-center justify-center py-8">
+        <div className="animate-pulse text-lg">Loading editor...</div>
+      </div>
+    );
   }
 
   return (
-    <div className="w-full relative">
-      <div
-        id="editorjs"
-        className="prose max-w-none w-full"
-        data-placeholder={placeholder}
-      ></div>
+    <div className="w-full max-w-4xl mx-auto">
+      <div className="border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm">
+        <Toolbar />
+        <div className="relative">
+          <EditorContent
+            editor={editor}
+            className="prose prose-lg max-w-none p-6 min-h-[500px] focus:outline-none"
+          />
 
-      <style jsx>{`
-        :global(.codex-editor__redactor) {
-          padding-bottom: 300px !important;
+          {/* Collaboration cursors will be rendered here automatically by TipTap */}
+        </div>
+      </div>
+
+      <style jsx global>{`
+        .ProseMirror {
+          outline: none;
         }
 
-        :global(.ce-block .ce-paragraph[data-placeholder]:empty::before) {
-          content: "Type '/' for commands or start writing...";
-          color: #a1a1aa;
-          font-style: italic;
-          opacity: 0.7;
+        .ProseMirror p.is-editor-empty:first-child::before {
+          content: attr(data-placeholder);
+          float: left;
+          color: #adb5bd;
+          pointer-events: none;
+          height: 0;
+        }
+
+        .collaboration-cursor__caret {
+          position: relative;
+          margin-left: -1px;
+          margin-right: -1px;
+          border-left: 1px solid #0d0d0d;
+          border-right: 1px solid #0d0d0d;
+          word-break: normal;
           pointer-events: none;
         }
 
-        :global(
-            .ce-block:first-child .ce-paragraph[data-placeholder]:empty::before
-          ) {
-          content: "${placeholder}";
-          color: #a1a1aa;
-          font-style: italic;
-          opacity: 0.7;
-          pointer-events: none;
+        .collaboration-cursor__label {
+          position: absolute;
+          top: -1.4em;
+          left: -1px;
+          font-size: 12px;
+          font-style: normal;
+          font-weight: 600;
+          line-height: normal;
+          user-select: none;
+          color: #0d0d0d;
+          padding: 0.1rem 0.3rem;
+          border-radius: 3px 3px 3px 0;
+          white-space: nowrap;
         }
 
-        :global(.ce-paragraph[data-placeholder]:empty::before) {
-          content: "Type something...";
-          color: #a1a1aa;
-          font-style: italic;
-          opacity: 0.7;
+        .ProseMirror .tableWrapper {
+          overflow-x: auto;
         }
 
-        :global(.ce-paragraph:empty:focus::before) {
-          opacity: 0.5;
-        }
-
-        :global(
-            .codex-editor--empty .ce-paragraph[data-placeholder]:empty::before
-          ) {
-          content: "${placeholder}";
-          color: #a1a1aa;
-          font-style: italic;
-          opacity: 0.7;
-        }
-
-        :global(.image-tool) {
-          margin: 1.5rem 0;
-        }
-
-        :global(.image-tool__image) {
-          border-radius: 0.5rem;
+        .ProseMirror table {
+          border-collapse: collapse;
+          table-layout: fixed;
+          width: 100%;
+          margin: 0;
           overflow: hidden;
         }
 
-        :global(.image-tool__caption) {
-          font-size: 0.875rem;
-          color: #6b7280;
-          text-align: center;
-          margin-top: 0.5rem;
+        .ProseMirror td,
+        .ProseMirror th {
+          min-width: 1em;
+          border: 2px solid #ced4da;
+          padding: 3px 5px;
+          vertical-align: top;
+          box-sizing: border-box;
+          position: relative;
         }
 
-        :global(.image-tool--withBorder .image-tool__image) {
-          border: 1px solid #e5e7eb;
+        .ProseMirror th {
+          font-weight: bold;
+          text-align: left;
+          background-color: #f1f3f4;
         }
 
-        :global(.image-tool--withBackground .image-tool__image) {
-          background-color: #f3f4f6;
-          padding: 1rem;
+        .ProseMirror .selectedCell:after {
+          z-index: 2;
+          position: absolute;
+          content: "";
+          left: 0;
+          right: 0;
+          top: 0;
+          bottom: 0;
+          background: rgba(200, 200, 255, 0.4);
+          pointer-events: none;
         }
 
-        :global(.image-tool--stretched .image-tool__image img) {
-          width: 100%;
+        .ProseMirror .column-resize-handle {
+          position: absolute;
+          right: -2px;
+          top: 0;
+          bottom: -2px;
+          width: 4px;
+          background-color: #adf;
+          pointer-events: none;
+        }
+
+        .ProseMirror.resize-cursor {
+          cursor: ew-resize;
+          cursor: col-resize;
+        }
+
+        .ProseMirror ul[data-type="taskList"] {
+          list-style: none;
+          padding: 0;
+        }
+
+        .ProseMirror ul[data-type="taskList"] p {
+          margin: 0;
+        }
+
+        .ProseMirror ul[data-type="taskList"] li {
+          display: flex;
+        }
+
+        .ProseMirror ul[data-type="taskList"] li > label {
+          flex: 0 0 auto;
+          margin-right: 0.5rem;
+          user-select: none;
+        }
+
+        .ProseMirror ul[data-type="taskList"] li > div {
+          flex: 1 1 auto;
+        }
+
+        .ProseMirror ul[data-type="taskList"] input[type="checkbox"] {
+          cursor: pointer;
+        }
+
+        .ProseMirror ul[data-type="taskList"] ul[data-type="taskList"] {
+          margin: 0;
         }
       `}</style>
     </div>
