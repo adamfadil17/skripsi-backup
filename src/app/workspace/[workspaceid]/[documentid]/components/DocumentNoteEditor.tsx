@@ -1,28 +1,28 @@
-"use client"
+"use client";
 
-import type React from "react"
-import { useSession } from "next-auth/react"
-import { useRef, useEffect, useCallback, useState } from "react"
-import { useEditor, EditorContent } from "@tiptap/react"
-import StarterKit from "@tiptap/starter-kit"
-import Image from "@tiptap/extension-image"
-import Table from "@tiptap/extension-table"
-import TableRow from "@tiptap/extension-table-row"
-import TableHeader from "@tiptap/extension-table-header"
-import TableCell from "@tiptap/extension-table-cell"
-import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight"
-import TaskList from "@tiptap/extension-task-list"
-import TaskItem from "@tiptap/extension-task-item"
-import Underline from "@tiptap/extension-underline"
-import Collaboration from "@tiptap/extension-collaboration"
-import CollaborationCursor from "@tiptap/extension-collaboration-cursor"
-import Placeholder from "@tiptap/extension-placeholder"
-import { createLowlight } from "lowlight"
-import * as Y from "yjs"
-import axios from "axios"
-import toast from "react-hot-toast"
-import { usePusherChannelContext } from "../../components/PusherChannelProvider"
-import { Button } from "@/components/ui/button"
+import type React from "react";
+import { useSession } from "next-auth/react";
+import { useRef, useEffect, useCallback, useState } from "react";
+import { useEditor, EditorContent } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import Image from "@tiptap/extension-image";
+import Table from "@tiptap/extension-table";
+import TableRow from "@tiptap/extension-table-row";
+import TableHeader from "@tiptap/extension-table-header";
+import TableCell from "@tiptap/extension-table-cell";
+import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
+import TaskList from "@tiptap/extension-task-list";
+import TaskItem from "@tiptap/extension-task-item";
+import Underline from "@tiptap/extension-underline";
+import Collaboration from "@tiptap/extension-collaboration";
+import CollaborationCursor from "@tiptap/extension-collaboration-cursor";
+import Placeholder from "@tiptap/extension-placeholder";
+import { createLowlight } from "lowlight";
+import * as Y from "yjs";
+import axios from "axios";
+import toast from "react-hot-toast";
+import { usePusherChannelContext } from "../../components/PusherChannelProvider";
+import { Button } from "@/components/ui/button";
 import {
   Bold,
   Italic,
@@ -40,83 +40,81 @@ import {
   TableIcon,
   Undo,
   Redo,
-} from "lucide-react"
+} from "lucide-react";
 
 interface DocumentNoteEditorProps {
-  workspaceId: string
-  documentId: string
-  modelResponse?: any
-  placeholder?: string
+  workspaceId: string;
+  documentId: string;
+  modelResponse?: any;
+  placeholder?: string;
 }
 
 // Custom Yjs Provider for Pusher
 class PusherYjsProvider {
-  private doc: Y.Doc
-  private channel: any
-  private userEmail: string
-  private documentId: string
-  private awareness: Map<string, any>
-  private isConnected = false
+  private doc: Y.Doc;
+  private channel: any;
+  private userEmail: string;
+  private documentId: string;
+  private awareness: Map<string, any>;
+  private isConnected = false;
 
   constructor(doc: Y.Doc, channel: any, userEmail: string, documentId: string) {
-    this.doc = doc
-    this.channel = channel
-    this.userEmail = userEmail
-    this.documentId = documentId
-    this.awareness = new Map()
+    this.doc = doc;
+    this.channel = channel;
+    this.userEmail = userEmail;
+    this.documentId = documentId;
+    this.awareness = new Map();
 
-    this.setupEventListeners()
+    this.setupEventListeners();
   }
 
   private setupEventListeners() {
-    if (!this.channel) return
+    if (!this.channel) return;
 
     // Listen for document updates from other users
     this.channel.bind(
       "yjs-update",
-      (data: {
-        documentId: string
-        update: string
-        userEmail: string
-      }) => {
-        if (data.documentId === this.documentId && data.userEmail !== this.userEmail) {
+      (data: { documentId: string; update: string; userEmail: string }) => {
+        if (
+          data.documentId === this.documentId &&
+          data.userEmail !== this.userEmail
+        ) {
           try {
-            const update = new Uint8Array(Buffer.from(data.update, "base64"))
-            Y.applyUpdate(this.doc, update)
+            const update = new Uint8Array(Buffer.from(data.update, "base64"));
+            Y.applyUpdate(this.doc, update);
           } catch (error) {
-            console.error("Error applying Yjs update:", error)
+            console.error("Error applying Yjs update:", error);
           }
         }
-      },
-    )
+      }
+    );
 
     // Listen for awareness updates (cursors, selections)
     this.channel.bind(
       "yjs-awareness",
-      (data: {
-        documentId: string
-        awareness: any
-        userEmail: string
-      }) => {
-        if (data.documentId === this.documentId && data.userEmail !== this.userEmail) {
-          this.awareness.set(data.userEmail, data.awareness)
+      (data: { documentId: string; awareness: any; userEmail: string }) => {
+        if (
+          data.documentId === this.documentId &&
+          data.userEmail !== this.userEmail
+        ) {
+          this.awareness.set(data.userEmail, data.awareness);
         }
-      },
-    )
+      }
+    );
 
     // Send updates when document changes
     this.doc.on("update", (update: Uint8Array) => {
       if (this.isConnected) {
-        const updateBase64 = Buffer.from(update).toString("base64")
+        const updateBase64 = Buffer.from(update).toString("base64");
         this.channel.trigger("client-yjs-update", {
           documentId: this.documentId,
           update: updateBase64,
           userEmail: this.userEmail,
-        })
+        });
       }
-    })
+    });
 
-    this.isConnected = true
+    this.isConnected = true;
   }
 
   updateAwareness(awareness: any) {
@@ -125,21 +123,21 @@ class PusherYjsProvider {
         documentId: this.documentId,
         awareness,
         userEmail: this.userEmail,
-      })
+      });
     }
   }
 
   destroy() {
-    this.isConnected = false
+    this.isConnected = false;
     if (this.channel) {
-      this.channel.unbind("yjs-update")
-      this.channel.unbind("yjs-awareness")
+      this.channel.unbind("yjs-update");
+      this.channel.unbind("yjs-awareness");
     }
   }
 }
 
 // Create lowlight instance
-const lowlight = createLowlight()
+const lowlight = createLowlight();
 
 // Generate random colors for user cursors
 const getRandomColor = () => {
@@ -154,9 +152,9 @@ const getRandomColor = () => {
     "#F7DC6F",
     "#BB8FCE",
     "#85C1E9",
-  ]
-  return colors[Math.floor(Math.random() * colors.length)]
-}
+  ];
+  return colors[Math.floor(Math.random() * colors.length)];
+};
 
 const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
   workspaceId,
@@ -164,134 +162,150 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
   modelResponse,
   placeholder = "Start writing your notes here...",
 }) => {
-  const { data: session } = useSession()
-  const userEmail = session?.user?.email
-  const userName = session?.user?.name || userEmail?.split("@")[0] || "Anonymous"
+  const { data: session } = useSession();
+  const userEmail = session?.user?.email;
+  const userName =
+    session?.user?.name || userEmail?.split("@")[0] || "Anonymous";
 
-  const [editorReady, setEditorReady] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
-  const [isInitialized, setIsInitialized] = useState(false)
-  const lastSavedContentRef = useRef<string>("")
-  const isProcessingExternalUpdateRef = useRef(false)
-  const ydocRef = useRef<Y.Doc | null>(null)
-  const providerRef = useRef<PusherYjsProvider | null>(null)
+  const [editorReady, setEditorReady] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isInitialized, setIsInitialized] = useState(false);
+  const lastSavedContentRef = useRef<string>("");
+  const isProcessingExternalUpdateRef = useRef(false);
+  const ydocRef = useRef<Y.Doc | null>(null);
+  const providerRef = useRef<PusherYjsProvider | null>(null);
 
   // Get the Pusher channel from context
-  const { channel: workspaceChannel } = usePusherChannelContext()
+  const { channel: workspaceChannel } = usePusherChannelContext();
 
   // Initialize Yjs document and provider
   useEffect(() => {
-    if (!userEmail || !workspaceChannel || isInitialized) return
+    if (!userEmail || !workspaceChannel || isInitialized) return;
 
     try {
       // Create Yjs document
       if (!ydocRef.current) {
-        ydocRef.current = new Y.Doc()
+        ydocRef.current = new Y.Doc();
       }
 
       // Create custom Pusher provider
       if (!providerRef.current) {
-        providerRef.current = new PusherYjsProvider(ydocRef.current, workspaceChannel, userEmail, documentId)
+        providerRef.current = new PusherYjsProvider(
+          ydocRef.current,
+          workspaceChannel,
+          userEmail,
+          documentId
+        );
       }
 
-      setIsInitialized(true)
+      setIsInitialized(true);
     } catch (error) {
-      console.error("Error initializing Yjs:", error)
-      toast.error("Failed to initialize collaborative features")
+      console.error("Error initializing Yjs:", error);
+      toast.error("Failed to initialize collaborative features");
     }
 
     return () => {
       if (providerRef.current) {
-        providerRef.current.destroy()
-        providerRef.current = null
+        providerRef.current.destroy();
+        providerRef.current = null;
       }
       if (ydocRef.current) {
-        ydocRef.current.destroy()
-        ydocRef.current = null
+        ydocRef.current.destroy();
+        ydocRef.current = null;
       }
-    }
-  }, [userEmail, workspaceChannel, documentId, isInitialized])
+    };
+  }, [userEmail, workspaceChannel, documentId, isInitialized]);
 
   // Debounce function
   function debounce(func: Function, wait: number) {
-    let timeout: NodeJS.Timeout
+    let timeout: NodeJS.Timeout;
     return function executedFunction(...args: any[]) {
       const later = () => {
-        clearTimeout(timeout)
-        func(...args)
-      }
-      clearTimeout(timeout)
-      timeout = setTimeout(later, wait)
-    }
+        clearTimeout(timeout);
+        func(...args);
+      };
+      clearTimeout(timeout);
+      timeout = setTimeout(later, wait);
+    };
   }
 
   const saveDocument = useCallback(async () => {
     if (editor && !isProcessingExternalUpdateRef.current && userEmail) {
       try {
-        const content = editor.getJSON()
-        const contentString = JSON.stringify(content)
+        const content = editor.getJSON();
+        const contentString = JSON.stringify(content);
 
         if (contentString === lastSavedContentRef.current) {
-          return
+          return;
         }
 
-        lastSavedContentRef.current = contentString
+        lastSavedContentRef.current = contentString;
 
-        const response = await axios.put(`/api/workspace/${workspaceId}/document/${documentId}/content/`, {
-          content: content,
-          userEmail: userEmail,
-        })
+        const response = await axios.put(
+          `/api/workspace/${workspaceId}/document/${documentId}/content/`,
+          {
+            content: content,
+            userEmail: userEmail,
+          }
+        );
 
         if (response.data?.status !== "success") {
-          toast.error(response.data?.message || "Failed to save document content")
+          toast.error(
+            response.data?.message || "Failed to save document content"
+          );
         }
       } catch (error: any) {
-        console.error("Save error:", error)
-        toast.error(error.response?.data?.message || "An unexpected error occurred.")
+        console.error("Save error:", error);
+        toast.error(
+          error.response?.data?.message || "An unexpected error occurred."
+        );
       }
     }
-  }, [workspaceId, documentId, userEmail])
+  }, [workspaceId, documentId, userEmail]);
 
   const debouncedSave = useCallback(
     debounce(() => {
-      saveDocument()
+      saveDocument();
     }, 1000),
-    [saveDocument],
-  )
+    [saveDocument]
+  );
 
   // Image upload handler
   const handleImageUpload = useCallback(
     async (file: File): Promise<string> => {
       try {
-        const formData = new FormData()
-        formData.append("file", file)
-        formData.append("upload_preset", process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET!)
-        formData.append("folder", `documents/${workspaceId}/${documentId}`)
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append(
+          "upload_preset",
+          process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET!
+        );
+        formData.append("folder", `documents/${workspaceId}/${documentId}`);
 
         const response = await fetch(
           `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`,
           {
             method: "POST",
             body: formData,
-          },
-        )
+          }
+        );
 
-        const data = await response.json()
+        const data = await response.json();
 
         if (data.secure_url) {
-          toast.success("Image uploaded successfully!")
-          return data.secure_url
+          toast.success("Image uploaded successfully!");
+          return data.secure_url;
         } else {
-          throw new Error("Upload failed")
+          throw new Error("Upload failed");
         }
       } catch (error) {
-        console.error("Image upload error:", error)
-        toast.error("Failed to upload image. Please try again.")
-        throw error
+        console.error("Image upload error:", error);
+        toast.error("Failed to upload image. Please try again.");
+        throw error;
       }
     },
-    [workspaceId, documentId],
-  )
+    [workspaceId, documentId]
+  );
 
   // Initialize TipTap editor
   const editor = useEditor(
@@ -344,88 +358,115 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
       content: "",
       onUpdate: ({ editor }) => {
         if (!isProcessingExternalUpdateRef.current) {
-          debouncedSave()
+          debouncedSave();
         }
       },
       onCreate: ({ editor }) => {
-        setEditorReady(true)
-        loadDocumentContent()
+        setEditorReady(true);
+        loadDocumentContent();
       },
     },
-    [isInitialized, ydocRef.current, userName],
-  )
+    [isInitialized, ydocRef.current, userName]
+  );
 
   const loadDocumentContent = useCallback(async () => {
-    if (!editor) return
+    if (!editor) return;
 
     try {
-      const response = await axios.get(`/api/workspace/${workspaceId}/document/${documentId}/content/`)
+      const response = await axios.get(
+        `/api/workspace/${workspaceId}/document/${documentId}/content/`
+      );
 
       if (response.data?.status === "success" && response.data.data?.content) {
-        const content = response.data.data.content
+        const content = response.data.data.content;
 
         // Only set content if Yjs collaboration is not active or if it's the initial load
         if (!isInitialized || !ydocRef.current?.getText("content").length) {
-          editor.commands.setContent(content)
-          lastSavedContentRef.current = JSON.stringify(content)
+          editor.commands.setContent(content);
+          lastSavedContentRef.current = JSON.stringify(content);
         }
       }
-      setIsLoading(false)
+      setIsLoading(false);
     } catch (error: any) {
-      console.error("Load error:", error)
-      toast.error(error.response?.data?.message || "Failed to load document content.")
-      setIsLoading(false)
+      console.error("Load error:", error);
+      toast.error(
+        error.response?.data?.message || "Failed to load document content."
+      );
+      setIsLoading(false);
     }
-  }, [workspaceId, documentId, editor, isInitialized])
+  }, [workspaceId, documentId, editor, isInitialized]);
 
   // Handle Pusher real-time updates (fallback for non-Yjs updates)
   useEffect(() => {
-    if (!workspaceChannel || !userEmail || !editor || !editorReady || isInitialized) return
+    if (
+      !workspaceChannel ||
+      !userEmail ||
+      !editor ||
+      !editorReady ||
+      isInitialized
+    )
+      return;
 
     const handleDocumentContentUpdated = async (data: {
-      content: any
-      documentId: string
-      editorEmail: string
+      content: any;
+      documentId: string;
+      editorEmail: string;
     }) => {
       if (data.documentId === documentId && data.editorEmail !== userEmail) {
         if (editor && !editor.isDestroyed) {
           try {
-            isProcessingExternalUpdateRef.current = true
+            isProcessingExternalUpdateRef.current = true;
 
             // Get current selection
-            const { from, to } = editor.state.selection
+            const { from, to } = editor.state.selection;
 
             // Update content
-            editor.commands.setContent(data.content, false)
+            editor.commands.setContent(data.content, false);
 
             // Restore selection if possible
             setTimeout(() => {
               try {
-                if (from <= editor.state.doc.content.size && to <= editor.state.doc.content.size) {
-                  editor.commands.setTextSelection({ from, to })
+                if (
+                  from <= editor.state.doc.content.size &&
+                  to <= editor.state.doc.content.size
+                ) {
+                  editor.commands.setTextSelection({ from, to });
                 }
               } catch (e) {
-                console.log("Could not restore selection", e)
+                console.log("Could not restore selection", e);
               }
 
-              isProcessingExternalUpdateRef.current = false
-            }, 100)
+              isProcessingExternalUpdateRef.current = false;
+            }, 100);
 
-            lastSavedContentRef.current = JSON.stringify(data.content)
+            lastSavedContentRef.current = JSON.stringify(data.content);
           } catch (error) {
-            console.error("Error updating editor content:", error)
-            isProcessingExternalUpdateRef.current = false
+            console.error("Error updating editor content:", error);
+            isProcessingExternalUpdateRef.current = false;
           }
         }
       }
-    }
+    };
 
-    workspaceChannel.bind("document-content-updated", handleDocumentContentUpdated)
+    workspaceChannel.bind(
+      "document-content-updated",
+      handleDocumentContentUpdated
+    );
 
     return () => {
-      workspaceChannel.unbind("document-content-updated", handleDocumentContentUpdated)
-    }
-  }, [workspaceChannel, documentId, userEmail, editor, editorReady, isInitialized])
+      workspaceChannel.unbind(
+        "document-content-updated",
+        handleDocumentContentUpdated
+      );
+    };
+  }, [
+    workspaceChannel,
+    documentId,
+    userEmail,
+    editor,
+    editorReady,
+    isInitialized,
+  ]);
 
   // Handle AI model response
   useEffect(() => {
@@ -433,33 +474,36 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
       try {
         if (modelResponse.blocks && Array.isArray(modelResponse.blocks)) {
           // Convert Editor.js format to TipTap format
-          const tiptapContent = convertEditorJSToTipTap(modelResponse)
+          const tiptapContent = convertEditorJSToTipTap(modelResponse);
 
           // Get current content and append new content
-          const currentContent = editor.getJSON()
+          const currentContent = editor.getJSON();
           const newContent = {
             ...currentContent,
-            content: [...(currentContent.content || []), ...tiptapContent.content],
-          }
+            content: [
+              ...(currentContent.content || []),
+              ...tiptapContent.content,
+            ],
+          };
 
-          editor.commands.setContent(newContent)
+          editor.commands.setContent(newContent);
 
           // Focus at the end
           setTimeout(() => {
-            editor.commands.focus("end")
-          }, 100)
+            editor.commands.focus("end");
+          }, 100);
 
-          debouncedSave()
+          debouncedSave();
         }
       } catch (error) {
-        console.error("Error appending model response:", error)
+        console.error("Error appending model response:", error);
       }
     }
-  }, [modelResponse, editor, editorReady, debouncedSave])
+  }, [modelResponse, editor, editorReady, debouncedSave]);
 
   // Convert Editor.js format to TipTap format
   const convertEditorJSToTipTap = (editorJSData: any) => {
-    const content: any[] = []
+    const content: any[] = [];
 
     if (editorJSData.blocks) {
       editorJSData.blocks.forEach((block: any) => {
@@ -467,19 +511,22 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
           case "paragraph":
             content.push({
               type: "paragraph",
-              content: block.data.text ? [{ type: "text", text: block.data.text }] : [],
-            })
-            break
+              content: block.data.text
+                ? [{ type: "text", text: block.data.text }]
+                : [],
+            });
+            break;
           case "header":
             content.push({
               type: "heading",
               attrs: { level: block.data.level || 1 },
               content: [{ type: "text", text: block.data.text || "" }],
-            })
-            break
+            });
+            break;
           case "list":
             content.push({
-              type: block.data.style === "ordered" ? "orderedList" : "bulletList",
+              type:
+                block.data.style === "ordered" ? "orderedList" : "bulletList",
               content: block.data.items.map((item: string) => ({
                 type: "listItem",
                 content: [
@@ -489,8 +536,8 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
                   },
                 ],
               })),
-            })
-            break
+            });
+            break;
           case "checklist":
             content.push({
               type: "taskList",
@@ -504,35 +551,35 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
                   },
                 ],
               })),
-            })
-            break
+            });
+            break;
           case "code":
             content.push({
               type: "codeBlock",
               content: [{ type: "text", text: block.data.code || "" }],
-            })
-            break
+            });
+            break;
           case "delimiter":
             content.push({
               type: "horizontalRule",
-            })
-            break
+            });
+            break;
           default:
             // Fallback to paragraph
             content.push({
               type: "paragraph",
               content: [{ type: "text", text: JSON.stringify(block.data) }],
-            })
+            });
         }
-      })
+      });
     }
 
-    return { type: "doc", content }
-  }
+    return { type: "doc", content };
+  };
 
   // Toolbar component
   const Toolbar = () => {
-    if (!editor) return null
+    if (!editor) return null;
 
     return (
       <div className="border-b border-gray-200 p-2 flex flex-wrap gap-1 bg-gray-50 rounded-t-lg">
@@ -579,25 +626,37 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
         <div className="w-px h-6 bg-gray-300 mx-1" />
 
         <Button
-          variant={editor.isActive("heading", { level: 1 }) ? "default" : "ghost"}
+          variant={
+            editor.isActive("heading", { level: 1 }) ? "default" : "ghost"
+          }
           size="sm"
-          onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+          onClick={() =>
+            editor.chain().focus().toggleHeading({ level: 1 }).run()
+          }
         >
           <Heading1 className="h-4 w-4" />
         </Button>
 
         <Button
-          variant={editor.isActive("heading", { level: 2 }) ? "default" : "ghost"}
+          variant={
+            editor.isActive("heading", { level: 2 }) ? "default" : "ghost"
+          }
           size="sm"
-          onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+          onClick={() =>
+            editor.chain().focus().toggleHeading({ level: 2 }).run()
+          }
         >
           <Heading2 className="h-4 w-4" />
         </Button>
 
         <Button
-          variant={editor.isActive("heading", { level: 3 }) ? "default" : "ghost"}
+          variant={
+            editor.isActive("heading", { level: 3 }) ? "default" : "ghost"
+          }
           size="sm"
-          onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+          onClick={() =>
+            editor.chain().focus().toggleHeading({ level: 3 }).run()
+          }
         >
           <Heading3 className="h-4 w-4" />
         </Button>
@@ -646,7 +705,11 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
           {"</>"}
         </Button>
 
-        <Button variant="ghost" size="sm" onClick={() => editor.chain().focus().setHorizontalRule().run()}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => editor.chain().focus().setHorizontalRule().run()}
+        >
           <Minus className="h-4 w-4" />
         </Button>
 
@@ -656,21 +719,21 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
           variant="ghost"
           size="sm"
           onClick={() => {
-            const input = document.createElement("input")
-            input.type = "file"
-            input.accept = "image/*"
+            const input = document.createElement("input");
+            input.type = "file";
+            input.accept = "image/*";
             input.onchange = async (e) => {
-              const file = (e.target as HTMLInputElement).files?.[0]
+              const file = (e.target as HTMLInputElement).files?.[0];
               if (file) {
                 try {
-                  const url = await handleImageUpload(file)
-                  editor.chain().focus().setImage({ src: url }).run()
+                  const url = await handleImageUpload(file);
+                  editor.chain().focus().setImage({ src: url }).run();
                 } catch (error) {
-                  console.error("Failed to upload image:", error)
+                  console.error("Failed to upload image:", error);
                 }
               }
-            }
-            input.click()
+            };
+            input.click();
           }}
         >
           <ImageIcon className="h-4 w-4" />
@@ -679,7 +742,13 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
+          onClick={() =>
+            editor
+              .chain()
+              .focus()
+              .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
+              .run()
+          }
         >
           <TableIcon className="h-4 w-4" />
         </Button>
@@ -704,15 +773,15 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
           <Redo className="h-4 w-4" />
         </Button>
       </div>
-    )
-  }
+    );
+  };
 
   if (isLoading) {
     return (
       <div className="w-full flex items-center justify-center py-8">
         <div className="animate-pulse text-lg">Loading editor...</div>
       </div>
-    )
+    );
   }
 
   return (
@@ -720,7 +789,10 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
       <div className="border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm">
         <Toolbar />
         <div className="relative">
-          <EditorContent editor={editor} className="prose prose-lg max-w-none p-6 min-h-[500px] focus:outline-none" />
+          <EditorContent
+            editor={editor}
+            className="prose prose-lg max-w-none p-6 min-h-[500px] focus:outline-none"
+          />
 
           {/* Collaboration cursors will be rendered here automatically by TipTap */}
         </div>
@@ -855,7 +927,8 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
           background: #f6f8fa;
           border-radius: 6px;
           color: #24292e;
-          font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+          font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo,
+            monospace;
           padding: 0.75rem 1rem;
           white-space: pre-wrap;
         }
@@ -901,7 +974,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
         }
       `}</style>
     </div>
-  )
-}
+  );
+};
 
-export default DocumentNoteEditor
+export default DocumentNoteEditor;
