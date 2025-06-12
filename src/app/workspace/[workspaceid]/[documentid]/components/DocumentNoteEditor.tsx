@@ -49,13 +49,13 @@ interface DocumentNoteEditorProps {
   placeholder?: string;
 }
 
-// Custom Yjs Provider for Pusher
+// Custom Yjs Provider for Pusher with Awareness
 class PusherYjsProvider {
   private doc: Y.Doc;
   private channel: any;
   private userEmail: string;
   private documentId: string;
-  private awareness: Map<string, any>;
+  public awareness: PusherAwareness;
   private isConnected = false;
 
   constructor(doc: Y.Doc, channel: any, userEmail: string, documentId: string) {
@@ -63,7 +63,7 @@ class PusherYjsProvider {
     this.channel = channel;
     this.userEmail = userEmail;
     this.documentId = documentId;
-    this.awareness = new Map();
+    this.awareness = new PusherAwareness(channel, userEmail, documentId);
 
     this.setupEventListeners();
   }
@@ -89,19 +89,6 @@ class PusherYjsProvider {
       }
     );
 
-    // Listen for awareness updates (cursors, selections)
-    this.channel.bind(
-      "yjs-awareness",
-      (data: { documentId: string; awareness: any; userEmail: string }) => {
-        if (
-          data.documentId === this.documentId &&
-          data.userEmail !== this.userEmail
-        ) {
-          this.awareness.set(data.userEmail, data.awareness);
-        }
-      }
-    );
-
     // Send updates when document changes
     this.doc.on("update", (update: Uint8Array) => {
       if (this.isConnected) {
@@ -117,22 +104,132 @@ class PusherYjsProvider {
     this.isConnected = true;
   }
 
-  updateAwareness(awareness: any) {
-    if (this.isConnected && this.channel) {
+  destroy() {
+    this.isConnected = false;
+    if (this.awareness) {
+      this.awareness.destroy();
+    }
+    if (this.channel) {
+      this.channel.unbind("yjs-update");
+    }
+  }
+}
+
+// Custom Awareness implementation for Pusher
+class PusherAwareness {
+  private states = new Map();
+  private meta = new Map();
+  private channel: any;
+  private userEmail: string;
+  private documentId: string;
+  private clientId: number;
+  private localState: any = {};
+
+  constructor(channel: any, userEmail: string, documentId: string) {
+    this.channel = channel;
+    this.userEmail = userEmail;
+    this.documentId = documentId;
+    this.clientId = Math.floor(Math.random() * 1000000);
+
+    this.setupEventListeners();
+  }
+
+  private setupEventListeners() {
+    if (!this.channel) return;
+
+    // Listen for awareness updates from other users
+    this.channel.bind(
+      "yjs-awareness",
+      (data: {
+        documentId: string;
+        clientId: number;
+        state: any;
+        userEmail: string;
+      }) => {
+        if (
+          data.documentId === this.documentId &&
+          data.userEmail !== this.userEmail
+        ) {
+          this.states.set(data.clientId, data.state);
+          this.meta.set(data.clientId, {
+            clock: Date.now(),
+            lastUpdated: Date.now(),
+          });
+          this.emit("update", {
+            added: [data.clientId],
+            updated: [],
+            removed: [],
+          });
+        }
+      }
+    );
+  }
+
+  // EventEmitter-like functionality
+  private listeners = new Map();
+
+  on(event: string, callback: Function) {
+    if (!this.listeners.has(event)) {
+      this.listeners.set(event, []);
+    }
+    this.listeners.get(event).push(callback);
+  }
+
+  off(event: string, callback: Function) {
+    if (this.listeners.has(event)) {
+      const callbacks = this.listeners.get(event);
+      const index = callbacks.indexOf(callback);
+      if (index > -1) {
+        callbacks.splice(index, 1);
+      }
+    }
+  }
+
+  private emit(event: string, data: any) {
+    if (this.listeners.has(event)) {
+      this.listeners.get(event).forEach((callback: Function) => {
+        callback(data);
+      });
+    }
+  }
+
+  // TipTap CollaborationCursor expected methods
+  setLocalStateField(field: string, value: any) {
+    this.localState[field] = value;
+    this.broadcastLocalState();
+  }
+
+  setLocalState(state: any) {
+    this.localState = { ...state };
+    this.broadcastLocalState();
+  }
+
+  getLocalState() {
+    return this.localState;
+  }
+
+  getStates() {
+    return this.states;
+  }
+
+  private broadcastLocalState() {
+    if (this.channel) {
       this.channel.trigger("client-yjs-awareness", {
         documentId: this.documentId,
-        awareness,
+        clientId: this.clientId,
+        state: this.localState,
         userEmail: this.userEmail,
       });
     }
   }
 
   destroy() {
-    this.isConnected = false;
     if (this.channel) {
-      this.channel.unbind("yjs-update");
       this.channel.unbind("yjs-awareness");
     }
+    this.listeners.clear();
+    this.states.clear();
+    this.meta.clear();
   }
 }
 
@@ -322,7 +419,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
                 document: ydocRef.current,
               }),
               CollaborationCursor.configure({
-                provider: providerRef.current,
+                provider: providerRef.current?.awareness,
                 user: {
                   name: userName,
                   color: getRandomColor(),
@@ -359,6 +456,15 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
       onUpdate: ({ editor }) => {
         if (!isProcessingExternalUpdateRef.current) {
           debouncedSave();
+        }
+
+        // Update awareness
+        if (providerRef.current) {
+          const selection = editor.state.selection;
+          providerRef.current.awareness.setLocalStateField("selection", {
+            anchor: selection.anchor,
+            head: selection.head,
+          });
         }
       },
       onCreate: ({ editor }) => {
