@@ -49,6 +49,95 @@ interface DocumentNoteEditorProps {
   placeholder?: string
 }
 
+// Custom Yjs Provider for Pusher
+class PusherYjsProvider {
+  private doc: Y.Doc
+  private channel: any
+  private userEmail: string
+  private documentId: string
+  private awareness: Map<string, any>
+  private isConnected = false
+
+  constructor(doc: Y.Doc, channel: any, userEmail: string, documentId: string) {
+    this.doc = doc
+    this.channel = channel
+    this.userEmail = userEmail
+    this.documentId = documentId
+    this.awareness = new Map()
+
+    this.setupEventListeners()
+  }
+
+  private setupEventListeners() {
+    if (!this.channel) return
+
+    // Listen for document updates from other users
+    this.channel.bind(
+      "yjs-update",
+      (data: {
+        documentId: string
+        update: string
+        userEmail: string
+      }) => {
+        if (data.documentId === this.documentId && data.userEmail !== this.userEmail) {
+          try {
+            const update = new Uint8Array(Buffer.from(data.update, "base64"))
+            Y.applyUpdate(this.doc, update)
+          } catch (error) {
+            console.error("Error applying Yjs update:", error)
+          }
+        }
+      },
+    )
+
+    // Listen for awareness updates (cursors, selections)
+    this.channel.bind(
+      "yjs-awareness",
+      (data: {
+        documentId: string
+        awareness: any
+        userEmail: string
+      }) => {
+        if (data.documentId === this.documentId && data.userEmail !== this.userEmail) {
+          this.awareness.set(data.userEmail, data.awareness)
+        }
+      },
+    )
+
+    // Send updates when document changes
+    this.doc.on("update", (update: Uint8Array) => {
+      if (this.isConnected) {
+        const updateBase64 = Buffer.from(update).toString("base64")
+        this.channel.trigger("client-yjs-update", {
+          documentId: this.documentId,
+          update: updateBase64,
+          userEmail: this.userEmail,
+        })
+      }
+    })
+
+    this.isConnected = true
+  }
+
+  updateAwareness(awareness: any) {
+    if (this.isConnected && this.channel) {
+      this.channel.trigger("client-yjs-awareness", {
+        documentId: this.documentId,
+        awareness,
+        userEmail: this.userEmail,
+      })
+    }
+  }
+
+  destroy() {
+    this.isConnected = false
+    if (this.channel) {
+      this.channel.unbind("yjs-update")
+      this.channel.unbind("yjs-awareness")
+    }
+  }
+}
+
 // Create lowlight instance
 const lowlight = createLowlight()
 
@@ -81,25 +170,47 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
 
   const [editorReady, setEditorReady] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [isInitialized, setIsInitialized] = useState(false)
   const lastSavedContentRef = useRef<string>("")
   const isProcessingExternalUpdateRef = useRef(false)
   const ydocRef = useRef<Y.Doc | null>(null)
-  const providerRef = useRef<any>(null)
+  const providerRef = useRef<PusherYjsProvider | null>(null)
 
   // Get the Pusher channel from context
   const { channel: workspaceChannel } = usePusherChannelContext()
 
-  // Initialize Yjs document
+  // Initialize Yjs document and provider
   useEffect(() => {
-    if (!ydocRef.current) {
-      ydocRef.current = new Y.Doc()
+    if (!userEmail || !workspaceChannel || isInitialized) return
+
+    try {
+      // Create Yjs document
+      if (!ydocRef.current) {
+        ydocRef.current = new Y.Doc()
+      }
+
+      // Create custom Pusher provider
+      if (!providerRef.current) {
+        providerRef.current = new PusherYjsProvider(ydocRef.current, workspaceChannel, userEmail, documentId)
+      }
+
+      setIsInitialized(true)
+    } catch (error) {
+      console.error("Error initializing Yjs:", error)
+      toast.error("Failed to initialize collaborative features")
     }
+
     return () => {
+      if (providerRef.current) {
+        providerRef.current.destroy()
+        providerRef.current = null
+      }
       if (ydocRef.current) {
         ydocRef.current.destroy()
+        ydocRef.current = null
       }
     }
-  }, [])
+  }, [userEmail, workspaceChannel, documentId, isInitialized])
 
   // Debounce function
   function debounce(func: Function, wait: number) {
@@ -135,6 +246,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
           toast.error(response.data?.message || "Failed to save document content")
         }
       } catch (error: any) {
+        console.error("Save error:", error)
         toast.error(error.response?.data?.message || "An unexpected error occurred.")
       }
     }
@@ -182,57 +294,66 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
   )
 
   // Initialize TipTap editor
-  const editor = useEditor({
-    extensions: [
-      StarterKit.configure({
-        history: false, // We'll use Yjs for history
-        codeBlock: false, // Disable the default codeBlock to avoid conflicts
-      }),
-      Underline,
-      Collaboration.configure({
-        document: ydocRef.current!,
-      }),
-      CollaborationCursor.configure({
-        provider: providerRef.current,
-        user: {
-          name: userName,
-          color: getRandomColor(),
-        },
-      }),
-      Placeholder.configure({
-        placeholder: placeholder,
-      }),
-      Image.configure({
-        HTMLAttributes: {
-          class: "rounded-lg max-w-full h-auto",
-        },
-      }),
-      Table.configure({
-        resizable: true,
-      }),
-      TableRow,
-      TableHeader,
-      TableCell,
-      CodeBlockLowlight.configure({
-        lowlight,
-        HTMLAttributes: {
-          class: "hljs",
-        },
-      }),
-      TaskList,
-      TaskItem.configure({
-        nested: true,
-      }),
-    ],
-    content: "",
-    onUpdate: ({ editor }) => {
-      debouncedSave()
+  const editor = useEditor(
+    {
+      extensions: [
+        StarterKit.configure({
+          history: false, // We'll use Yjs for history
+          codeBlock: false, // Disable the default codeBlock to avoid conflicts
+        }),
+        Underline,
+        ...(isInitialized && ydocRef.current
+          ? [
+              Collaboration.configure({
+                document: ydocRef.current,
+              }),
+              CollaborationCursor.configure({
+                provider: providerRef.current,
+                user: {
+                  name: userName,
+                  color: getRandomColor(),
+                },
+              }),
+            ]
+          : []),
+        Placeholder.configure({
+          placeholder: placeholder,
+        }),
+        Image.configure({
+          HTMLAttributes: {
+            class: "rounded-lg max-w-full h-auto",
+          },
+        }),
+        Table.configure({
+          resizable: true,
+        }),
+        TableRow,
+        TableHeader,
+        TableCell,
+        CodeBlockLowlight.configure({
+          lowlight,
+          HTMLAttributes: {
+            class: "hljs",
+          },
+        }),
+        TaskList,
+        TaskItem.configure({
+          nested: true,
+        }),
+      ],
+      content: "",
+      onUpdate: ({ editor }) => {
+        if (!isProcessingExternalUpdateRef.current) {
+          debouncedSave()
+        }
+      },
+      onCreate: ({ editor }) => {
+        setEditorReady(true)
+        loadDocumentContent()
+      },
     },
-    onCreate: ({ editor }) => {
-      setEditorReady(true)
-      loadDocumentContent()
-    },
-  })
+    [isInitialized, ydocRef.current, userName],
+  )
 
   const loadDocumentContent = useCallback(async () => {
     if (!editor) return
@@ -242,19 +363,24 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
 
       if (response.data?.status === "success" && response.data.data?.content) {
         const content = response.data.data.content
-        editor.commands.setContent(content)
-        lastSavedContentRef.current = JSON.stringify(content)
+
+        // Only set content if Yjs collaboration is not active or if it's the initial load
+        if (!isInitialized || !ydocRef.current?.getText("content").length) {
+          editor.commands.setContent(content)
+          lastSavedContentRef.current = JSON.stringify(content)
+        }
       }
       setIsLoading(false)
     } catch (error: any) {
+      console.error("Load error:", error)
       toast.error(error.response?.data?.message || "Failed to load document content.")
       setIsLoading(false)
     }
-  }, [workspaceId, documentId, editor])
+  }, [workspaceId, documentId, editor, isInitialized])
 
-  // Handle Pusher real-time updates
+  // Handle Pusher real-time updates (fallback for non-Yjs updates)
   useEffect(() => {
-    if (!workspaceChannel || !userEmail || !editor || !editorReady) return
+    if (!workspaceChannel || !userEmail || !editor || !editorReady || isInitialized) return
 
     const handleDocumentContentUpdated = async (data: {
       content: any
@@ -299,7 +425,7 @@ const DocumentNoteEditor: React.FC<DocumentNoteEditorProps> = ({
     return () => {
       workspaceChannel.unbind("document-content-updated", handleDocumentContentUpdated)
     }
-  }, [workspaceChannel, documentId, userEmail, editor, editorReady])
+  }, [workspaceChannel, documentId, userEmail, editor, editorReady, isInitialized])
 
   // Handle AI model response
   useEffect(() => {
