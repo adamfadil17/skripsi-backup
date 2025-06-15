@@ -180,7 +180,7 @@ const DocumentWrapper = ({ workspaceId, documentId }: DocumentWrapperProps) => {
   }
 
   return (
-    <div className="flex flex-col w-full">
+    <div className="flex flex-col w-full h-full">
       {/* Cover Image */}
       <CoverPickerDialog currentCover={coverImage} setCover={handleCoverChange}>
         <div className="relative group m-4 cursor-pointer">
@@ -239,8 +239,8 @@ const DocumentWrapper = ({ workspaceId, documentId }: DocumentWrapperProps) => {
         </AITemplateDialog>
       </div>
 
-      {/* TipTap Editor */}
-      <div className="flex justify-center items-center px-6 md:px-12 lg:px-16 w-full">
+      {/* TipTap Editor - Full Width */}
+      <div className="flex-1 w-full px-4 md:px-8 lg:px-12 pb-8">
         <TipTapEditor
           workspaceId={workspaceId}
           documentId={documentId}

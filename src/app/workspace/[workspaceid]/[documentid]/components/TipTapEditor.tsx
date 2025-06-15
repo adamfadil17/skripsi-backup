@@ -212,7 +212,7 @@ const MenuBar = ({
   }
 
   return (
-    <div className="border-b border-gray-200 p-2 flex flex-wrap gap-1 items-center">
+    <div className="border-b border-gray-200 p-2 flex flex-wrap gap-1 items-center sticky top-0 bg-white z-10">
       {/* Save Button */}
       <Button variant="default" size="sm" onClick={onSave} disabled={isSaving}>
         {isSaving ? (
@@ -657,8 +657,7 @@ export default function TipTapEditor({
     editable,
     editorProps: {
       attributes: {
-        class:
-          "prose prose-sm sm:prose lg:prose-lg xl:prose-2xl mx-auto focus:outline-none min-h-[400px] p-4",
+        class: "focus:outline-none min-h-[500px] p-6 w-full",
       },
     },
   });
@@ -782,7 +781,7 @@ export default function TipTapEditor({
 
   if (isLoading) {
     return (
-      <div className="w-full max-w-4xl mx-auto">
+      <div className="w-full">
         <div className="flex items-center justify-center h-64">
           <Loader2 className="h-8 w-8 animate-spin" />
           <span className="ml-2">Loading document...</span>
@@ -792,7 +791,7 @@ export default function TipTapEditor({
   }
 
   return (
-    <div className="w-full max-w-4xl mx-auto border rounded-lg">
+    <div className="w-full border rounded-lg bg-white">
       {editable && (
         <MenuBar
           editor={editor}
@@ -802,11 +801,11 @@ export default function TipTapEditor({
           isSaving={isSaving}
         />
       )}
-      <div className="min-h-[400px]">
+      <div className="w-full">
         <EditorContent editor={editor} />
       </div>
       {editor && (
-        <div className="border-t border-gray-200 p-2 text-sm text-gray-500 flex justify-between">
+        <div className="border-t border-gray-200 p-3 text-sm text-gray-500 flex justify-between bg-gray-50">
           <span>
             {editor.storage.characterCount.characters()} characters,{" "}
             {editor.storage.characterCount.words()} words
