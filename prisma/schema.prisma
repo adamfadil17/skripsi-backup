@@ -29,6 +29,7 @@ model User {
   messages          Message[]
   documentContents  DocumentContent[]
   notificationReads NotificationRead[]
+  attachments       Attachment[] // Added for TipTap attachments
 
   seenMessageIds String[]  @db.ObjectId
   seenMessages   Message[] @relation("MessageSeen", fields: [seenMessageIds], references: [id])
@@ -72,6 +73,7 @@ model Workspace {
   invitations   Invitation[]
   sessionMeetings SessionMeeting[]
   notifications Notification[]
+  attachments   Attachment[] // Added for workspace-level attachments
 
   @@unique([name])
 }
@@ -117,6 +119,7 @@ model Document {
   emoji            String?
   coverImage       String?
   documentContents DocumentContent[]
+  attachments      Attachment[] // Added for document attachments
   updatedAt        DateTime          @updatedAt
   createdAt        DateTime          @default(now())
   createdById      String            @db.ObjectId
@@ -131,12 +134,47 @@ model Document {
 model DocumentContent {
   id         String   @id @default(auto()) @map("_id") @db.ObjectId
   documentId String   @db.ObjectId
-  content    Json
+  content    Json     // This will store TipTap JSON content with attachment references
   editedAt   DateTime @default(now())
   editedById String   @db.ObjectId
 
   document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
   editedBy User     @relation(fields: [editedById], references: [id], onDelete: Cascade)
+}
+
+// New model for TipTap attachments
+model Attachment {
+  id          String          @id @default(auto()) @map("_id") @db.ObjectId
+  filename    String          // Original filename
+  storedName  String          // Stored filename (usually UUID-based)
+  mimeType    String          // MIME type (image/jpeg, application/pdf, etc.)
+  size        Int             // File size in bytes
+  url         String          // URL to access the file (blob storage, S3, etc.)
+  alt         String?         // Alt text for images
+  caption     String?         // Caption for the attachment
+  type        AttachmentType  // Type of attachment
+  uploadedAt  DateTime        @default(now())
+  uploadedById String         @db.ObjectId
+  workspaceId String          @db.ObjectId
+  documentId  String?         @db.ObjectId // Optional: link to specific document
+
+  uploadedBy  User            @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
+  workspace   Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  document    Document?       @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([documentId])
+  @@index([uploadedById])
+  @@index([type])
+}
+
+enum AttachmentType {
+  IMAGE       // jpg, png, gif, webp, etc.
+  VIDEO       // mp4, webm, etc.
+  AUDIO       // mp3, wav, etc.
+  DOCUMENT    // pdf, docx, etc.
+  ARCHIVE     // zip, rar, etc.
+  OTHER       // any other file type
 }
 
 model Conversation {
@@ -185,7 +223,6 @@ model SessionMeeting {
   @@index([googleEventId])
 }
 
-
 model Notification {
   id          String             @id @default(auto()) @map("_id") @db.ObjectId
   workspaceId String             @db.ObjectId
@@ -232,4 +269,6 @@ enum NotificationType {
   MEETING_CREATE
   MEETING_UPDATE
   MEETING_DELETE
+  ATTACHMENT_UPLOAD    // Added for attachment notifications
+  ATTACHMENT_DELETE    // Added for attachment notifications
 }

@@ -62,16 +62,126 @@ export async function createDocument(
         documentContents: {
           create: {
             content: {
-              time: Date.now(),
-              blocks: [
+              type: 'doc',
+              content: [
+                {
+                  type: 'heading',
+                  attrs: {
+                    level: 1
+                  },
+                  content: [
+                    {
+                      type: 'text',
+                      text: title || 'Untitled Document'
+                    }
+                  ]
+                },
                 {
                   type: 'paragraph',
-                  data: {
-                    text: '',
-                  },
+                  content: [
+                    {
+                      type: 'text',
+                      text: 'Start writing your content here...'
+                    }
+                  ]
                 },
-              ],
-              version: '2.30.8',
+                {
+                  type: 'paragraph',
+                  content: [
+                    {
+                      type: 'text',
+                      text: 'You can use the toolbar above to:'
+                    }
+                  ]
+                },
+                {
+                  type: 'bulletList',
+                  content: [
+                    {
+                      type: 'listItem',
+                      content: [
+                        {
+                          type: 'paragraph',
+                          content: [
+                            {
+                              type: 'text',
+                              text: 'Format text with '
+                            },
+                            {
+                              type: 'text',
+                              marks: [{ type: 'bold' }],
+                              text: 'bold'
+                            },
+                            {
+                              type: 'text',
+                              text: ', '
+                            },
+                            {
+                              type: 'text',
+                              marks: [{ type: 'italic' }],
+                              text: 'italic'
+                            },
+                            {
+                              type: 'text',
+                              text: ', and '
+                            },
+                            {
+                              type: 'text',
+                              marks: [{ type: 'underline' }],
+                              text: 'underline'
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      type: 'listItem',
+                      content: [
+                        {
+                          type: 'paragraph',
+                          content: [
+                            {
+                              type: 'text',
+                              text: 'Add headings, lists, and quotes'
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      type: 'listItem',
+                      content: [
+                        {
+                          type: 'paragraph',
+                          content: [
+                            {
+                              type: 'text',
+                              text: 'Insert images, links, and tables'
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      type: 'listItem',
+                      content: [
+                        {
+                          type: 'paragraph',
+                          content: [
+                            {
+                              type: 'text',
+                              text: 'Create task lists and more!'
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  type: 'paragraph'
+                }
+              ]
             },
             editedById: currentUser.id,
           },
@@ -79,6 +189,7 @@ export async function createDocument(
       },
       include: {
         documentContents: true,
+        attachments: true,
         createdBy: {
           select: {
             id: true,

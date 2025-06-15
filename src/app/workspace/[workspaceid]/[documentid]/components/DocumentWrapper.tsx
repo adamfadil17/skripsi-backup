@@ -13,6 +13,7 @@ import CoverPickerDialog from '@/components/shared/CoverPickerDialog';
 import EmojiPickerPopover from '@/components/shared/EmojiPickerPopover';
 import AITemplateDialog from './AITemplateDialog';
 import DocumentNoteEditor from './DocumentNoteEditor';
+import TipTapEditor from './TipTapEditor';
 
 interface DocumentWrapperProps {
   workspaceId: string;
@@ -235,11 +236,12 @@ const DocumentWrapper = ({ workspaceId, documentId }: DocumentWrapperProps) => {
 
       {/* Editor Content */}
       <div className="flex justify-center items-center px-6 md:px-12 lg:px-16 w-full">
-        <DocumentNoteEditor
+        {/* <DocumentNoteEditor
           workspaceId={workspaceId}
           documentId={documentId}
           modelResponse={modelResponse}
-        />
+        /> */}
+        <TipTapEditor />
       </div>
     </div>
   );
