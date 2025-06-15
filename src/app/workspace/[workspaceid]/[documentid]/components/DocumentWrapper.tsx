@@ -1,19 +1,18 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import axios from 'axios';
-import type { WorkspaceDocument } from '@/types/types';
-import { usePusherChannelContext } from '../../components/PusherChannelProvider';
-import toast from 'react-hot-toast';
-import Image from 'next/image';
-import { SmilePlus } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import CoverPickerDialog from '@/components/shared/CoverPickerDialog';
-import EmojiPickerPopover from '@/components/shared/EmojiPickerPopover';
-import AITemplateDialog from './AITemplateDialog';
-import DocumentNoteEditor from './DocumentNoteEditor';
-import TipTapEditor from './TipTapEditor';
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import axios from "axios";
+import type { WorkspaceDocument } from "@/types/types";
+import toast from "react-hot-toast";
+import Image from "next/image";
+import { SmilePlus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import CoverPickerDialog from "@/components/shared/CoverPickerDialog";
+import EmojiPickerPopover from "@/components/shared/EmojiPickerPopover";
+import AITemplateDialog from "./AITemplateDialog";
+import { usePusherChannelContext } from "../../components/PusherChannelProvider";
+import TipTapEditor from "./TipTapEditor";
 
 interface DocumentWrapperProps {
   workspaceId: string;
@@ -29,9 +28,9 @@ const DocumentWrapper = ({ workspaceId, documentId }: DocumentWrapperProps) => {
   );
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [emoji, setEmoji] = useState<string>('');
-  const [coverImage, setCoverImage] = useState('/images/placeholder.svg');
-  const [documentTitle, setDocumentTitle] = useState('');
+  const [emoji, setEmoji] = useState<string>("");
+  const [coverImage, setCoverImage] = useState("/images/placeholder.svg");
+  const [documentTitle, setDocumentTitle] = useState("");
   const [titleChanged, setTitleChanged] = useState(false);
   const [modelResponse, setModelResponse] = useState<any>(null);
 
@@ -44,22 +43,22 @@ const DocumentWrapper = ({ workspaceId, documentId }: DocumentWrapperProps) => {
         );
 
         if (
-          response.data.status === 'success' &&
+          response.data.status === "success" &&
           response.data.data?.document
         ) {
           setDocumentInfo(response.data.data.document);
         } else {
-          setError(response.data.message || 'Failed to load document');
+          setError(response.data.message || "Failed to load document");
         }
       } catch (err: any) {
-        console.error('Error fetching document:', err);
+        console.error("Error fetching document:", err);
         setError(
           err.response?.data?.message ||
-            'An error occurred while loading the document'
+            "An error occurred while loading the document"
         );
 
         if (err.response?.status === 404) {
-          router.push('/not-found');
+          router.push("/not-found");
         }
       } finally {
         setIsLoading(false);
@@ -71,9 +70,9 @@ const DocumentWrapper = ({ workspaceId, documentId }: DocumentWrapperProps) => {
 
   useEffect(() => {
     if (documentInfo) {
-      setEmoji(documentInfo.emoji || '');
-      setCoverImage(documentInfo.coverImage || '/images/placeholder.svg');
-      setDocumentTitle(documentInfo.title || '');
+      setEmoji(documentInfo.emoji || "");
+      setCoverImage(documentInfo.coverImage || "/images/placeholder.svg");
+      setDocumentTitle(documentInfo.title || "");
       setTitleChanged(false);
     }
   }, [documentInfo]);
@@ -81,56 +80,56 @@ const DocumentWrapper = ({ workspaceId, documentId }: DocumentWrapperProps) => {
   useEffect(() => {
     if (!workspaceChannel) return;
 
-    console.log('Setting up Pusher listeners for document:', documentId);
+    console.log("Setting up Pusher listeners for document:", documentId);
 
     const handleDocumentUpdated = (updatedDocument: WorkspaceDocument) => {
       console.log(
-        '🔥 EVENT RECEIVED document-updated in DocumentContainer:',
+        "🔥 EVENT RECEIVED document-updated in DocumentContainer:",
         updatedDocument
       );
 
       if (updatedDocument.id === documentId) {
-        setEmoji(updatedDocument.emoji || '');
-        setCoverImage(updatedDocument.coverImage || '/images/placeholder.svg');
+        setEmoji(updatedDocument.emoji || "");
+        setCoverImage(updatedDocument.coverImage || "/images/placeholder.svg");
 
         if (!titleChanged) {
-          setDocumentTitle(updatedDocument.title || '');
+          setDocumentTitle(updatedDocument.title || "");
         }
       }
     };
 
-    workspaceChannel.bind('document-updated', handleDocumentUpdated);
+    workspaceChannel.bind("document-updated", handleDocumentUpdated);
 
     return () => {
-      console.log('Cleaning up Pusher listeners');
-      workspaceChannel.unbind('document-updated', handleDocumentUpdated);
+      console.log("Cleaning up Pusher listeners");
+      workspaceChannel.unbind("document-updated", handleDocumentUpdated);
     };
   }, [workspaceChannel, documentId, titleChanged]);
 
   const onUpdateDocument = async (data: Partial<WorkspaceDocument>) => {
     try {
-      console.log('Attempting to update document with data:', data);
+      console.log("Attempting to update document with data:", data);
 
       const response = await axios.patch(
         `/api/workspace/${workspaceId}/document/${documentId}`,
         data
       );
 
-      if (response.data.status === 'success') {
-        console.log('Document updated successfully:', response.data);
+      if (response.data.status === "success") {
+        console.log("Document updated successfully:", response.data);
 
         if (data.title !== undefined) {
           setTitleChanged(false);
         }
 
-        toast.success('Document updated successfully');
+        toast.success("Document updated successfully");
       } else {
-        toast.error(response.data.message || 'Unknown error occurred');
+        toast.error(response.data.message || "Unknown error occurred");
       }
     } catch (error: any) {
-      console.error('Error updating document:', error);
+      console.error("Error updating document:", error);
       const errorMessage =
-        error.response?.data?.message || 'An unexpected error occurred.';
+        error.response?.data?.message || "An unexpected error occurred.";
       toast.error(errorMessage);
     }
   };
@@ -156,6 +155,12 @@ const DocumentWrapper = ({ workspaceId, documentId }: DocumentWrapperProps) => {
     onUpdateDocument({ title: documentTitle });
   };
 
+  // Handle AI template generation
+  const handleAITemplateGenerated = (templateContent: any) => {
+    setModelResponse(templateContent);
+    // The TipTap editor will handle applying this content
+  };
+
   if (isLoading) {
     return (
       <div className="h-full flex items-center justify-center">
@@ -168,7 +173,7 @@ const DocumentWrapper = ({ workspaceId, documentId }: DocumentWrapperProps) => {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-red-500">
-          {error || 'Could not load document. Please try again later.'}
+          {error || "Could not load document. Please try again later."}
         </div>
       </div>
     );
@@ -185,7 +190,7 @@ const DocumentWrapper = ({ workspaceId, documentId }: DocumentWrapperProps) => {
           <div className="group-hover:opacity-40">
             <Image
               priority
-              src={coverImage || '/placeholder.svg'}
+              src={coverImage || "/placeholder.svg"}
               alt="cover"
               width={800}
               height={200}
@@ -218,13 +223,13 @@ const DocumentWrapper = ({ workspaceId, documentId }: DocumentWrapperProps) => {
           onChange={(e) => handleTitleChange(e.target.value)}
           onBlur={handleTitleBlur}
         />
-        <AITemplateDialog onGenerateTemplate={setModelResponse}>
+        <AITemplateDialog onGenerateTemplate={handleAITemplateGenerated}>
           <Button
-            variant={'outline'}
+            variant={"outline"}
             className="text-gray-700 hover:bg-gray-50 border-gray-300 rounded-lg"
           >
             <Image
-              src={'/images/gemini-icon.svg'}
+              src={"/images/gemini-icon.svg"}
               alt="Gemini"
               width={24}
               height={24}
@@ -234,14 +239,13 @@ const DocumentWrapper = ({ workspaceId, documentId }: DocumentWrapperProps) => {
         </AITemplateDialog>
       </div>
 
-      {/* Editor Content */}
+      {/* TipTap Editor */}
       <div className="flex justify-center items-center px-6 md:px-12 lg:px-16 w-full">
-        {/* <DocumentNoteEditor
+        <TipTapEditor
           workspaceId={workspaceId}
           documentId={documentId}
-          modelResponse={modelResponse}
-        /> */}
-        <TipTapEditor />
+          placeholder="Start writing your document..."
+        />
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-// app/api/workspaces/[workspaceId]/documents/[documentId]/content/route.ts
+// app/api/workspace/[workspaceId]/document/[documentId]/content/route.ts
 import { type NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/app/actions/getCurrentUser';
 import { getDocumentContentById } from '@/app/actions/getDocumentContentById';
@@ -35,26 +35,23 @@ export async function GET(
       );
     }
 
-    const documentContent = await getDocumentContentById(documentId);
-
-    if (!documentContent) {
-      return NextResponse.json(
-        {
-          status: 'error',
-          code: 404,
-          error_type: 'NotFound',
-          message: 'Document content not found',
-        },
-        { status: 404 }
-      );
-    }
+    // Pass user and workspace for permission checking
+    const documentContent = await getDocumentContentById(
+      documentId, 
+      currentUser, 
+      workspaceId
+    );
 
     return NextResponse.json(
       {
         status: 'success',
         code: 200,
         message: 'Document content retrieved successfully',
-        data: { content: documentContent.content },
+        data: { 
+          content: documentContent.content,
+          editedAt: documentContent.editedAt,
+          editedBy: documentContent.editedBy,
+        },
       },
       { status: 200 }
     );
@@ -83,6 +80,18 @@ export async function GET(
           message: error.message || 'Access denied to this document',
         },
         { status: 403 }
+      );
+    }
+
+    if (error.error_type === 'BadRequest') {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 400,
+          error_type: 'BadRequest',
+          message: error.message || 'Invalid request parameters',
+        },
+        { status: 400 }
       );
     }
 
@@ -142,6 +151,19 @@ export async function PUT(
       );
     }
 
+    // Validate TipTap content structure
+    if (typeof body.content !== 'object' || body.content.type !== 'doc') {
+      return NextResponse.json(
+        {
+          status: 'error',
+          code: 400,
+          error_type: 'BadRequest',
+          message: 'Invalid TipTap content structure',
+        },
+        { status: 400 }
+      );
+    }
+
     const result = await updateDocumentContentById(
       workspaceId,
       documentId,
@@ -155,7 +177,10 @@ export async function PUT(
         status: 'success',
         code: 200,
         message: 'Document content updated successfully',
-        data: { updatedContent: result.updatedContent },
+        data: { 
+          updatedContent: result.updatedContent,
+          content: result.content,
+        },
       },
       { status: 200 }
     );

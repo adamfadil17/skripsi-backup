@@ -1,5 +1,6 @@
 "use client";
 
+import type React from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
@@ -34,7 +35,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import {
   Bold,
   Italic,
@@ -59,14 +60,52 @@ import {
   Palette,
   TableIcon,
   CheckSquare,
-  Type,
   Minus,
+  Upload,
+  Save,
+  Loader2,
 } from "lucide-react";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
+import axios from "axios";
+import toast from "react-hot-toast";
+import { usePusherChannelContext } from "../../components/PusherChannelProvider";
 
-const MenuBar = ({ editor }: { editor: any }) => {
+interface TipTapEditorProps {
+  workspaceId: string;
+  documentId: string;
+  placeholder?: string;
+  editable?: boolean;
+}
+
+interface Attachment {
+  id: string;
+  filename: string;
+  url: string;
+  mimeType: string;
+  size: number;
+  alt?: string;
+  caption?: string;
+  type: "IMAGE" | "VIDEO" | "AUDIO" | "DOCUMENT" | "ARCHIVE" | "OTHER";
+}
+
+const MenuBar = ({
+  editor,
+  onSave,
+  workspaceId,
+  documentId,
+  isSaving,
+}: {
+  editor: any;
+  onSave: () => void;
+  workspaceId: string;
+  documentId: string;
+  isSaving: boolean;
+}) => {
   const [linkUrl, setLinkUrl] = useState("");
   const [imageUrl, setImageUrl] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const addLink = useCallback(() => {
     if (linkUrl) {
@@ -87,6 +126,79 @@ const MenuBar = ({ editor }: { editor: any }) => {
     }
   }, [editor, imageUrl]);
 
+  const handleFileUpload = async (file: File) => {
+    setIsUploading(true);
+    setUploadProgress(0);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("workspaceId", workspaceId);
+      formData.append("documentId", documentId);
+
+      // Simulate upload progress
+      const progressInterval = setInterval(() => {
+        setUploadProgress((prev) => Math.min(prev + 10, 90));
+      }, 100);
+
+      const response = await axios.post("/api/attachments/upload", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      clearInterval(progressInterval);
+      setUploadProgress(100);
+
+      const attachment: Attachment = response.data;
+
+      // Insert the attachment into the editor based on type
+      if (attachment.type === "IMAGE") {
+        editor
+          .chain()
+          .focus()
+          .setImage({
+            src: attachment.url,
+            alt: attachment.alt || attachment.filename,
+            "data-attachment-id": attachment.id,
+          })
+          .run();
+      } else {
+        // For non-image files, insert as a link
+        editor
+          .chain()
+          .focus()
+          .insertContent(
+            `
+          <a href="${attachment.url}" data-attachment-id="${attachment.id}" target="_blank">
+            📎 ${attachment.filename}
+          </a>
+        `
+          )
+          .run();
+      }
+
+      toast.success("File uploaded successfully!");
+    } catch (error: any) {
+      console.error("Upload error:", error);
+      toast.error(error.response?.data?.message || "Upload failed");
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+    }
+  };
+
+  const triggerFileUpload = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      handleFileUpload(file);
+    }
+  };
+
   const addTable = () => {
     editor
       .chain()
@@ -101,6 +213,17 @@ const MenuBar = ({ editor }: { editor: any }) => {
 
   return (
     <div className="border-b border-gray-200 p-2 flex flex-wrap gap-1 items-center">
+      {/* Save Button */}
+      <Button variant="default" size="sm" onClick={onSave} disabled={isSaving}>
+        {isSaving ? (
+          <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+        ) : (
+          <Save className="h-4 w-4 mr-1" />
+        )}
+        {isSaving ? "Saving..." : "Save"}
+      </Button>
+      <Separator orientation="vertical" className="h-6" />
+
       {/* Undo/Redo */}
       <Button
         variant="ghost"
@@ -397,7 +520,7 @@ const MenuBar = ({ editor }: { editor: any }) => {
         </PopoverContent>
       </Popover>
 
-      {/* Image */}
+      {/* Image URL */}
       <Popover>
         <PopoverTrigger asChild>
           <Button variant="ghost" size="sm">
@@ -418,6 +541,31 @@ const MenuBar = ({ editor }: { editor: any }) => {
         </PopoverContent>
       </Popover>
 
+      {/* File Upload */}
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={triggerFileUpload}
+        disabled={isUploading}
+      >
+        <Upload className="h-4 w-4" />
+      </Button>
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        onChange={handleFileChange}
+        accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt"
+      />
+
+      {/* Upload Progress */}
+      {isUploading && (
+        <div className="flex items-center gap-2 ml-2">
+          <Progress value={uploadProgress} className="w-20" />
+          <span className="text-xs">{uploadProgress}%</span>
+        </div>
+      )}
+
       {/* Table */}
       <Button variant="ghost" size="sm" onClick={addTable}>
         <TableIcon className="h-4 w-4" />
@@ -437,7 +585,17 @@ const MenuBar = ({ editor }: { editor: any }) => {
   );
 };
 
-export default function TipTapEditor() {
+export default function TipTapEditor({
+  workspaceId,
+  documentId,
+  placeholder = "Start writing your content here...",
+  editable = true,
+}: TipTapEditorProps) {
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [content, setContent] = useState<any>(null);
+  const { channel: workspaceChannel } = usePusherChannelContext();
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -482,38 +640,21 @@ export default function TipTapEditor() {
         nested: true,
       }),
       Placeholder.configure({
-        placeholder: "Start writing your content here...",
+        placeholder,
       }),
       CharacterCount.configure({
         limit: 10000,
       }),
     ],
-    content: `
-      <h1>Welcome to TipTap Editor!</h1>
-      <p>This is a <strong>comprehensive</strong> rich text editor with <em>many</em> features:</p>
-      <ul>
-        <li>Basic formatting (bold, italic, underline, strikethrough)</li>
-        <li>Headings and paragraphs</li>
-        <li>Lists (ordered, unordered, task lists)</li>
-        <li>Links and images</li>
-        <li>Tables</li>
-        <li>Text alignment</li>
-        <li>Colors and highlighting</li>
-        <li>And much more!</li>
-      </ul>
-      <h2>Try the features:</h2>
-      <p>Select text and use the toolbar above to format it. You can also:</p>
-      <ul data-type="taskList">
-        <li data-type="taskItem" data-checked="true">Create task lists</li>
-        <li data-type="taskItem" data-checked="false">Add links and images</li>
-        <li data-type="taskItem" data-checked="false">Insert tables</li>
-      </ul>
-      <blockquote>
-        <p>This is a blockquote. Perfect for highlighting important information!</p>
-      </blockquote>
-      <pre><code>// And code blocks for technical content
-console.log('Hello, TipTap!');</code></pre>
-    `,
+    content: {
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+        },
+      ],
+    },
+    editable,
     editorProps: {
       attributes: {
         class:
@@ -522,31 +663,157 @@ console.log('Hello, TipTap!');</code></pre>
     },
   });
 
-  return (
-    <Card className="w-full max-w-4xl mx-auto">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Type className="h-5 w-5" />
-          TipTap Rich Text Editor
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-0">
-        <MenuBar editor={editor} />
-        <div className="min-h-[400px]">
-          <EditorContent editor={editor} />
+  // Fetch document content on mount
+  useEffect(() => {
+    const fetchContent = async () => {
+      try {
+        setIsLoading(true);
+        const response = await axios.get(
+          `/api/workspace/${workspaceId}/document/${documentId}/content`
+        );
+
+        if (response.data.status === "success" && response.data.data?.content) {
+          const fetchedContent = response.data.data.content;
+          setContent(fetchedContent);
+          if (editor) {
+            editor.commands.setContent(fetchedContent);
+          }
+        }
+      } catch (error: any) {
+        console.error("Error fetching document content:", error);
+        if (error.response?.status !== 404) {
+          toast.error("Failed to load document content");
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (workspaceId && documentId) {
+      fetchContent();
+    }
+  }, [workspaceId, documentId, editor]);
+
+  // Set content when editor is ready
+  useEffect(() => {
+    if (editor && content && !isLoading) {
+      editor.commands.setContent(content);
+    }
+  }, [editor, content, isLoading]);
+
+  // Listen for real-time content updates
+  useEffect(() => {
+    if (!workspaceChannel || !editor) return;
+
+    const handleContentUpdate = (data: any) => {
+      if (data.documentId === documentId) {
+        console.log("🔥 Real-time content update received:", data);
+
+        // Only update if the content is different and not from current user
+        const currentContent = editor.getJSON();
+        if (JSON.stringify(currentContent) !== JSON.stringify(data.content)) {
+          editor.commands.setContent(data.content);
+          toast.success(
+            `Document updated by ${data.editedBy?.name || "another user"}`
+          );
+        }
+      }
+    };
+
+    workspaceChannel.bind("document-content-updated", handleContentUpdate);
+
+    return () => {
+      workspaceChannel.unbind("document-content-updated", handleContentUpdate);
+    };
+  }, [workspaceChannel, editor, documentId]);
+
+  // Save content function
+  const saveContent = async () => {
+    if (!editor) return;
+
+    try {
+      setIsSaving(true);
+      const currentContent = editor.getJSON();
+
+      const response = await axios.put(
+        `/api/workspace/${workspaceId}/document/${documentId}/content`,
+        {
+          content: currentContent,
+        }
+      );
+
+      if (response.data.status === "success") {
+        toast.success("Document saved successfully!");
+        setContent(currentContent);
+      } else {
+        toast.error("Failed to save document");
+      }
+    } catch (error: any) {
+      console.error("Error saving document:", error);
+      toast.error(error.response?.data?.message || "Failed to save document");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Auto-save functionality (optional)
+  useEffect(() => {
+    if (!editor) return;
+
+    const handleUpdate = () => {
+      // Debounce auto-save
+      const timeoutId = setTimeout(() => {
+        const currentContent = editor.getJSON();
+        if (JSON.stringify(currentContent) !== JSON.stringify(content)) {
+          // Auto-save logic can be implemented here
+          // saveContent()
+        }
+      }, 2000);
+
+      return () => clearTimeout(timeoutId);
+    };
+
+    editor.on("update", handleUpdate);
+
+    return () => {
+      editor.off("update", handleUpdate);
+    };
+  }, [editor, content]);
+
+  if (isLoading) {
+    return (
+      <div className="w-full max-w-4xl mx-auto">
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin" />
+          <span className="ml-2">Loading document...</span>
         </div>
-        {editor && (
-          <div className="border-t border-gray-200 p-2 text-sm text-gray-500 flex justify-between">
-            <span>
-              {editor.storage.characterCount.characters()} characters,{" "}
-              {editor.storage.characterCount.words()} words
-            </span>
-            <span>
-              Limit: {editor.storage.characterCount.characters()}/10000
-            </span>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full max-w-4xl mx-auto border rounded-lg">
+      {editable && (
+        <MenuBar
+          editor={editor}
+          onSave={saveContent}
+          workspaceId={workspaceId}
+          documentId={documentId}
+          isSaving={isSaving}
+        />
+      )}
+      <div className="min-h-[400px]">
+        <EditorContent editor={editor} />
+      </div>
+      {editor && (
+        <div className="border-t border-gray-200 p-2 text-sm text-gray-500 flex justify-between">
+          <span>
+            {editor.storage.characterCount.characters()} characters,{" "}
+            {editor.storage.characterCount.words()} words
+          </span>
+          <span>Limit: {editor.storage.characterCount.characters()}/10000</span>
+        </div>
+      )}
+    </div>
   );
 }

@@ -2,6 +2,58 @@ import prisma from "@/lib/prismadb";
 import { User } from "@prisma/client";
 import { pusherServer } from "@/lib/pusher";
 
+// Define TipTap content types
+interface TipTapNode {
+  type: string;
+  attrs?: Record<string, any>;
+  content?: TipTapNode[];
+  marks?: Array<{ type: string; attrs?: Record<string, any> }>;
+  text?: string;
+}
+
+interface TipTapDocument {
+  type: "doc";
+  content?: TipTapNode[];
+}
+
+// Type guard to check if content is a valid TipTap document
+function isTipTapDocument(content: any): content is TipTapDocument {
+  return (
+    content &&
+    typeof content === "object" &&
+    content.type === "doc" &&
+    (content.content === undefined || Array.isArray(content.content))
+  );
+}
+
+// Function to validate and sanitize TipTap content
+function validateTipTapContent(content: any): TipTapDocument {
+  if (!content || typeof content !== "object") {
+    return {
+      type: "doc",
+      content: [{ type: "paragraph" }],
+    };
+  }
+
+  // Ensure it has the proper TipTap structure
+  if (!isTipTapDocument(content)) {
+    return {
+      type: "doc",
+      content: Array.isArray(content) ? content : [{ type: "paragraph" }],
+    };
+  }
+
+  // Ensure content array exists
+  if (!Array.isArray(content.content)) {
+    return {
+      type: "doc",
+      content: [{ type: "paragraph" }],
+    };
+  }
+
+  return content;
+}
+
 const notificationTimeouts = new Map<string, NodeJS.Timeout>();
 
 export async function updateDocumentContentById(
@@ -47,21 +99,24 @@ export async function updateDocumentContentById(
       };
     }
 
-    const document = await prisma.document.findUnique({
-      where: { id: documentId },
+    const document = await prisma.document.findFirst({
+      where: {
+        id: documentId,
+        workspaceId, // Ensure document belongs to workspace
+      },
       select: { title: true },
     });
 
     if (!document) {
       throw {
         error_type: "NotFound",
-        message: "Document not found",
+        message: "Document not found in this workspace",
       };
     }
 
     const user = await prisma.user.findUnique({
       where: { email: currentUser.email },
-      select: { id: true },
+      select: { id: true, name: true, image: true },
     });
 
     if (!user) {
@@ -71,7 +126,8 @@ export async function updateDocumentContentById(
       };
     }
 
-    const safeContent = content ?? {};
+    // Validate and sanitize TipTap content
+    const safeContent = validateTipTapContent(content);
 
     const existingContent = await prisma.documentContent.findFirst({
       where: { documentId },
@@ -82,22 +138,43 @@ export async function updateDocumentContentById(
       updatedContent = await prisma.documentContent.update({
         where: { id: existingContent.id },
         data: {
-          content: safeContent,
+          content: safeContent as any, // Cast to any for Prisma Json type
           editedAt: new Date(),
           editedById: user.id,
+        },
+        include: {
+          editedBy: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              image: true,
+            },
+          },
         },
       });
     } else {
       updatedContent = await prisma.documentContent.create({
         data: {
           documentId,
-          content: safeContent,
+          content: safeContent as any, // Cast to any for Prisma Json type
           editedAt: new Date(),
           editedById: user.id,
+        },
+        include: {
+          editedBy: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              image: true,
+            },
+          },
         },
       });
     }
 
+    // Update document's updatedAt timestamp
     await prisma.document.update({
       where: { id: documentId },
       data: {
@@ -106,6 +183,7 @@ export async function updateDocumentContentById(
       },
     });
 
+    // Send real-time update via Pusher
     await pusherServer.trigger(
       `workspace-${workspaceId}`,
       "document-content-updated",
@@ -118,11 +196,13 @@ export async function updateDocumentContentById(
         editedBy: {
           id: currentUser.id,
           name: currentUser.name,
+          email: currentUser.email,
           image: currentUser.image,
         },
       }
     );
 
+    // Handle delayed notification (after 3 minutes of inactivity)
     handleDelayedNotification(
       workspaceId,
       documentId,
@@ -134,6 +214,7 @@ export async function updateDocumentContentById(
 
     return {
       updatedContent,
+      content: safeContent,
     };
   } catch (error) {
     console.error("Error updating document content:", error);
@@ -146,7 +227,7 @@ async function handleDelayedNotification(
   documentId: string,
   documentTitle: string,
   currentUser: User,
-  content: any,
+  content: TipTapDocument,
   editorEmail: string
 ) {
   const existingTimeout = notificationTimeouts.get(documentId);
@@ -192,6 +273,7 @@ async function handleDelayedNotification(
       console.error("Error sending delayed notification:", error);
       notificationTimeouts.delete(documentId);
     }
-  }, 180000);
+  }, 180000); // 3 minutes
+
   notificationTimeouts.set(documentId, timeout);
 }
