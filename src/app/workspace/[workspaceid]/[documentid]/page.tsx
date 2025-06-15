@@ -30,5 +30,5 @@ export default async function DocumentPage({ params }: DocumentPageProps) {
     return notFound();
   }
 
-  return <DocumentWrapper workspaceId={workspaceId} documentId={documentId} />;
+  return <DocumentWrapper workspaceId={workspaceId} documentId={documentId} currentUser={currentUser}/>;
 }

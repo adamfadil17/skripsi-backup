@@ -19,6 +19,8 @@ import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import Placeholder from "@tiptap/extension-placeholder";
 import CharacterCount from "@tiptap/extension-character-count";
+import Collaboration from "@tiptap/extension-collaboration";
+import CollaborationCursor from "@tiptap/extension-collaboration-cursor";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Toggle } from "@/components/ui/toggle";
@@ -36,6 +38,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 import {
   Bold,
   Italic,
@@ -68,10 +71,16 @@ import {
   Trash2,
   MoreHorizontal,
   MoreVertical,
+  Users,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import { useState, useCallback, useRef, useEffect } from "react";
 import axios from "axios";
 import toast from "react-hot-toast";
+import * as Y from "yjs";
+import { WebsocketProvider } from "y-websocket";
+import type { User } from "@prisma/client";
 import { usePusherChannelContext } from "../../components/PusherChannelProvider";
 
 interface TipTapEditorProps {
@@ -79,6 +88,7 @@ interface TipTapEditorProps {
   documentId: string;
   placeholder?: string;
   editable?: boolean;
+  currentUser: User; // Change from user to currentUser to match your prop name
 }
 
 interface Attachment {
@@ -91,6 +101,91 @@ interface Attachment {
   caption?: string;
   type: "IMAGE" | "VIDEO" | "AUDIO" | "DOCUMENT" | "ARCHIVE" | "OTHER";
 }
+
+interface CollaborativeUser {
+  id: string;
+  name: string;
+  email: string;
+  avatar?: string;
+  color: string;
+}
+
+// Generate random colors for users
+const generateUserColor = (userId: string): string => {
+  const colors = [
+    "#FF6B6B",
+    "#4ECDC4",
+    "#45B7D1",
+    "#96CEB4",
+    "#FFEAA7",
+    "#DDA0DD",
+    "#98D8C8",
+    "#F7DC6F",
+    "#BB8FCE",
+    "#85C1E9",
+  ];
+  let hash = 0;
+  for (let i = 0; i < userId.length; i++) {
+    hash = userId.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return colors[Math.abs(hash) % colors.length];
+};
+
+const CollaborationStatus = ({
+  isConnected,
+  users,
+  currentUser,
+}: {
+  isConnected: boolean;
+  users: CollaborativeUser[];
+  currentUser?: CollaborativeUser;
+}) => {
+  const otherUsers = users.filter((user) => user.id !== currentUser?.id);
+
+  return (
+    <div className="flex items-center gap-2 px-3 py-1 bg-gray-50 border-b">
+      <div className="flex items-center gap-1">
+        {isConnected ? (
+          <Wifi className="h-4 w-4 text-green-500" />
+        ) : (
+          <WifiOff className="h-4 w-4 text-red-500" />
+        )}
+        <span className="text-xs text-gray-600">
+          {isConnected ? "Connected" : "Disconnected"}
+        </span>
+      </div>
+
+      {otherUsers.length > 0 && (
+        <>
+          <Separator orientation="vertical" className="h-4" />
+          <div className="flex items-center gap-1">
+            <Users className="h-4 w-4 text-gray-500" />
+            <span className="text-xs text-gray-600">
+              {otherUsers.length + 1} online
+            </span>
+          </div>
+          <div className="flex items-center gap-1 ml-2">
+            {otherUsers.slice(0, 3).map((user) => (
+              <div
+                key={user.id}
+                className="w-6 h-6 rounded-full flex items-center justify-center text-xs text-white font-medium"
+                style={{ backgroundColor: user.color }}
+                title={user.name}
+              >
+                {user.name.charAt(0).toUpperCase()}
+              </div>
+            ))}
+            {otherUsers.length > 3 && (
+              <Badge variant="secondary" className="text-xs">
+                +{otherUsers.length - 3}
+              </Badge>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
 
 const TableControls = ({ editor }: { editor: any }) => {
   if (!editor.isActive("table")) {
@@ -797,15 +892,64 @@ export default function TipTapEditor({
   documentId,
   placeholder = "Start writing your content here...",
   editable = true,
+  currentUser, // Change from user to currentUser
 }: TipTapEditorProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [content, setContent] = useState<any>(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const [collaborativeUsers, setCollaborativeUsers] = useState<
+    CollaborativeUser[]
+  >([]);
   const { channel: workspaceChannel } = usePusherChannelContext();
+
+  // Yjs setup
+  const ydoc = useRef<Y.Doc>();
+  const provider = useRef<WebsocketProvider>();
+
+  const user: CollaborativeUser = {
+    id: currentUser.id,
+    name: currentUser.name || currentUser.email || "Anonymous User",
+    email: currentUser.email || "",
+    avatar: currentUser.image || undefined,
+    color: generateUserColor(currentUser.id),
+  };
+
+  // Initialize Yjs document and provider
+  useEffect(() => {
+    // Create Yjs document
+    ydoc.current = new Y.Doc();
+
+    // WebSocket server URL - replace with your actual server URL
+    const wsUrl =
+      process.env.NEXT_PUBLIC_YJS_WEBSOCKET_URL || "ws://localhost:1234";
+    const roomName = `${workspaceId}-${documentId}`;
+
+    // Create WebSocket provider
+    provider.current = new WebsocketProvider(wsUrl, roomName, ydoc.current);
+
+    // Connection status handlers
+    provider.current.on("status", (event: any) => {
+      setIsConnected(event.status === "connected");
+      if (event.status === "connected") {
+        toast.success("Connected to collaboration server");
+      } else if (event.status === "disconnected") {
+        toast.error("Disconnected from collaboration server");
+      }
+    });
+
+    // Cleanup on unmount
+    return () => {
+      provider.current?.destroy();
+      ydoc.current?.destroy();
+    };
+  }, [workspaceId, documentId]);
 
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
+        // Disable the default history extension since we're using Yjs
+        history: false,
         bulletList: {
           keepMarks: true,
           keepAttributes: false,
@@ -813,6 +957,27 @@ export default function TipTapEditor({
         orderedList: {
           keepMarks: true,
           keepAttributes: false,
+        },
+      }),
+      // Collaboration extensions
+      Collaboration.configure({
+        document: ydoc.current,
+      }),
+      CollaborationCursor.configure({
+        provider: provider.current,
+        user: user,
+        render: (user: any) => {
+          const cursor = document.createElement("span");
+          cursor.classList.add("collaboration-cursor__caret");
+          cursor.style.borderColor = user.color;
+          return cursor;
+        },
+        // @ts-expect-error - return type is HTMLElement but type expects DecorationAttrs
+        selectionRender: (user: any) => {
+          const selection = document.createElement("span");
+          selection.classList.add("collaboration-cursor__selection");
+          selection.style.backgroundColor = `${user.color}20`;
+          return selection;
         },
       }),
       Underline,
@@ -849,7 +1014,6 @@ export default function TipTapEditor({
       Placeholder.configure({
         placeholder,
       }),
-      // Remove character count limit
       CharacterCount,
     ],
     content: {
@@ -868,7 +1032,38 @@ export default function TipTapEditor({
     },
   });
 
-  // Fetch document content on mount
+  // Update collaborative users when awareness changes
+  useEffect(() => {
+    if (!provider.current) return;
+
+    const updateUsers = () => {
+      const awareness = provider.current!.awareness;
+      const users: CollaborativeUser[] = [];
+
+      awareness.getStates().forEach((state: any, clientId: number) => {
+        if (state.user) {
+          users.push({
+            id: state.user.id,
+            name: state.user.name,
+            email: state.user.email,
+            avatar: state.user.avatar,
+            color: state.user.color,
+          });
+        }
+      });
+
+      setCollaborativeUsers(users);
+    };
+
+    provider.current.awareness.on("change", updateUsers);
+    updateUsers();
+
+    return () => {
+      provider.current?.awareness.off("change", updateUsers);
+    };
+  }, []);
+
+  // Fetch document content on mount (for initial load)
   useEffect(() => {
     const fetchContent = async () => {
       try {
@@ -880,7 +1075,13 @@ export default function TipTapEditor({
         if (response.data.status === "success" && response.data.data?.content) {
           const fetchedContent = response.data.data.content;
           setContent(fetchedContent);
-          if (editor) {
+
+          // Only set content if the Yjs document is empty (first load)
+          if (
+            editor &&
+            ydoc.current &&
+            ydoc.current.get("default").toString().length === 0
+          ) {
             editor.commands.setContent(fetchedContent);
           }
         }
@@ -894,45 +1095,12 @@ export default function TipTapEditor({
       }
     };
 
-    if (workspaceId && documentId) {
+    if (workspaceId && documentId && editor) {
       fetchContent();
     }
   }, [workspaceId, documentId, editor]);
 
-  // Set content when editor is ready
-  useEffect(() => {
-    if (editor && content && !isLoading) {
-      editor.commands.setContent(content);
-    }
-  }, [editor, content, isLoading]);
-
-  // Listen for real-time content updates
-  useEffect(() => {
-    if (!workspaceChannel || !editor) return;
-
-    const handleContentUpdate = (data: any) => {
-      if (data.documentId === documentId) {
-        console.log("🔥 Real-time content update received:", data);
-
-        // Only update if the content is different and not from current user
-        const currentContent = editor.getJSON();
-        if (JSON.stringify(currentContent) !== JSON.stringify(data.content)) {
-          editor.commands.setContent(data.content);
-          toast.success(
-            `Document updated by ${data.editedBy?.name || "another user"}`
-          );
-        }
-      }
-    };
-
-    workspaceChannel.bind("document-content-updated", handleContentUpdate);
-
-    return () => {
-      workspaceChannel.unbind("document-content-updated", handleContentUpdate);
-    };
-  }, [workspaceChannel, editor, documentId]);
-
-  // Save content function
+  // Save content function (periodic backup to database)
   const saveContent = async () => {
     if (!editor) return;
 
@@ -961,28 +1129,19 @@ export default function TipTapEditor({
     }
   };
 
-  // Auto-save functionality (optional)
+  // Auto-save functionality (periodic backup)
   useEffect(() => {
     if (!editor) return;
 
-    const handleUpdate = () => {
-      // Debounce auto-save
-      const timeoutId = setTimeout(() => {
-        const currentContent = editor.getJSON();
-        if (JSON.stringify(currentContent) !== JSON.stringify(content)) {
-          // Auto-save logic can be implemented here
-          // saveContent()
-        }
-      }, 2000);
+    const interval = setInterval(() => {
+      const currentContent = editor.getJSON();
+      if (JSON.stringify(currentContent) !== JSON.stringify(content)) {
+        // Auto-save to database as backup
+        saveContent();
+      }
+    }, 30000); // Save every 30 seconds
 
-      return () => clearTimeout(timeoutId);
-    };
-
-    editor.on("update", handleUpdate);
-
-    return () => {
-      editor.off("update", handleUpdate);
-    };
+    return () => clearInterval(interval);
   }, [editor, content]);
 
   if (isLoading) {
@@ -998,6 +1157,13 @@ export default function TipTapEditor({
 
   return (
     <div className="w-full border rounded-lg bg-white">
+      {/* Collaboration Status */}
+      <CollaborationStatus
+        isConnected={isConnected}
+        users={collaborativeUsers}
+        currentUser={user}
+      />
+
       {editable && (
         <MenuBar
           editor={editor}
@@ -1016,7 +1182,7 @@ export default function TipTapEditor({
             {editor.storage.characterCount.characters()} characters,{" "}
             {editor.storage.characterCount.words()} words
           </span>
-          <span>No character limit</span>
+          <span>Real-time collaboration enabled</span>
         </div>
       )}
     </div>

@@ -13,13 +13,15 @@ import EmojiPickerPopover from "@/components/shared/EmojiPickerPopover";
 import AITemplateDialog from "./AITemplateDialog";
 import { usePusherChannelContext } from "../../components/PusherChannelProvider";
 import TipTapEditor from "./TipTapEditor";
+import { User } from "@prisma/client";
 
 interface DocumentWrapperProps {
   workspaceId: string;
   documentId: string;
+  currentUser: User;
 }
 
-const DocumentWrapper = ({ workspaceId, documentId }: DocumentWrapperProps) => {
+const DocumentWrapper = ({ workspaceId, documentId, currentUser }: DocumentWrapperProps) => {
   const router = useRouter();
   const { channel: workspaceChannel } = usePusherChannelContext();
 
@@ -245,6 +247,7 @@ const DocumentWrapper = ({ workspaceId, documentId }: DocumentWrapperProps) => {
           workspaceId={workspaceId}
           documentId={documentId}
           placeholder="Start writing your document..."
+          currentUser={currentUser}
         />
       </div>
     </div>
