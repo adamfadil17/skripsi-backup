@@ -2,6 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Editor.js styles (keeping for backward compatibility) */
 h1.ce-header {
   @apply text-3xl font-bold;
 }
@@ -23,8 +24,319 @@ h6.ce-header {
 
 .ce-block__content,
 .ce-toolbar__content {
-  /* max-width: 1050px; example value, adjust for your own use case */
-  max-width: 100%; /* example value, adjust for your own use case */
+  max-width: 100%;
+}
+
+/* TipTap Editor Styles */
+.ProseMirror {
+  outline: none;
+  padding: 1rem;
+  line-height: 1.6;
+}
+
+/* TipTap Headings */
+.ProseMirror h1 {
+  @apply text-3xl font-bold mb-4 mt-6 text-gray-900;
+  line-height: 1.2;
+}
+
+.ProseMirror h2 {
+  @apply text-2xl font-semibold mb-3 mt-5 text-gray-900;
+  line-height: 1.3;
+}
+
+.ProseMirror h3 {
+  @apply text-xl font-semibold mb-3 mt-4 text-gray-900;
+  line-height: 1.4;
+}
+
+.ProseMirror h4 {
+  @apply text-lg font-semibold mb-2 mt-3 text-gray-900;
+  line-height: 1.4;
+}
+
+.ProseMirror h5 {
+  @apply text-base font-semibold mb-2 mt-3 text-gray-900;
+  line-height: 1.4;
+}
+
+.ProseMirror h6 {
+  @apply text-sm font-semibold mb-2 mt-3 text-gray-900;
+  line-height: 1.4;
+}
+
+/* TipTap Paragraphs */
+.ProseMirror p {
+  @apply mb-3 text-gray-700;
+  line-height: 1.6;
+}
+
+.ProseMirror p:last-child {
+  margin-bottom: 0;
+}
+
+/* TipTap Lists */
+.ProseMirror ul {
+  @apply list-disc pl-6 mb-4 space-y-1;
+}
+
+.ProseMirror ol {
+  @apply list-decimal pl-6 mb-4 space-y-1;
+}
+
+.ProseMirror li {
+  @apply text-gray-700;
+  line-height: 1.6;
+}
+
+.ProseMirror li p {
+  margin-bottom: 0.5rem;
+}
+
+.ProseMirror li:last-child p {
+  margin-bottom: 0;
+}
+
+/* TipTap Task Lists */
+.ProseMirror ul[data-type="taskList"] {
+  @apply list-none pl-0;
+}
+
+.ProseMirror li[data-type="taskItem"] {
+  @apply flex items-start gap-2 mb-2;
+}
+
+.ProseMirror li[data-type="taskItem"] > label {
+  @apply flex items-center gap-2 cursor-pointer;
+}
+
+.ProseMirror li[data-type="taskItem"] > label > input[type="checkbox"] {
+  @apply w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500;
+}
+
+.ProseMirror li[data-type="taskItem"] > div {
+  @apply flex-1;
+}
+
+/* TipTap Blockquotes */
+.ProseMirror blockquote {
+  @apply border-l-4 border-gray-300 pl-4 py-2 mb-4 italic text-gray-600 bg-gray-50;
+}
+
+.ProseMirror blockquote p {
+  @apply mb-2;
+}
+
+.ProseMirror blockquote p:last-child {
+  margin-bottom: 0;
+}
+
+/* TipTap Code */
+.ProseMirror code {
+  @apply bg-gray-100 text-gray-800 px-1.5 py-0.5 rounded text-sm font-mono;
+}
+
+.ProseMirror pre {
+  @apply bg-gray-900 text-gray-100 p-4 rounded-lg mb-4 overflow-x-auto;
+}
+
+.ProseMirror pre code {
+  @apply bg-transparent text-gray-100 p-0;
+}
+
+/* TipTap Links */
+.ProseMirror a {
+  @apply text-blue-600 underline hover:text-blue-800 cursor-pointer;
+}
+
+/* TipTap Images */
+.ProseMirror img {
+  @apply max-w-full h-auto rounded-lg my-4;
+}
+
+/* TipTap Tables */
+.ProseMirror table {
+  @apply border-collapse border border-gray-300 w-full mb-4;
+}
+
+.ProseMirror th {
+  @apply border border-gray-300 px-3 py-2 bg-gray-100 font-semibold text-left;
+}
+
+.ProseMirror td {
+  @apply border border-gray-300 px-3 py-2;
+}
+
+.ProseMirror .selectedCell {
+  @apply bg-blue-100;
+}
+
+.ProseMirror .column-resize-handle {
+  @apply bg-blue-500 w-1 absolute top-0 bottom-0 pointer-events-none;
+}
+
+.ProseMirror .tableWrapper {
+  @apply overflow-x-auto mb-4;
+}
+
+.ProseMirror .resize-cursor {
+  cursor: col-resize;
+}
+
+/* TipTap Horizontal Rule */
+.ProseMirror hr {
+  @apply border-0 border-t border-gray-300 my-6;
+}
+
+/* TipTap Text Formatting */
+.ProseMirror strong {
+  @apply font-bold;
+}
+
+.ProseMirror em {
+  @apply italic;
+}
+
+.ProseMirror u {
+  text-decoration: underline;
+}
+
+.ProseMirror s {
+  text-decoration: line-through;
+}
+
+/* TipTap Highlights */
+.ProseMirror mark {
+  @apply bg-yellow-200 px-1 rounded;
+}
+
+.ProseMirror mark[data-color="#fef3c7"] {
+  @apply bg-yellow-100;
+}
+
+.ProseMirror mark[data-color="#fecaca"] {
+  @apply bg-red-100;
+}
+
+.ProseMirror mark[data-color="#fed7d7"] {
+  @apply bg-red-200;
+}
+
+.ProseMirror mark[data-color="#e0e7ff"] {
+  @apply bg-blue-100;
+}
+
+.ProseMirror mark[data-color="#d1fae5"] {
+  @apply bg-green-100;
+}
+
+.ProseMirror mark[data-color="#f3e8ff"] {
+  @apply bg-purple-100;
+}
+
+/* TipTap Text Alignment */
+.ProseMirror .text-left {
+  text-align: left;
+}
+
+.ProseMirror .text-center {
+  text-align: center;
+}
+
+.ProseMirror .text-right {
+  text-align: right;
+}
+
+.ProseMirror .text-justify {
+  text-align: justify;
+}
+
+/* TipTap Placeholder */
+.ProseMirror p.is-editor-empty:first-child::before {
+  @apply text-gray-400 pointer-events-none;
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+}
+
+/* TipTap Focus States */
+.ProseMirror:focus {
+  outline: none;
+}
+
+.ProseMirror .has-focus {
+  @apply ring-2 ring-blue-500 ring-opacity-50;
+}
+
+/* TipTap Selection */
+.ProseMirror .ProseMirror-selectednode {
+  @apply ring-2 ring-blue-500 ring-opacity-50;
+}
+
+/* TipTap Gapcursor */
+.ProseMirror .ProseMirror-gapcursor {
+  display: none;
+  pointer-events: none;
+  position: absolute;
+}
+
+.ProseMirror .ProseMirror-gapcursor:after {
+  content: "";
+  display: block;
+  position: absolute;
+  top: -2px;
+  width: 20px;
+  border-top: 1px solid black;
+  animation: ProseMirror-cursor-blink 1.1s steps(2, start) infinite;
+}
+
+@keyframes ProseMirror-cursor-blink {
+  to {
+    visibility: hidden;
+  }
+}
+
+/* Dark mode support for TipTap */
+.dark .ProseMirror h1,
+.dark .ProseMirror h2,
+.dark .ProseMirror h3,
+.dark .ProseMirror h4,
+.dark .ProseMirror h5,
+.dark .ProseMirror h6 {
+  @apply text-gray-100;
+}
+
+.dark .ProseMirror p,
+.dark .ProseMirror li {
+  @apply text-gray-300;
+}
+
+.dark .ProseMirror blockquote {
+  @apply border-gray-600 text-gray-400 bg-gray-800;
+}
+
+.dark .ProseMirror code {
+  @apply bg-gray-800 text-gray-200;
+}
+
+.dark .ProseMirror pre {
+  @apply bg-gray-800 text-gray-100;
+}
+
+.dark .ProseMirror th {
+  @apply bg-gray-800 border-gray-600;
+}
+
+.dark .ProseMirror td {
+  @apply border-gray-600;
+}
+
+.dark .ProseMirror table {
+  @apply border-gray-600;
+}
+
+.dark .ProseMirror hr {
+  @apply border-gray-600;
 }
 
 @layer base {
@@ -119,7 +431,7 @@ body {
 }
 
 /* Ensure sidebar stays fixed */
-[data-sidebar='sidebar'] {
+[data-sidebar="sidebar"] {
   position: relative;
   z-index: 50;
   width: var(--sidebar-width);
@@ -128,7 +440,7 @@ body {
 }
 
 /* Ensure content doesn't overflow */
-[data-sidebar='content'] {
+[data-sidebar="content"] {
   overflow-x: hidden;
 }
 
@@ -140,12 +452,12 @@ body {
 }
 
 .hidden-scrollbar {
-  overflow-y: auto; /* Mengaktifkan scroll secara vertikal */
-  scrollbar-width: none; /* Menyembunyikan scrollbar di Firefox */
+  overflow-y: auto;
+  scrollbar-width: none;
 }
 
 .hidden-scrollbar::-webkit-scrollbar {
-  display: none; /* Menyembunyikan scrollbar di Chrome, Safari, dan Edge */
+  display: none;
 }
 
 @layer base {
@@ -174,16 +486,32 @@ body {
   .ce-header {
     font-size: 1.3rem;
   }
+
+  /* Mobile TipTap adjustments */
+  .ProseMirror h1 {
+    @apply text-2xl;
+  }
+
+  .ProseMirror h2 {
+    @apply text-xl;
+  }
+
+  .ProseMirror h3 {
+    @apply text-lg;
+  }
+
+  .ProseMirror {
+    padding: 0.75rem;
+  }
 }
 
 /* Mobile sidebar styles */
 @media (max-width: 767px) {
-  [data-sidebar='sidebar'][data-mobile='true'] {
+  [data-sidebar="sidebar"][data-mobile="true"] {
     width: var(--sidebar-width-mobile, 18rem) !important;
     min-width: var(--sidebar-width-mobile, 18rem) !important;
   }
 
-  /* Ensure the sheet content is visible */
   .fixed.inset-0 {
     z-index: 50;
   }
