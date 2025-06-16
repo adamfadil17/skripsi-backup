@@ -74,6 +74,8 @@ import {
   Users,
   Wifi,
   WifiOff,
+  AlertCircle,
+  RefreshCw,
 } from "lucide-react";
 import { useState, useCallback, useRef, useEffect } from "react";
 import axios from "axios";
@@ -136,26 +138,55 @@ const CollaborationStatus = ({
   users,
   currentUser,
   connectionStatus,
+  error,
+  onReconnect,
 }: {
   isConnected: boolean;
   users: CollaborativeUser[];
   currentUser?: CollaborativeUser;
   connectionStatus: string;
+  error?: string;
+  onReconnect: () => void;
 }) => {
   const otherUsers = users.filter((user) => user.id !== currentUser?.id);
 
   return (
     <div className="flex items-center gap-2 px-3 py-1 bg-gray-50 border-b">
       <div className="flex items-center gap-1">
-        {isConnected ? (
+        {error ? (
+          <AlertCircle className="h-4 w-4 text-red-500" />
+        ) : isConnected ? (
           <Wifi className="h-4 w-4 text-green-500" />
         ) : (
-          <WifiOff className="h-4 w-4 text-red-500" />
+          <WifiOff className="h-4 w-4 text-orange-500" />
         )}
         <span className="text-xs text-gray-600">
-          {isConnected ? "Connected" : connectionStatus || "Disconnected"}
+          {error
+            ? "Connection Error"
+            : isConnected
+            ? "Connected"
+            : connectionStatus}
         </span>
       </div>
+
+      {error && (
+        <>
+          <span
+            className="text-xs text-red-600 max-w-xs truncate"
+            title={error}
+          >
+            {error}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onReconnect}
+            className="h-6 px-2"
+          >
+            <RefreshCw className="h-3 w-3" />
+          </Button>
+        </>
+      )}
 
       {otherUsers.length > 0 && (
         <>
@@ -900,7 +931,8 @@ export default function TipTapEditor({
   const [isSaving, setIsSaving] = useState(false);
   const [content, setContent] = useState<any>(null);
   const [isConnected, setIsConnected] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState("Connecting...");
+  const [connectionStatus, setConnectionStatus] = useState("Initializing...");
+  const [connectionError, setConnectionError] = useState<string>("");
   const [collaborativeUsers, setCollaborativeUsers] = useState<
     CollaborativeUser[]
   >([]);
@@ -909,6 +941,8 @@ export default function TipTapEditor({
   // Yjs setup
   const ydoc = useRef<Y.Doc>();
   const provider = useRef<WebsocketProvider>();
+  const reconnectAttempts = useRef(0);
+  const maxReconnectAttempts = 5;
 
   const user: CollaborativeUser = {
     id: currentUser.id,
@@ -919,61 +953,100 @@ export default function TipTapEditor({
   };
 
   // Initialize Yjs document and provider
-  useEffect(() => {
-    // Create Yjs document
-    ydoc.current = new Y.Doc();
-
-    // Fixed WebSocket URL format
-    const wsUrl = "wss://yjs-websocket-server-production-0351.up.railway.app";
-    const roomName = `${workspaceId}-${documentId}`;
-
-    console.log("🔗 Connecting to WebSocket:", wsUrl);
-    console.log("🏠 Room:", roomName);
-
+  const initializeCollaboration = useCallback(async () => {
     try {
-      // Create WebSocket provider with proper error handling
+      setConnectionStatus("Initializing...");
+      setConnectionError("");
+
+      // Clean up existing connections
+      if (provider.current) {
+        provider.current.destroy();
+      }
+      if (ydoc.current) {
+        ydoc.current.destroy();
+      }
+
+      // Create new Yjs document
+      ydoc.current = new Y.Doc();
+
+      // WebSocket URL - your Railway deployment
+      const wsUrl = "wss://yjs-websocket-server-production-0351.up.railway.app";
+      const roomName = `${workspaceId}-${documentId}`;
+
+      console.log("🔗 Initializing WebSocket connection...");
+      console.log("📡 URL:", wsUrl);
+      console.log("🏠 Room:", roomName);
+      console.log("📦 Using y-websocket v3.0.0+");
+
+      setConnectionStatus("Connecting...");
+
+      // Create WebSocket provider with y-websocket v3.0.0+ configuration
       provider.current = new WebsocketProvider(wsUrl, roomName, ydoc.current, {
         connect: true,
-        // Add connection parameters
-        params: {
-          room: roomName,
-        },
+        // Options for y-websocket v3.0.0+
+        maxBackoffTime: 5000,
+        disableBc: false, // Enable broadcast channel
       });
 
       // Connection status handlers
       provider.current.on("status", (event: any) => {
         console.log("📡 WebSocket status:", event.status);
         setIsConnected(event.status === "connected");
-        setConnectionStatus(event.status);
 
-        if (event.status === "connected") {
-          toast.success("Connected to collaboration server");
-        } else if (event.status === "disconnected") {
-          toast.error("Disconnected from collaboration server");
-        } else if (event.status === "connecting") {
-          setConnectionStatus("Connecting...");
+        switch (event.status) {
+          case "connected":
+            setConnectionStatus("Connected");
+            setConnectionError("");
+            reconnectAttempts.current = 0;
+            toast.success("Connected to collaboration server");
+            break;
+          case "disconnected":
+            setConnectionStatus("Disconnected");
+            if (reconnectAttempts.current < maxReconnectAttempts) {
+              setConnectionStatus(
+                `Reconnecting... (${
+                  reconnectAttempts.current + 1
+                }/${maxReconnectAttempts})`
+              );
+              reconnectAttempts.current++;
+            } else {
+              setConnectionError("Max reconnection attempts reached");
+              toast.error("Failed to reconnect to collaboration server");
+            }
+            break;
+          case "connecting":
+            setConnectionStatus("Connecting...");
+            break;
+          default:
+            setConnectionStatus(event.status);
         }
       });
 
       // Connection error handler
       provider.current.on("connection-error", (error: any) => {
         console.error("❌ WebSocket connection error:", error);
-        setConnectionStatus("Connection failed");
+        setConnectionError("Connection failed");
+        setConnectionStatus("Connection Error");
         toast.error("Failed to connect to collaboration server");
       });
 
       // Sync status handler
       provider.current.on("sync", (isSynced: boolean) => {
         console.log("🔄 Document sync status:", isSynced);
-        if (isSynced) {
+        if (isSynced && isConnected) {
           setConnectionStatus("Synced");
         }
       });
     } catch (error) {
-      console.error("❌ Error creating WebSocket provider:", error);
-      setConnectionStatus("Setup failed");
-      toast.error("Failed to setup collaboration");
+      console.error("❌ Error initializing collaboration:", error);
+      setConnectionError("Initialization failed");
+      setConnectionStatus("Init Error");
+      toast.error("Failed to initialize collaboration");
     }
+  }, [workspaceId, documentId, isConnected]);
+
+  useEffect(() => {
+    initializeCollaboration();
 
     // Cleanup on unmount
     return () => {
@@ -985,7 +1058,7 @@ export default function TipTapEditor({
         console.error("Error during cleanup:", error);
       }
     };
-  }, [workspaceId, documentId]);
+  }, [initializeCollaboration]);
 
   const editor = useEditor({
     extensions: [
@@ -1205,6 +1278,8 @@ export default function TipTapEditor({
         users={collaborativeUsers}
         currentUser={user}
         connectionStatus={connectionStatus}
+        error={connectionError}
+        onReconnect={initializeCollaboration}
       />
 
       {editable && (
