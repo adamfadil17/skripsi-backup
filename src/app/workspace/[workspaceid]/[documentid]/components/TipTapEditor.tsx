@@ -140,6 +140,7 @@ const CollaborationStatus = ({
   connectionStatus,
   error,
   onReconnect,
+  roomName,
 }: {
   isConnected: boolean;
   users: CollaborativeUser[];
@@ -147,6 +148,7 @@ const CollaborationStatus = ({
   connectionStatus: string;
   error?: string;
   onReconnect: () => void;
+  roomName?: string;
 }) => {
   const otherUsers = users.filter((user) => user.id !== currentUser?.id);
 
@@ -168,6 +170,13 @@ const CollaborationStatus = ({
             : connectionStatus}
         </span>
       </div>
+
+      {roomName && (
+        <>
+          <Separator orientation="vertical" className="h-4" />
+          <span className="text-xs text-gray-500">Room: {roomName}</span>
+        </>
+      )}
 
       {error && (
         <>
@@ -936,13 +945,14 @@ export default function TipTapEditor({
   const [collaborativeUsers, setCollaborativeUsers] = useState<
     CollaborativeUser[]
   >([]);
+  const [roomName, setRoomName] = useState<string>("");
   const { channel: workspaceChannel } = usePusherChannelContext();
 
   // Yjs setup
   const ydoc = useRef<Y.Doc>();
   const provider = useRef<WebsocketProvider>();
   const reconnectAttempts = useRef(0);
-  const maxReconnectAttempts = 5;
+  const maxReconnectAttempts = 3;
 
   const user: CollaborativeUser = {
     id: currentUser.id,
@@ -969,23 +979,23 @@ export default function TipTapEditor({
       // Create new Yjs document
       ydoc.current = new Y.Doc();
 
-      // WebSocket URL - your Railway deployment
+      // WebSocket URL with room parameter
       const wsUrl = "wss://yjs-websocket-server-production-0351.up.railway.app";
-      const roomName = `${workspaceId}-${documentId}`;
+      const room = `${workspaceId}-${documentId}`;
+      const wsUrlWithRoom = `${wsUrl}?room=${room}`;
+
+      setRoomName(room);
 
       console.log("🔗 Initializing WebSocket connection...");
-      console.log("📡 URL:", wsUrl);
-      console.log("🏠 Room:", roomName);
-      console.log("📦 Using y-websocket v3.0.0+");
+      console.log("📡 URL:", wsUrlWithRoom);
+      console.log("🏠 Room:", room);
 
       setConnectionStatus("Connecting...");
 
-      // Create WebSocket provider with y-websocket v3.0.0+ configuration
-      provider.current = new WebsocketProvider(wsUrl, roomName, ydoc.current, {
+      // Create WebSocket provider with room parameter
+      provider.current = new WebsocketProvider(wsUrl, room, ydoc.current, {
         connect: true,
-        // Options for y-websocket v3.0.0+
         maxBackoffTime: 5000,
-        disableBc: false, // Enable broadcast channel
       });
 
       // Connection status handlers
@@ -1280,6 +1290,7 @@ export default function TipTapEditor({
         connectionStatus={connectionStatus}
         error={connectionError}
         onReconnect={initializeCollaboration}
+        roomName={roomName}
       />
 
       {editable && (
