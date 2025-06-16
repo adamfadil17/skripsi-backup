@@ -960,8 +960,11 @@ export default function TipTapEditor({
     color: generateUserColor(currentUser.id),
   };
 
-  // Initialize Yjs document and provider
-  const initializeCollaboration = useCallback(async () => {
+  // State untuk menyimpan instance editor
+  const [editor, setEditor] = useState<any>(null);
+
+  // Initialize Yjs document and provider AND editor
+  const initializeCollaborationAndEditor = useCallback(async () => {
     try {
       setConnectionStatus("Initializing...");
       setConnectionError("");
@@ -973,12 +976,21 @@ export default function TipTapEditor({
       if (ydoc.current) {
         ydoc.current.destroy();
       }
+      // Destroy editor if it exists
+      if (editor) {
+        editor.destroy();
+        setEditor(null); // Reset editor state
+      }
 
       // Create new Yjs document
       ydoc.current = new Y.Doc();
 
       // WebSocket URL with room parameter
+      // Pastikan URL ini sesuai dengan deployment server Anda.
+      // Jika di-deploy di Railway, pastikan domainnya benar.
+      // Contoh untuk lokal: `ws://localhost:3000`
       const wsUrl = "wss://yjs-websocket-server-production-0351.up.railway.app";
+      // const wsUrl = `ws://localhost:${process.env.NEXT_PUBLIC_WS_PORT || 3000}`; // Contoh untuk lokal jika Anda menggunakan NEXT_PUBLIC_WS_PORT
       const room = `${workspaceId}-${documentId}`;
       const wsUrlWithRoom = `${wsUrl}?room=${room}`;
 
@@ -1045,124 +1057,132 @@ export default function TipTapEditor({
           setConnectionStatus("Synced");
         }
       });
+
+      // Initialize TipTap Editor AFTER Yjs document and provider are ready
+      const newEditor = useEditor(
+        {
+          extensions: [
+            StarterKit.configure({
+              // Disable the default history extension since we're using Yjs
+              history: false,
+              bulletList: {
+                keepMarks: true,
+                keepAttributes: false,
+              },
+              orderedList: {
+                keepMarks: true,
+                keepAttributes: false,
+              },
+            }),
+            // Collaboration extensions
+            Collaboration.configure({
+              document: ydoc.current,
+            }),
+            CollaborationCursor.configure({
+              provider: provider.current,
+              user: user,
+              render: (user: any) => {
+                const cursor = document.createElement("span");
+                cursor.classList.add("collaboration-cursor__caret");
+                cursor.style.borderColor = user.color;
+                return cursor;
+              },
+              //@ts-ignore selection-render
+              selectionRender: (user: any) => {
+                const selection = document.createElement("span");
+                selection.classList.add("collaboration-cursor__selection");
+                selection.style.backgroundColor = `${user.color}20`;
+                return selection;
+              },
+            }),
+            Underline,
+            Link.configure({
+              openOnClick: false,
+              HTMLAttributes: {
+                class: "text-blue-500 underline cursor-pointer",
+              },
+            }),
+            Image.configure({
+              HTMLAttributes: {
+                class: "max-w-full h-auto rounded-lg",
+              },
+            }),
+            Table.configure({
+              resizable: true,
+            }),
+            TableRow,
+            TableHeader,
+            TableCell,
+            TextAlign.configure({
+              types: ["heading", "paragraph"],
+            }),
+            Highlight.configure({
+              multicolor: true,
+            }),
+            TextStyle,
+            Color,
+            FontFamily,
+            TaskList,
+            TaskItem.configure({
+              nested: true,
+            }),
+            Placeholder.configure({
+              placeholder,
+            }),
+            CharacterCount,
+          ],
+          content: {
+            type: "doc",
+            content: [
+              {
+                type: "paragraph",
+              },
+            ],
+          },
+          editable,
+          editorProps: {
+            attributes: {
+              class: "tiptap focus:outline-none min-h-[500px] p-6 w-full",
+            },
+          },
+        },
+        [ydoc.current, provider.current, user]
+      ); // Tambahkan dependensi di sini
+
+      setEditor(newEditor); // Set the editor instance to state
     } catch (error) {
-      console.error("❌ Error initializing collaboration:", error);
+      console.error("❌ Error initializing collaboration and editor:", error);
       setConnectionError("Initialization failed");
       setConnectionStatus("Init Error");
       toast.error("Failed to initialize collaboration");
+      setIsLoading(false); // Pastikan loading berhenti meskipun ada error
     }
-  }, [workspaceId, documentId, isConnected]);
+  }, [workspaceId, documentId, editable, placeholder, user, editor]); // Tambahkan `editor` ke dependencies untuk membersihkan instance sebelumnya
 
   useEffect(() => {
-    initializeCollaboration();
+    initializeCollaborationAndEditor();
 
     // Cleanup on unmount
     return () => {
-      console.log("🧹 Cleaning up WebSocket connection");
+      console.log("🧹 Cleaning up WebSocket connection and editor");
       try {
         provider.current?.destroy();
         ydoc.current?.destroy();
+        editor?.destroy(); // Destroy the editor instance
       } catch (error) {
         console.error("Error during cleanup:", error);
       }
     };
-  }, [initializeCollaboration]);
-
-  const editor = useEditor({
-    extensions: [
-      StarterKit.configure({
-        // Disable the default history extension since we're using Yjs
-        history: false,
-        bulletList: {
-          keepMarks: true,
-          keepAttributes: false,
-        },
-        orderedList: {
-          keepMarks: true,
-          keepAttributes: false,
-        },
-      }),
-      // Collaboration extensions
-      Collaboration.configure({
-        document: ydoc.current,
-      }),
-      CollaborationCursor.configure({
-        provider: provider.current,
-        user: user,
-        render: (user: any) => {
-          const cursor = document.createElement("span");
-          cursor.classList.add("collaboration-cursor__caret");
-          cursor.style.borderColor = user.color;
-          return cursor;
-        },
-        //@ts-ignore selection-render
-        selectionRender: (user: any) => {
-          const selection = document.createElement("span");
-          selection.classList.add("collaboration-cursor__selection");
-          selection.style.backgroundColor = `${user.color}20`;
-          return selection;
-        },
-      }),
-      Underline,
-      Link.configure({
-        openOnClick: false,
-        HTMLAttributes: {
-          class: "text-blue-500 underline cursor-pointer",
-        },
-      }),
-      Image.configure({
-        HTMLAttributes: {
-          class: "max-w-full h-auto rounded-lg",
-        },
-      }),
-      Table.configure({
-        resizable: true,
-      }),
-      TableRow,
-      TableHeader,
-      TableCell,
-      TextAlign.configure({
-        types: ["heading", "paragraph"],
-      }),
-      Highlight.configure({
-        multicolor: true,
-      }),
-      TextStyle,
-      Color,
-      FontFamily,
-      TaskList,
-      TaskItem.configure({
-        nested: true,
-      }),
-      Placeholder.configure({
-        placeholder,
-      }),
-      CharacterCount,
-    ],
-    content: {
-      type: "doc",
-      content: [
-        {
-          type: "paragraph",
-        },
-      ],
-    },
-    editable,
-    editorProps: {
-      attributes: {
-        class: "tiptap focus:outline-none min-h-[500px] p-6 w-full",
-      },
-    },
-  });
+  }, [initializeCollaborationAndEditor]); // Hanya panggil sekali saat komponen mount
 
   // Update collaborative users when awareness changes
   useEffect(() => {
-    if (!provider.current) return;
+    if (!provider.current || !editor) return; // Pastikan editor juga siap
+
+    const awareness = provider.current.awareness;
 
     const updateUsers = () => {
-      const awareness = provider.current!.awareness;
       const users: CollaborativeUser[] = [];
-
       awareness.getStates().forEach((state: any, clientId: number) => {
         if (state.user) {
           users.push({
@@ -1174,17 +1194,16 @@ export default function TipTapEditor({
           });
         }
       });
-
       setCollaborativeUsers(users);
     };
 
-    provider.current.awareness.on("change", updateUsers);
+    awareness.on("change", updateUsers);
     updateUsers();
 
     return () => {
-      provider.current?.awareness.off("change", updateUsers);
+      awareness.off("change", updateUsers);
     };
-  }, []);
+  }, [editor, provider.current]); // Tambahkan editor ke dependensi
 
   // Fetch document content on mount (for initial load)
   useEffect(() => {
@@ -1200,6 +1219,7 @@ export default function TipTapEditor({
           setContent(fetchedContent);
 
           // Only set content if the Yjs document is empty (first load)
+          // Ensure editor is available before setting content
           if (
             editor &&
             ydoc.current &&
@@ -1218,10 +1238,11 @@ export default function TipTapEditor({
       }
     };
 
+    // Hanya panggil fetchContent jika editor sudah ada
     if (workspaceId && documentId && editor) {
       fetchContent();
     }
-  }, [workspaceId, documentId, editor]);
+  }, [workspaceId, documentId, editor]); // Tambahkan 'editor' sebagai dependensi
 
   // Save content function (periodic backup to database)
   const saveContent = async () => {
@@ -1265,9 +1286,9 @@ export default function TipTapEditor({
     }, 30000); // Save every 30 seconds
 
     return () => clearInterval(interval);
-  }, [editor, content]);
+  }, [editor, content, saveContent]); // Tambahkan saveContent sebagai dependensi
 
-  if (isLoading) {
+  if (isLoading || !editor) {
     return (
       <div className="w-full">
         <div className="flex items-center justify-center h-64">
@@ -1287,7 +1308,7 @@ export default function TipTapEditor({
         currentUser={user}
         connectionStatus={connectionStatus}
         error={connectionError}
-        onReconnect={initializeCollaboration}
+        onReconnect={initializeCollaborationAndEditor} // Menggunakan fungsi inisialisasi yang diperbarui
         roomName={roomName}
       />
 
