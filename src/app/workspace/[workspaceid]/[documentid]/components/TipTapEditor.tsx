@@ -946,13 +946,9 @@ export default function TipTapEditor({
   >([]);
   const [roomName, setRoomName] = useState<string>("");
 
-  // Menggunakan useState untuk Y.Doc dan WebsocketProvider
-  // Ini akan memicu re-render ketika mereka diatur,
-  // yang memungkinkan useEditor menerima instance yang benar.
-  const [ydocInstance, setYdocInstance] = useState<Y.Doc | null>(null);
-  const [providerInstance, setProviderInstance] =
-    useState<WebsocketProvider | null>(null);
-
+  // Yjs setup
+  const ydoc = useRef<Y.Doc>();
+  const provider = useRef<WebsocketProvider>();
   const reconnectAttempts = useRef(0);
   const maxReconnectAttempts = 3;
 
@@ -964,104 +960,25 @@ export default function TipTapEditor({
     color: generateUserColor(currentUser.id),
   };
 
-  // Inisialisasi editor hanya setelah ydocInstance dan providerInstance siap
-  const editor = useEditor(
-    {
-      extensions: [
-        StarterKit.configure({
-          history: false, // Disable history as Yjs handles it
-          bulletList: { keepMarks: true, keepAttributes: false },
-          orderedList: { keepMarks: true, keepAttributes: false },
-        }),
-        Collaboration.configure({
-          document: ydocInstance!, // Pastikan ydocInstance tidak null di sini
-        }),
-        CollaborationCursor.configure({
-          provider: providerInstance!, // Pastikan providerInstance tidak null di sini
-          user: user,
-          render: (user: any) => {
-            const cursor = document.createElement("span");
-            cursor.classList.add("collaboration-cursor__caret");
-            cursor.style.borderColor = user.color;
-            return cursor;
-          },
-          //@ts-ignore selection-render
-          selectionRender: (user: any) => {
-            const selection = document.createElement("span");
-            selection.classList.add("collaboration-cursor__selection");
-            selection.style.backgroundColor = `${user.color}20`;
-            return selection;
-          },
-        }),
-        Underline,
-        Link.configure({
-          openOnClick: false,
-          HTMLAttributes: {
-            class: "text-blue-500 underline cursor-pointer",
-          },
-        }),
-        Image.configure({
-          HTMLAttributes: {
-            class: "max-w-full h-auto rounded-lg",
-          },
-        }),
-        Table.configure({ resizable: true }),
-        TableRow,
-        TableHeader,
-        TableCell,
-        TextAlign.configure({ types: ["heading", "paragraph"] }),
-        Highlight.configure({ multicolor: true }),
-        TextStyle,
-        Color,
-        FontFamily,
-        TaskList,
-        TaskItem.configure({ nested: true }),
-        Placeholder.configure({ placeholder }),
-        CharacterCount,
-      ],
-      content: {
-        type: "doc",
-        content: [
-          {
-            type: "paragraph",
-          },
-        ],
-      },
-      editable,
-      editorProps: {
-        attributes: {
-          class: "tiptap focus:outline-none min-h-[500px] p-6 w-full",
-        },
-      },
-    },
-    // Dependency array untuk useEditor. Editor akan diinisialisasi ulang
-    // hanya ketika ydocInstance atau providerInstance berubah dari null ke nilai
-    // atau jika user berubah (meskipun user di sini cenderung statis)
-    [ydocInstance, providerInstance, user]
-  );
-
+  // Initialize Yjs document and provider
   const initializeCollaboration = useCallback(async () => {
     try {
       setConnectionStatus("Initializing...");
       setConnectionError("");
 
-      // Bersihkan koneksi dan dokumen sebelumnya jika ada
-      if (providerInstance) {
-        providerInstance.destroy();
-        setProviderInstance(null);
+      // Clean up existing connections
+      if (provider.current) {
+        provider.current.destroy();
       }
-      if (ydocInstance) {
-        ydocInstance.destroy();
-        setYdocInstance(null);
+      if (ydoc.current) {
+        ydoc.current.destroy();
       }
 
-      const newYdoc = new Y.Doc();
-      setYdocInstance(newYdoc); // Set the new Y.Doc instance
+      // Create new Yjs document
+      ydoc.current = new Y.Doc();
 
-      // PASTIKAN URL INI ADALAH URL RAILWAY YANG BENAR UNTUK WEBSOCKET
-      // Jika Anda menggunakan lingkungan lokal, gunakan `ws://localhost:3000` atau sesuai port server Anda.
+      // WebSocket URL with room parameter
       const wsUrl = "wss://yjs-websocket-server-production-0351.up.railway.app";
-      // const wsUrl = "ws://localhost:3000"; // UNCOMMENT INI JIKA TESTING LOKAL
       const room = `${workspaceId}-${documentId}`;
       const wsUrlWithRoom = `${wsUrl}?room=${room}`;
 
@@ -1073,13 +990,14 @@ export default function TipTapEditor({
 
       setConnectionStatus("Connecting...");
 
-      const newProvider = new WebsocketProvider(wsUrl, room, newYdoc, {
+      // Create WebSocket provider with room parameter
+      provider.current = new WebsocketProvider(wsUrl, room, ydoc.current, {
         connect: true,
         maxBackoffTime: 5000,
       });
-      setProviderInstance(newProvider); // Set the new WebsocketProvider instance
 
-      newProvider.on("status", (event: any) => {
+      // Connection status handlers
+      provider.current.on("status", (event: any) => {
         console.log("📡 WebSocket status:", event.status);
         setIsConnected(event.status === "connected");
 
@@ -1112,14 +1030,16 @@ export default function TipTapEditor({
         }
       });
 
-      newProvider.on("connection-error", (error: any) => {
+      // Connection error handler
+      provider.current.on("connection-error", (error: any) => {
         console.error("❌ WebSocket connection error:", error);
         setConnectionError("Connection failed");
         setConnectionStatus("Connection Error");
         toast.error("Failed to connect to collaboration server");
       });
 
-      newProvider.on("sync", (isSynced: boolean) => {
+      // Sync status handler
+      provider.current.on("sync", (isSynced: boolean) => {
         console.log("🔄 Document sync status:", isSynced);
         if (isSynced && isConnected) {
           setConnectionStatus("Synced");
@@ -1130,30 +1050,119 @@ export default function TipTapEditor({
       setConnectionError("Initialization failed");
       setConnectionStatus("Init Error");
       toast.error("Failed to initialize collaboration");
-    } finally {
-      setIsLoading(false); // Pastikan loading berakhir di sini
     }
-  }, [workspaceId, documentId]); // Dependencies ini harus memastikan fungsi di-recreate hanya jika ID berubah
+  }, [workspaceId, documentId, isConnected]);
 
   useEffect(() => {
     initializeCollaboration();
 
+    // Cleanup on unmount
     return () => {
-      console.log("🧹 Cleaning up WebSocket connection on unmount");
-      providerInstance?.destroy();
-      ydocInstance?.destroy();
-      editor?.destroy(); // Pastikan editor dihancurkan saat komponen unmount
+      console.log("🧹 Cleaning up WebSocket connection");
+      try {
+        provider.current?.destroy();
+        ydoc.current?.destroy();
+      } catch (error) {
+        console.error("Error during cleanup:", error);
+      }
     };
-  }, [initializeCollaboration, providerInstance, ydocInstance, editor]); // Tambahkan semua dependensi yang digunakan di cleanup
+  }, [initializeCollaboration]);
+
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({
+        // Disable the default history extension since we're using Yjs
+        history: false,
+        bulletList: {
+          keepMarks: true,
+          keepAttributes: false,
+        },
+        orderedList: {
+          keepMarks: true,
+          keepAttributes: false,
+        },
+      }),
+      // Collaboration extensions
+      Collaboration.configure({
+        document: ydoc.current,
+      }),
+      CollaborationCursor.configure({
+        provider: provider.current,
+        user: user,
+        render: (user: any) => {
+          const cursor = document.createElement("span");
+          cursor.classList.add("collaboration-cursor__caret");
+          cursor.style.borderColor = user.color;
+          return cursor;
+        },
+        //@ts-ignore selection-render
+        selectionRender: (user: any) => {
+          const selection = document.createElement("span");
+          selection.classList.add("collaboration-cursor__selection");
+          selection.style.backgroundColor = `${user.color}20`;
+          return selection;
+        },
+      }),
+      Underline,
+      Link.configure({
+        openOnClick: false,
+        HTMLAttributes: {
+          class: "text-blue-500 underline cursor-pointer",
+        },
+      }),
+      Image.configure({
+        HTMLAttributes: {
+          class: "max-w-full h-auto rounded-lg",
+        },
+      }),
+      Table.configure({
+        resizable: true,
+      }),
+      TableRow,
+      TableHeader,
+      TableCell,
+      TextAlign.configure({
+        types: ["heading", "paragraph"],
+      }),
+      Highlight.configure({
+        multicolor: true,
+      }),
+      TextStyle,
+      Color,
+      FontFamily,
+      TaskList,
+      TaskItem.configure({
+        nested: true,
+      }),
+      Placeholder.configure({
+        placeholder,
+      }),
+      CharacterCount,
+    ],
+    content: {
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+        },
+      ],
+    },
+    editable,
+    editorProps: {
+      attributes: {
+        class: "tiptap focus:outline-none min-h-[500px] p-6 w-full",
+      },
+    },
+  });
 
   // Update collaborative users when awareness changes
   useEffect(() => {
-    if (!providerInstance) return;
-
-    const awareness = providerInstance.awareness;
+    if (!provider.current) return;
 
     const updateUsers = () => {
+      const awareness = provider.current!.awareness;
       const users: CollaborativeUser[] = [];
+
       awareness.getStates().forEach((state: any, clientId: number) => {
         if (state.user) {
           users.push({
@@ -1165,25 +1174,21 @@ export default function TipTapEditor({
           });
         }
       });
+
       setCollaborativeUsers(users);
     };
 
-    awareness.on("change", updateUsers);
-    updateUsers(); // Panggil sekali saat mount untuk mendapatkan user saat ini
+    provider.current.awareness.on("change", updateUsers);
+    updateUsers();
 
     return () => {
-      awareness.off("change", updateUsers);
+      provider.current?.awareness.off("change", updateUsers);
     };
-  }, [providerInstance]); // Depend on providerInstance now
+  }, []);
 
   // Fetch document content on mount (for initial load)
   useEffect(() => {
     const fetchContent = async () => {
-      if (!editor || !ydocInstance || !providerInstance || !isConnected) {
-        // Tunggu sampai editor, ydoc, provider, dan koneksi siap
-        return;
-      }
-
       try {
         setIsLoading(true);
         const response = await axios.get(
@@ -1194,9 +1199,12 @@ export default function TipTapEditor({
           const fetchedContent = response.data.data.content;
           setContent(fetchedContent);
 
-          // Hanya set content jika Yjs document kosong (pertama kali load atau setelah reset)
-          // Ini mencegah override data kolaboratif jika sudah ada
-          if (ydocInstance.get("default").toString().length === 0) {
+          // Only set content if the Yjs document is empty (first load)
+          if (
+            editor &&
+            ydoc.current &&
+            ydoc.current.get("default").toString().length === 0
+          ) {
             editor.commands.setContent(fetchedContent);
           }
         }
@@ -1210,38 +1218,18 @@ export default function TipTapEditor({
       }
     };
 
-    // Panggil fetchContent jika semua dependensi yang dibutuhkan sudah siap
-    if (
-      workspaceId &&
-      documentId &&
-      editor &&
-      ydocInstance &&
-      providerInstance
-    ) {
+    if (workspaceId && documentId && editor) {
       fetchContent();
     }
-  }, [
-    workspaceId,
-    documentId,
-    editor,
-    ydocInstance,
-    providerInstance,
-    isConnected,
-  ]);
+  }, [workspaceId, documentId, editor]);
 
   // Save content function (periodic backup to database)
-  const saveContent = useCallback(async () => {
+  const saveContent = async () => {
     if (!editor) return;
 
     try {
       setIsSaving(true);
       const currentContent = editor.getJSON();
-
-      // Periksa apakah konten benar-benar berubah sebelum menyimpan
-      if (JSON.stringify(currentContent) === JSON.stringify(content)) {
-        console.log("No content changes detected, skipping save.");
-        return;
-      }
 
       const response = await axios.put(
         `/api/workspace/${workspaceId}/document/${documentId}/content`,
@@ -1262,20 +1250,24 @@ export default function TipTapEditor({
     } finally {
       setIsSaving(false);
     }
-  }, [editor, workspaceId, documentId, content]);
+  };
 
   // Auto-save functionality (periodic backup)
   useEffect(() => {
     if (!editor) return;
 
     const interval = setInterval(() => {
-      saveContent();
+      const currentContent = editor.getJSON();
+      if (JSON.stringify(currentContent) !== JSON.stringify(content)) {
+        // Auto-save to database as backup
+        saveContent();
+      }
     }, 30000); // Save every 30 seconds
 
     return () => clearInterval(interval);
-  }, [editor, saveContent]); // Depend on editor and saveContent
+  }, [editor, content]);
 
-  if (isLoading || !editor) {
+  if (isLoading) {
     return (
       <div className="w-full">
         <div className="flex items-center justify-center h-64">
@@ -1295,7 +1287,7 @@ export default function TipTapEditor({
         currentUser={user}
         connectionStatus={connectionStatus}
         error={connectionError}
-        onReconnect={initializeCollaboration} // Reconnect calls the same init function
+        onReconnect={initializeCollaboration}
         roomName={roomName}
       />
 
