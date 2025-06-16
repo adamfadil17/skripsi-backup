@@ -935,6 +935,7 @@ export default function TipTapEditor({
   editable = true,
   currentUser,
 }: TipTapEditorProps) {
+  // FIXED: Simplified state management
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [content, setContent] = useState<any>(null);
@@ -946,11 +947,12 @@ export default function TipTapEditor({
   >([]);
   const [roomName, setRoomName] = useState<string>("");
 
-  // Yjs setup
-  const ydoc = useRef<Y.Doc>();
-  const provider = useRef<WebsocketProvider>();
+  // FIXED: Use refs to avoid re-initialization
+  const ydoc = useRef<Y.Doc | null>(null);
+  const provider = useRef<WebsocketProvider | null>(null);
   const reconnectAttempts = useRef(0);
   const maxReconnectAttempts = 3;
+  const isInitialized = useRef(false);
 
   const user: CollaborativeUser = {
     id: currentUser.id,
@@ -960,11 +962,76 @@ export default function TipTapEditor({
     color: generateUserColor(currentUser.id),
   };
 
-  // State untuk menyimpan instance editor
-  const [editor, setEditor] = useState<any>(null);
+  // FIXED: Create editor with stable configuration
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({
+        history: false,
+        bulletList: {
+          keepMarks: true,
+          keepAttributes: false,
+        },
+        orderedList: {
+          keepMarks: true,
+          keepAttributes: false,
+        },
+      }),
+      Underline,
+      Link.configure({
+        openOnClick: false,
+        HTMLAttributes: {
+          class: "text-blue-500 underline cursor-pointer",
+        },
+      }),
+      Image.configure({
+        HTMLAttributes: {
+          class: "max-w-full h-auto rounded-lg",
+        },
+      }),
+      Table.configure({
+        resizable: true,
+      }),
+      TableRow,
+      TableHeader,
+      TableCell,
+      TextAlign.configure({
+        types: ["heading", "paragraph"],
+      }),
+      Highlight.configure({
+        multicolor: true,
+      }),
+      TextStyle,
+      Color,
+      FontFamily,
+      TaskList,
+      TaskItem.configure({
+        nested: true,
+      }),
+      Placeholder.configure({
+        placeholder,
+      }),
+      CharacterCount,
+    ],
+    content: {
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+        },
+      ],
+    },
+    editable,
+    editorProps: {
+      attributes: {
+        class: "tiptap focus:outline-none min-h-[500px] p-6 w-full",
+      },
+    },
+  });
 
-  // Initialize Yjs document and provider AND editor
-  const initializeCollaborationAndEditor = useCallback(async () => {
+  // FIXED: Initialize collaboration after editor is ready
+  const initializeCollaboration = useCallback(async () => {
+    if (!editor || isInitialized.current) return;
+
     try {
       setConnectionStatus("Initializing...");
       setConnectionError("");
@@ -972,9 +1039,11 @@ export default function TipTapEditor({
       // Clean up existing connections
       if (provider.current) {
         provider.current.destroy();
+        provider.current = null;
       }
       if (ydoc.current) {
         ydoc.current.destroy();
+        ydoc.current = null;
       }
 
       // Create new Yjs document
@@ -992,11 +1061,34 @@ export default function TipTapEditor({
 
       setConnectionStatus("Connecting...");
 
-      // Create WebSocket provider with room parameter
+      // Create WebSocket provider
       provider.current = new WebsocketProvider(wsUrl, room, ydoc.current, {
         connect: true,
         maxBackoffTime: 5000,
       });
+
+      // FIXED: Add collaboration extensions after provider is created
+      const collaborationExtensions = [
+        Collaboration.configure({
+          document: ydoc.current,
+        }),
+        CollaborationCursor.configure({
+          provider: provider.current,
+          user: user,
+          render: (user: any) => {
+            const cursor = document.createElement("span");
+            cursor.classList.add("collaboration-cursor__caret");
+            cursor.style.borderColor = user.color;
+            return cursor;
+          },
+        }),
+      ];
+
+      // Update editor with collaboration extensions
+      editor.extensionManager.extensions = [
+        ...editor.extensionManager.extensions,
+        ...collaborationExtensions,
+      ];
 
       // Connection status handlers
       provider.current.on("status", (event: any) => {
@@ -1008,7 +1100,6 @@ export default function TipTapEditor({
             setConnectionStatus("Connected");
             setConnectionError("");
             reconnectAttempts.current = 0;
-            toast.success("Connected to collaboration server");
             break;
           case "disconnected":
             setConnectionStatus("Disconnected");
@@ -1021,7 +1112,6 @@ export default function TipTapEditor({
               reconnectAttempts.current++;
             } else {
               setConnectionError("Max reconnection attempts reached");
-              toast.error("Failed to reconnect to collaboration server");
             }
             break;
           case "connecting":
@@ -1037,7 +1127,6 @@ export default function TipTapEditor({
         console.error("❌ WebSocket connection error:", error);
         setConnectionError("Connection failed");
         setConnectionStatus("Connection Error");
-        toast.error("Failed to connect to collaboration server");
       });
 
       // Sync status handler
@@ -1048,183 +1137,72 @@ export default function TipTapEditor({
         }
       });
 
-      // Create TipTap Editor configuration
-      const editorConfig = {
-        extensions: [
-          StarterKit.configure({
-            // Disable the default history extension since we're using Yjs
-            history: false,
-            bulletList: {
-              keepMarks: true,
-              keepAttributes: false,
-            },
-            orderedList: {
-              keepMarks: true,
-              keepAttributes: false,
-            },
-          }),
-          // Collaboration extensions
-          Collaboration.configure({
-            document: ydoc.current,
-          }),
-          CollaborationCursor.configure({
-            provider: provider.current,
-            user: user,
-            render: (user: any) => {
-              const cursor = document.createElement("span");
-              cursor.classList.add("collaboration-cursor__caret");
-              cursor.style.borderColor = user.color;
-              return cursor;
-            },
-            //@ts-ignore selection-render
-            selectionRender: (user: any) => {
-              const selection = document.createElement("span");
-              selection.classList.add("collaboration-cursor__selection");
-              selection.style.backgroundColor = `${user.color}20`;
-              return selection;
-            },
-          }),
-          Underline,
-          Link.configure({
-            openOnClick: false,
-            HTMLAttributes: {
-              class: "text-blue-500 underline cursor-pointer",
-            },
-          }),
-          Image.configure({
-            HTMLAttributes: {
-              class: "max-w-full h-auto rounded-lg",
-            },
-          }),
-          Table.configure({
-            resizable: true,
-          }),
-          TableRow,
-          TableHeader,
-          TableCell,
-          TextAlign.configure({
-            types: ["heading", "paragraph"],
-          }),
-          Highlight.configure({
-            multicolor: true,
-          }),
-          TextStyle,
-          Color,
-          FontFamily,
-          TaskList,
-          TaskItem.configure({
-            nested: true,
-          }),
-          Placeholder.configure({
-            placeholder,
-          }),
-          CharacterCount,
-        ],
-        content: {
-          type: "doc",
-          content: [
-            {
-              type: "paragraph",
-            },
-          ],
-        },
-        editable,
-        editorProps: {
-          attributes: {
-            class: "tiptap focus:outline-none min-h-[500px] p-6 w-full",
-          },
-        },
-      };
-
-      // Initialize editor with the configuration
-      const newEditor = useEditor(editorConfig);
-
-      if (newEditor) {
-        setEditor(newEditor);
-        setIsLoading(false);
-      }
+      isInitialized.current = true;
     } catch (error) {
-      console.error("❌ Error initializing collaboration and editor:", error);
+      console.error("❌ Error initializing collaboration:", error);
       setConnectionError("Initialization failed");
       setConnectionStatus("Init Error");
-      toast.error("Failed to initialize collaboration");
-      setIsLoading(false);
     }
-  }, [
-    workspaceId,
-    documentId,
-    editable,
-    placeholder,
-    user.id,
-    user.name,
-    user.email,
-    user.color,
-  ]); // Remove editor from dependencies
+  }, [editor, workspaceId, documentId, user]);
 
-  // Manual reconnect function
+  // FIXED: Manual reconnect function
   const reconnectCollaboration = useCallback(() => {
     console.log("🔄 Manual reconnection triggered");
     reconnectAttempts.current = 0;
-    initializeCollaborationAndEditor();
-  }, [initializeCollaborationAndEditor]);
+    isInitialized.current = false;
+    initializeCollaboration();
+  }, [initializeCollaboration]);
 
-  // Initialize collaboration and editor only once on mount
+  // FIXED: Initialize collaboration when editor is ready
   useEffect(() => {
-    initializeCollaborationAndEditor();
+    if (editor && !isInitialized.current) {
+      initializeCollaboration();
+      setIsLoading(false);
+    }
+  }, [editor, initializeCollaboration]);
 
-    // Cleanup on unmount
-    return () => {
-      console.log("🧹 Cleaning up WebSocket connection and editor");
-      try {
-        if (editor) {
-          editor.destroy();
-        }
-        if (provider.current) {
-          provider.current.destroy();
-        }
-        if (ydoc.current) {
-          ydoc.current.destroy();
-        }
-      } catch (error) {
-        console.error("Error during cleanup:", error);
-      }
-    };
-  }, []); // Empty dependency array - only run once on mount
-
-  // Update collaborative users when awareness changes
+  // FIXED: Update collaborative users when awareness changes
   useEffect(() => {
-    if (!provider.current || !editor) return;
+    if (!provider.current?.awareness || !isConnected) return;
 
     const awareness = provider.current.awareness;
 
     const updateUsers = () => {
-      const users: CollaborativeUser[] = [];
-      awareness.getStates().forEach((state: any, clientId: number) => {
-        if (state.user) {
-          users.push({
-            id: state.user.id,
-            name: state.user.name,
-            email: state.user.email,
-            avatar: state.user.avatar,
-            color: state.user.color,
-          });
-        }
-      });
-      setCollaborativeUsers(users);
+      try {
+        const users: CollaborativeUser[] = [];
+        awareness.getStates().forEach((state: any, clientId: number) => {
+          if (state.user && state.user.id) {
+            users.push({
+              id: state.user.id,
+              name: state.user.name || "Anonymous",
+              email: state.user.email || "",
+              avatar: state.user.avatar,
+              color: state.user.color || generateUserColor(state.user.id),
+            });
+          }
+        });
+        setCollaborativeUsers(users);
+      } catch (error) {
+        console.error("Error updating collaborative users:", error);
+      }
     };
 
     awareness.on("change", updateUsers);
     updateUsers();
 
     return () => {
-      awareness.off("change", updateUsers);
+      try {
+        awareness.off("change", updateUsers);
+      } catch (error) {
+        console.error("Error removing awareness listener:", error);
+      }
     };
-  }, [editor]); // Only depend on editor
+  }, [isConnected]);
 
-  // Fetch document content on mount (for initial load)
+  // FIXED: Fetch document content with better error handling
   useEffect(() => {
     const fetchContent = async () => {
-      if (!workspaceId || !documentId || !editor) return;
+      if (!workspaceId || !documentId || !editor || !isConnected) return;
 
       try {
         console.log("📄 Fetching document content...");
@@ -1237,32 +1215,30 @@ export default function TipTapEditor({
           setContent(fetchedContent);
 
           // Only set content if the Yjs document is empty (first load)
-          if (
-            ydoc.current &&
-            ydoc.current.get("default").toString().length === 0
-          ) {
+          if (ydoc.current && editor.isEmpty) {
             editor.commands.setContent(fetchedContent);
           }
         }
       } catch (error: any) {
         console.error("Error fetching document content:", error);
+        // Don't show error for 404 (new document)
         if (error.response?.status !== 404) {
-          toast.error("Failed to load document content");
+          console.error("Failed to load document content");
         }
       }
     };
 
-    // Add a delay to ensure editor is fully initialized
-    const timeoutId = setTimeout(() => {
-      fetchContent();
-    }, 1000);
-
+    // Delay to ensure collaboration is initialized
+    const timeoutId = setTimeout(fetchContent, 2000);
     return () => clearTimeout(timeoutId);
-  }, [workspaceId, documentId, editor]);
+  }, [workspaceId, documentId, editor, isConnected]);
 
-  // Save content function (periodic backup to database)
+  // FIXED: Save content function with better error handling
   const saveContent = useCallback(async () => {
-    if (!editor) return;
+    if (!editor) {
+      console.warn("Editor not available for saving");
+      return;
+    }
 
     try {
       setIsSaving(true);
@@ -1276,33 +1252,59 @@ export default function TipTapEditor({
       );
 
       if (response.data.status === "success") {
-        toast.success("Document saved successfully!");
         setContent(currentContent);
+        console.log("Document saved successfully");
       } else {
-        toast.error("Failed to save document");
+        console.error("Failed to save document");
       }
     } catch (error: any) {
       console.error("Error saving document:", error);
-      toast.error(error.response?.data?.message || "Failed to save document");
     } finally {
       setIsSaving(false);
     }
   }, [editor, workspaceId, documentId]);
 
-  // Auto-save functionality (periodic backup)
+  // FIXED: Auto-save with better condition checking
   useEffect(() => {
-    if (!editor) return;
+    if (!editor || !isConnected) return;
 
     const interval = setInterval(() => {
-      const currentContent = editor.getJSON();
-      if (JSON.stringify(currentContent) !== JSON.stringify(content)) {
-        // Auto-save to database as backup
-        saveContent();
+      try {
+        const currentContent = editor.getJSON();
+        if (
+          currentContent &&
+          content &&
+          JSON.stringify(currentContent) !== JSON.stringify(content)
+        ) {
+          saveContent();
+        }
+      } catch (error) {
+        console.error("Error in auto-save:", error);
       }
     }, 30000); // Save every 30 seconds
 
     return () => clearInterval(interval);
-  }, [editor, content, saveContent]);
+  }, [editor, content, saveContent, isConnected]);
+
+  // FIXED: Cleanup function
+  useEffect(() => {
+    return () => {
+      console.log("🧹 Cleaning up WebSocket connection and editor");
+      try {
+        if (provider.current) {
+          provider.current.destroy();
+          provider.current = null;
+        }
+        if (ydoc.current) {
+          ydoc.current.destroy();
+          ydoc.current = null;
+        }
+        isInitialized.current = false;
+      } catch (error) {
+        console.error("Error during cleanup:", error);
+      }
+    };
+  }, []);
 
   if (isLoading || !editor) {
     return (
@@ -1343,8 +1345,8 @@ export default function TipTapEditor({
       {editor && (
         <div className="border-t border-gray-200 p-3 text-sm text-gray-500 flex justify-between bg-gray-50">
           <span>
-            {editor.storage.characterCount.characters()} characters,{" "}
-            {editor.storage.characterCount.words()} words
+            {editor.storage.characterCount?.characters() || 0} characters,{" "}
+            {editor.storage.characterCount?.words() || 0} words
           </span>
           <span>Real-time collaboration • {connectionStatus}</span>
         </div>
