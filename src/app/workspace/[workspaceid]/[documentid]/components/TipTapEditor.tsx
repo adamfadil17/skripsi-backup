@@ -88,7 +88,7 @@ interface TipTapEditorProps {
   documentId: string;
   placeholder?: string;
   editable?: boolean;
-  currentUser: User; // Change from user to currentUser to match your prop name
+  currentUser: User;
 }
 
 interface Attachment {
@@ -135,10 +135,12 @@ const CollaborationStatus = ({
   isConnected,
   users,
   currentUser,
+  connectionStatus,
 }: {
   isConnected: boolean;
   users: CollaborativeUser[];
   currentUser?: CollaborativeUser;
+  connectionStatus: string;
 }) => {
   const otherUsers = users.filter((user) => user.id !== currentUser?.id);
 
@@ -151,7 +153,7 @@ const CollaborationStatus = ({
           <WifiOff className="h-4 w-4 text-red-500" />
         )}
         <span className="text-xs text-gray-600">
-          {isConnected ? "Connected" : "Disconnected"}
+          {isConnected ? "Connected" : connectionStatus || "Disconnected"}
         </span>
       </div>
 
@@ -892,12 +894,13 @@ export default function TipTapEditor({
   documentId,
   placeholder = "Start writing your content here...",
   editable = true,
-  currentUser, // Change from user to currentUser
+  currentUser,
 }: TipTapEditorProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [content, setContent] = useState<any>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState("Connecting...");
   const [collaborativeUsers, setCollaborativeUsers] = useState<
     CollaborativeUser[]
   >([]);
@@ -920,29 +923,67 @@ export default function TipTapEditor({
     // Create Yjs document
     ydoc.current = new Y.Doc();
 
-    // WebSocket server URL - replace with your actual server URL
-    const wsUrl =
-      process.env.NEXT_PUBLIC_YJS_WEBSOCKET_URL ||
-      "wss://yjs-websocket-server-production-0351.up.railway.app";
+    // Fixed WebSocket URL format
+    const wsUrl = "wss://yjs-websocket-server-production-0351.up.railway.app";
     const roomName = `${workspaceId}-${documentId}`;
 
-    // Create WebSocket provider
-    provider.current = new WebsocketProvider(wsUrl, roomName, ydoc.current);
+    console.log("🔗 Connecting to WebSocket:", wsUrl);
+    console.log("🏠 Room:", roomName);
 
-    // Connection status handlers
-    provider.current.on("status", (event: any) => {
-      setIsConnected(event.status === "connected");
-      if (event.status === "connected") {
-        toast.success("Connected to collaboration server");
-      } else if (event.status === "disconnected") {
-        toast.error("Disconnected from collaboration server");
-      }
-    });
+    try {
+      // Create WebSocket provider with proper error handling
+      provider.current = new WebsocketProvider(wsUrl, roomName, ydoc.current, {
+        connect: true,
+        // Add connection parameters
+        params: {
+          room: roomName,
+        },
+      });
+
+      // Connection status handlers
+      provider.current.on("status", (event: any) => {
+        console.log("📡 WebSocket status:", event.status);
+        setIsConnected(event.status === "connected");
+        setConnectionStatus(event.status);
+
+        if (event.status === "connected") {
+          toast.success("Connected to collaboration server");
+        } else if (event.status === "disconnected") {
+          toast.error("Disconnected from collaboration server");
+        } else if (event.status === "connecting") {
+          setConnectionStatus("Connecting...");
+        }
+      });
+
+      // Connection error handler
+      provider.current.on("connection-error", (error: any) => {
+        console.error("❌ WebSocket connection error:", error);
+        setConnectionStatus("Connection failed");
+        toast.error("Failed to connect to collaboration server");
+      });
+
+      // Sync status handler
+      provider.current.on("sync", (isSynced: boolean) => {
+        console.log("🔄 Document sync status:", isSynced);
+        if (isSynced) {
+          setConnectionStatus("Synced");
+        }
+      });
+    } catch (error) {
+      console.error("❌ Error creating WebSocket provider:", error);
+      setConnectionStatus("Setup failed");
+      toast.error("Failed to setup collaboration");
+    }
 
     // Cleanup on unmount
     return () => {
-      provider.current?.destroy();
-      ydoc.current?.destroy();
+      console.log("🧹 Cleaning up WebSocket connection");
+      try {
+        provider.current?.destroy();
+        ydoc.current?.destroy();
+      } catch (error) {
+        console.error("Error during cleanup:", error);
+      }
     };
   }, [workspaceId, documentId]);
 
@@ -973,7 +1014,7 @@ export default function TipTapEditor({
           cursor.style.borderColor = user.color;
           return cursor;
         },
-        // @ts-expect-error - return type is HTMLElement but type expects DecorationAttrs
+        //@ts-ignore selection-render
         selectionRender: (user: any) => {
           const selection = document.createElement("span");
           selection.classList.add("collaboration-cursor__selection");
@@ -1163,6 +1204,7 @@ export default function TipTapEditor({
         isConnected={isConnected}
         users={collaborativeUsers}
         currentUser={user}
+        connectionStatus={connectionStatus}
       />
 
       {editable && (
@@ -1183,7 +1225,7 @@ export default function TipTapEditor({
             {editor.storage.characterCount.characters()} characters,{" "}
             {editor.storage.characterCount.words()} words
           </span>
-          <span>Real-time collaboration enabled</span>
+          <span>Real-time collaboration • {connectionStatus}</span>
         </div>
       )}
     </div>
