@@ -922,7 +922,8 @@ export default function TipTapEditor({
 
     // WebSocket server URL - replace with your actual server URL
     const wsUrl =
-      process.env.NEXT_PUBLIC_YJS_WEBSOCKET_URL || "ws://localhost:1234";
+      process.env.NEXT_PUBLIC_YJS_WEBSOCKET_URL ||
+      "wss://yjs-websocket-server-production-0351.up.railway.app";
     const roomName = `${workspaceId}-${documentId}`;
 
     // Create WebSocket provider
