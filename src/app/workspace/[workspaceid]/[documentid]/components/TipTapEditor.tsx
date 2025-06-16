@@ -83,7 +83,6 @@ import toast from "react-hot-toast";
 import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
 import type { User } from "@prisma/client";
-import { usePusherChannelContext } from "../../components/PusherChannelProvider";
 
 interface TipTapEditorProps {
   workspaceId: string;
@@ -946,7 +945,6 @@ export default function TipTapEditor({
     CollaborativeUser[]
   >([]);
   const [roomName, setRoomName] = useState<string>("");
-  const { channel: workspaceChannel } = usePusherChannelContext();
 
   // Yjs setup
   const ydoc = useRef<Y.Doc>();
