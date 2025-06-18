@@ -86,8 +86,6 @@ const DocumentWrapper = ({
   useEffect(() => {
     if (!workspaceChannel) return;
 
-    console.log("Setting up Pusher listeners for document:", documentId);
-
     const handleDocumentUpdated = (updatedDocument: WorkspaceDocument) => {
       console.log(
         "🔥 EVENT RECEIVED document-updated in DocumentContainer:",
@@ -122,8 +120,6 @@ const DocumentWrapper = ({
       );
 
       if (response.data.status === "success") {
-        console.log("Document updated successfully:", response.data);
-
         if (data.title !== undefined) {
           setTitleChanged(false);
         }
