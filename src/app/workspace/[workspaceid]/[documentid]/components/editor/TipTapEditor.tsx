@@ -36,7 +36,6 @@ import type { User } from "@prisma/client";
 import axios from "axios";
 import { toast } from "react-hot-toast";
 import { EditorToolbar } from "./EditorToolBar";
-import { UserPresence } from "./UserPresence";
 import { CommentSystem } from "./CommentSystem";
 
 // Create lowlight instance
@@ -254,7 +253,7 @@ function CollaborativeEditor({
   return (
     <div className="w-full">
       {/* User Presence */}
-      <UserPresence />
+      {/* <UserPresence /> */}
 
       {/* Editor Toolbar */}
       {editor && <EditorToolbar editor={editor} />}
