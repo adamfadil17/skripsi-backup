@@ -110,7 +110,6 @@ function CollaborativeEditor({
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatusType>("saved");
   const [contentChanged, setContentChanged] = useState(false);
-  const [isContentLoading, setIsContentLoading] = useState(true); // State baru untuk loading konten
 
   // Store the last saved content to compare for changes
   const lastSavedContentRef = useRef<any>(null);
@@ -296,9 +295,7 @@ function CollaborativeEditor({
         TextStyle,
         FontFamily,
         Placeholder.configure({
-          placeholder: isContentLoading
-            ? "Loading document content..."
-            : placeholder, // Menggunakan state isContentLoading
+          placeholder,
         }),
         CharacterCount,
       ],
@@ -337,7 +334,7 @@ function CollaborativeEditor({
         }
       },
     },
-    [yDoc, provider, isContentLoading] // Tambahkan isContentLoading sebagai dependency
+    [yDoc, provider]
   );
 
   // Load initial content from database or apply AI generated template
@@ -345,7 +342,6 @@ function CollaborativeEditor({
     if (!editor) return;
 
     const loadOrApplyContent = async () => {
-      setIsContentLoading(true); // Set loading saat memulai pemuatan konten
       let contentToLoad = null;
 
       if (initialContent) {
@@ -366,7 +362,6 @@ function CollaborativeEditor({
           }
         } catch (error) {
           console.error("Failed to load document content:", error);
-          toast.error("Failed to load document content"); // Tambahkan toast error
         }
       }
 
@@ -386,7 +381,6 @@ function CollaborativeEditor({
         setSaveStatus("saved");
         setContentChanged(false);
       }
-      setIsContentLoading(false); // Set loading selesai setelah konten dimuat atau tidak ada
     };
 
     loadOrApplyContent();
