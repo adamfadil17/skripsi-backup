@@ -234,7 +234,6 @@ export function AppSidebar({
   }, [workspaceChannel, workspaceId, currentUser.id, router, workspaceInfo]);
 
   useEffect(() => {
-    console.log("workspaceInfo updated:", workspaceInfo);
   }, [workspaceInfo]);
 
   const onCreateDocument = useCallback(async () => {

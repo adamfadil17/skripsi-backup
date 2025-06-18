@@ -77,18 +77,14 @@ import {
 } from "lucide-react";
 import { useState, useCallback, useRef, useEffect } from "react";
 import { toast } from "sonner";
+import { User } from "@prisma/client";
 
 interface TipTapEditorProps {
   workspaceId: string;
   documentId: string;
   placeholder?: string;
   editable?: boolean;
-  currentUser: {
-    id: string;
-    name?: string | null;
-    email?: string | null;
-    image?: string | null;
-  };
+  currentUser: User
 }
 
 interface Attachment {

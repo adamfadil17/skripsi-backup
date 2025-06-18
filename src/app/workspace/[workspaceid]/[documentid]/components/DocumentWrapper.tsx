@@ -40,6 +40,10 @@ const DocumentWrapper = ({
   const [titleChanged, setTitleChanged] = useState(false);
   const [modelResponse, setModelResponse] = useState<any>(null);
 
+  const websocketUrl =
+    process.env.NEXT_PUBLIC_YJS_WEBSOCKET_URL ||
+    "wss://yjs-websocket-server-production-0351.up.railway.app";
+
   useEffect(() => {
     const fetchDocumentInfo = async () => {
       try {
@@ -249,6 +253,7 @@ const DocumentWrapper = ({
           placeholder="Start writing your document..."
           editable={true}
           currentUser={currentUser}
+          websocketUrl={websocketUrl}
         />
       </div>
     </div>
