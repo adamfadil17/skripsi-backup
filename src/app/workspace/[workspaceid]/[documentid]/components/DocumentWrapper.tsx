@@ -21,11 +21,7 @@ interface DocumentWrapperProps {
   currentUser: User;
 }
 
-const DocumentWrapper = ({
-  workspaceId,
-  documentId,
-  currentUser,
-}: DocumentWrapperProps) => {
+const DocumentWrapper = ({ workspaceId, documentId, currentUser }: DocumentWrapperProps) => {
   const router = useRouter();
   const { channel: workspaceChannel } = usePusherChannelContext();
 
@@ -39,10 +35,6 @@ const DocumentWrapper = ({
   const [documentTitle, setDocumentTitle] = useState("");
   const [titleChanged, setTitleChanged] = useState(false);
   const [modelResponse, setModelResponse] = useState<any>(null);
-
-  const websocketUrl =
-    process.env.NEXT_PUBLIC_YJS_WEBSOCKET_URL ||
-    "wss://yjs-websocket-server-production-0351.up.railway.app";
 
   useEffect(() => {
     const fetchDocumentInfo = async () => {
@@ -90,6 +82,8 @@ const DocumentWrapper = ({
   useEffect(() => {
     if (!workspaceChannel) return;
 
+    console.log("Setting up Pusher listeners for document:", documentId);
+
     const handleDocumentUpdated = (updatedDocument: WorkspaceDocument) => {
       console.log(
         "🔥 EVENT RECEIVED document-updated in DocumentContainer:",
@@ -124,6 +118,8 @@ const DocumentWrapper = ({
       );
 
       if (response.data.status === "success") {
+        console.log("Document updated successfully:", response.data);
+
         if (data.title !== undefined) {
           setTitleChanged(false);
         }
@@ -251,9 +247,7 @@ const DocumentWrapper = ({
           workspaceId={workspaceId}
           documentId={documentId}
           placeholder="Start writing your document..."
-          editable={true}
           currentUser={currentUser}
-          websocketUrl={websocketUrl}
         />
       </div>
     </div>

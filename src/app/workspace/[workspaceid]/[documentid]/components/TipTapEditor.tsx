@@ -78,7 +78,8 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { useState, useCallback, useRef, useEffect } from "react";
-import { toast } from "sonner";
+import axios from "axios";
+import toast from "react-hot-toast";
 import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
 import type { User } from "@prisma/client";
@@ -88,8 +89,18 @@ interface TipTapEditorProps {
   documentId: string;
   placeholder?: string;
   editable?: boolean;
-  currentUser: User; // Changed from the mock user structure
-  websocketUrl?: string;
+  currentUser: User;
+}
+
+interface Attachment {
+  id: string;
+  filename: string;
+  url: string;
+  mimeType: string;
+  size: number;
+  alt?: string;
+  caption?: string;
+  type: "IMAGE" | "VIDEO" | "AUDIO" | "DOCUMENT" | "ARCHIVE" | "OTHER";
 }
 
 interface CollaborativeUser {
@@ -218,7 +229,7 @@ const CollaborationStatus = ({
 };
 
 const TableControls = ({ editor }: { editor: any }) => {
-  if (!editor?.isActive("table")) {
+  if (!editor.isActive("table")) {
     return null;
   }
 
@@ -374,6 +385,27 @@ const TableControls = ({ editor }: { editor: any }) => {
           </div>
         </PopoverContent>
       </Popover>
+
+      <Separator orientation="vertical" className="h-6" />
+
+      {/* Quick Row/Column Actions */}
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => editor.chain().focus().addRowAfter().run()}
+        title="Add Row"
+      >
+        <Plus className="h-4 w-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => editor.chain().focus().addColumnAfter().run()}
+        title="Add Column"
+      >
+        <MoreVertical className="h-4 w-4" />
+        <Plus className="h-3 w-3 -ml-1" />
+      </Button>
     </div>
   );
 };
@@ -398,7 +430,7 @@ const MenuBar = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const addLink = useCallback(() => {
-    if (linkUrl && editor) {
+    if (linkUrl) {
       editor
         .chain()
         .focus()
@@ -410,7 +442,7 @@ const MenuBar = ({
   }, [editor, linkUrl]);
 
   const addImage = useCallback(() => {
-    if (imageUrl && editor) {
+    if (imageUrl) {
       editor.chain().focus().setImage({ src: imageUrl }).run();
       setImageUrl("");
     }
@@ -421,25 +453,36 @@ const MenuBar = ({
     setUploadProgress(0);
 
     try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("workspaceId", workspaceId);
+      formData.append("documentId", documentId);
+
       // Simulate upload progress
       const progressInterval = setInterval(() => {
         setUploadProgress((prev) => Math.min(prev + 10, 90));
       }, 100);
 
-      // Create a mock URL for demo purposes
-      const mockUrl = URL.createObjectURL(file);
+      const response = await axios.post("/api/attachments/upload", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
 
       clearInterval(progressInterval);
       setUploadProgress(100);
 
-      // Insert the file into the editor based on type
-      if (file.type.startsWith("image/")) {
+      const attachment: Attachment = response.data;
+
+      // Insert the attachment into the editor based on type
+      if (attachment.type === "IMAGE") {
         editor
           .chain()
           .focus()
           .setImage({
-            src: mockUrl,
-            alt: file.name,
+            src: attachment.url,
+            alt: attachment.alt || attachment.filename,
+            "data-attachment-id": attachment.id,
           })
           .run();
       } else {
@@ -448,7 +491,11 @@ const MenuBar = ({
           .chain()
           .focus()
           .insertContent(
-            `<a href="${mockUrl}" target="_blank">📎 ${file.name}</a>`
+            `
+          <a href="${attachment.url}" data-attachment-id="${attachment.id}" target="_blank">
+            📎 ${attachment.filename}
+          </a>
+        `
           )
           .run();
       }
@@ -456,7 +503,7 @@ const MenuBar = ({
       toast.success("File uploaded successfully!");
     } catch (error: any) {
       console.error("Upload error:", error);
-      toast.error("Upload failed");
+      toast.error(error.response?.data?.message || "Upload failed");
     } finally {
       setIsUploading(false);
       setUploadProgress(0);
@@ -475,13 +522,11 @@ const MenuBar = ({
   };
 
   const addTable = () => {
-    if (editor) {
-      editor
-        .chain()
-        .focus()
-        .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
-        .run();
-    }
+    editor
+      .chain()
+      .focus()
+      .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
+      .run();
   };
 
   if (!editor) {
@@ -883,208 +928,339 @@ const MenuBar = ({
   );
 };
 
-export default function CollaborativeTipTapEditor({
+export default function TipTapEditor({
   workspaceId,
   documentId,
   placeholder = "Start writing your content here...",
   editable = true,
   currentUser,
-  websocketUrl = "wss://yjs-websocket-server-production-0351.up.railway.app",
 }: TipTapEditorProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [content, setContent] = useState<any>(null);
   const [isConnected, setIsConnected] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState("Connecting...");
+  const [connectionStatus, setConnectionStatus] = useState("Initializing...");
   const [connectionError, setConnectionError] = useState<string>("");
   const [collaborativeUsers, setCollaborativeUsers] = useState<
     CollaborativeUser[]
   >([]);
   const [roomName, setRoomName] = useState<string>("");
 
-  // Yjs and WebSocket provider refs
-  const yjsDoc = useRef<Y.Doc | null>(null);
-  const provider = useRef<WebsocketProvider | null>(null);
+  // Yjs setup
+  const ydoc = useRef<Y.Doc>();
+  const provider = useRef<WebsocketProvider>();
+  const reconnectAttempts = useRef(0);
+  const maxReconnectAttempts = 3;
 
   const user: CollaborativeUser = {
     id: currentUser.id,
     name: currentUser.name || currentUser.email || "Anonymous User",
-    email: currentUser.email,
+    email: currentUser.email || "",
     avatar: currentUser.image || undefined,
     color: generateUserColor(currentUser.id),
   };
 
-  // Initialize Yjs document and WebSocket provider
-  useEffect(() => {
-    const room = `${workspaceId}-${documentId}`;
-    setRoomName(room);
+  // State untuk menyimpan instance editor
+  const [editor, setEditor] = useState<any>(null);
 
-    // Create Yjs document
-    yjsDoc.current = new Y.Doc();
+  // Initialize Yjs document and provider AND editor
+  const initializeCollaborationAndEditor = useCallback(async () => {
+    try {
+      setConnectionStatus("Initializing...");
+      setConnectionError("");
 
-    // Create WebSocket provider
-    const wsUrl = `${websocketUrl}?room=${encodeURIComponent(room)}`;
-    provider.current = new WebsocketProvider(wsUrl, room, yjsDoc.current, {
-      connect: true,
-    });
-
-    // Set up connection event listeners
-    provider.current.on("status", (event: { status: string }) => {
-      console.log("WebSocket status:", event.status);
-      setConnectionStatus(event.status);
-      setIsConnected(event.status === "connected");
-
-      if (event.status === "connected") {
-        setConnectionError("");
-        toast.success("Connected to collaboration server!");
-      } else if (event.status === "disconnected") {
-        setConnectionError("Disconnected from server");
-        toast.error("Disconnected from collaboration server");
+      // Clean up existing connections
+      if (provider.current) {
+        provider.current.destroy();
       }
-    });
+      if (ydoc.current) {
+        ydoc.current.destroy();
+      }
 
-    provider.current.on("connection-error", (error: any) => {
-      console.error("WebSocket connection error:", error);
-      setConnectionError("Failed to connect to collaboration server");
-      setIsConnected(false);
-      toast.error("Failed to connect to collaboration server");
-    });
+      // Create new Yjs document
+      ydoc.current = new Y.Doc();
 
-    // Set up awareness for user presence
+      // WebSocket URL with room parameter
+      const wsUrl = "wss://yjs-websocket-server-production-0351.up.railway.app";
+      const room = `${workspaceId}-${documentId}`;
+
+      setRoomName(room);
+
+      console.log("🔗 Initializing WebSocket connection...");
+      console.log("📡 URL:", wsUrl);
+      console.log("🏠 Room:", room);
+
+      setConnectionStatus("Connecting...");
+
+      // Create WebSocket provider with room parameter
+      provider.current = new WebsocketProvider(wsUrl, room, ydoc.current, {
+        connect: true,
+        maxBackoffTime: 5000,
+      });
+
+      // Connection status handlers
+      provider.current.on("status", (event: any) => {
+        console.log("📡 WebSocket status:", event.status);
+        setIsConnected(event.status === "connected");
+
+        switch (event.status) {
+          case "connected":
+            setConnectionStatus("Connected");
+            setConnectionError("");
+            reconnectAttempts.current = 0;
+            toast.success("Connected to collaboration server");
+            break;
+          case "disconnected":
+            setConnectionStatus("Disconnected");
+            if (reconnectAttempts.current < maxReconnectAttempts) {
+              setConnectionStatus(
+                `Reconnecting... (${
+                  reconnectAttempts.current + 1
+                }/${maxReconnectAttempts})`
+              );
+              reconnectAttempts.current++;
+            } else {
+              setConnectionError("Max reconnection attempts reached");
+              toast.error("Failed to reconnect to collaboration server");
+            }
+            break;
+          case "connecting":
+            setConnectionStatus("Connecting...");
+            break;
+          default:
+            setConnectionStatus(event.status);
+        }
+      });
+
+      // Connection error handler
+      provider.current.on("connection-error", (error: any) => {
+        console.error("❌ WebSocket connection error:", error);
+        setConnectionError("Connection failed");
+        setConnectionStatus("Connection Error");
+        toast.error("Failed to connect to collaboration server");
+      });
+
+      // Sync status handler
+      provider.current.on("sync", (isSynced: boolean) => {
+        console.log("🔄 Document sync status:", isSynced);
+        if (isSynced && isConnected) {
+          setConnectionStatus("Synced");
+        }
+      });
+
+      // Create TipTap Editor configuration
+      const editorConfig = {
+        extensions: [
+          StarterKit.configure({
+            // Disable the default history extension since we're using Yjs
+            history: false,
+            bulletList: {
+              keepMarks: true,
+              keepAttributes: false,
+            },
+            orderedList: {
+              keepMarks: true,
+              keepAttributes: false,
+            },
+          }),
+          // Collaboration extensions
+          Collaboration.configure({
+            document: ydoc.current,
+          }),
+          CollaborationCursor.configure({
+            provider: provider.current,
+            user: user,
+            render: (user: any) => {
+              const cursor = document.createElement("span");
+              cursor.classList.add("collaboration-cursor__caret");
+              cursor.style.borderColor = user.color;
+              return cursor;
+            },
+            //@ts-ignore selection-render
+            selectionRender: (user: any) => {
+              const selection = document.createElement("span");
+              selection.classList.add("collaboration-cursor__selection");
+              selection.style.backgroundColor = `${user.color}20`;
+              return selection;
+            },
+          }),
+          Underline,
+          Link.configure({
+            openOnClick: false,
+            HTMLAttributes: {
+              class: "text-blue-500 underline cursor-pointer",
+            },
+          }),
+          Image.configure({
+            HTMLAttributes: {
+              class: "max-w-full h-auto rounded-lg",
+            },
+          }),
+          Table.configure({
+            resizable: true,
+          }),
+          TableRow,
+          TableHeader,
+          TableCell,
+          TextAlign.configure({
+            types: ["heading", "paragraph"],
+          }),
+          Highlight.configure({
+            multicolor: true,
+          }),
+          TextStyle,
+          Color,
+          FontFamily,
+          TaskList,
+          TaskItem.configure({
+            nested: true,
+          }),
+          Placeholder.configure({
+            placeholder,
+          }),
+          CharacterCount,
+        ],
+        content: {
+          type: "doc",
+          content: [
+            {
+              type: "paragraph",
+            },
+          ],
+        },
+        editable,
+        editorProps: {
+          attributes: {
+            class: "tiptap focus:outline-none min-h-[500px] p-6 w-full",
+          },
+        },
+      };
+
+      // Initialize editor with the configuration
+      const newEditor = useEditor(editorConfig);
+
+      if (newEditor) {
+        setEditor(newEditor);
+        setIsLoading(false);
+      }
+    } catch (error) {
+      console.error("❌ Error initializing collaboration and editor:", error);
+      setConnectionError("Initialization failed");
+      setConnectionStatus("Init Error");
+      toast.error("Failed to initialize collaboration");
+      setIsLoading(false);
+    }
+  }, [
+    workspaceId,
+    documentId,
+    editable,
+    placeholder,
+    user.id,
+    user.name,
+    user.email,
+    user.color,
+  ]); // Remove editor from dependencies
+
+  // Manual reconnect function
+  const reconnectCollaboration = useCallback(() => {
+    console.log("🔄 Manual reconnection triggered");
+    reconnectAttempts.current = 0;
+    initializeCollaborationAndEditor();
+  }, [initializeCollaborationAndEditor]);
+
+  // Initialize collaboration and editor only once on mount
+  useEffect(() => {
+    initializeCollaborationAndEditor();
+
+    // Cleanup on unmount
+    return () => {
+      console.log("🧹 Cleaning up WebSocket connection and editor");
+      try {
+        if (editor) {
+          editor.destroy();
+        }
+        if (provider.current) {
+          provider.current.destroy();
+        }
+        if (ydoc.current) {
+          ydoc.current.destroy();
+        }
+      } catch (error) {
+        console.error("Error during cleanup:", error);
+      }
+    };
+  }, []); // Empty dependency array - only run once on mount
+
+  // Update collaborative users when awareness changes
+  useEffect(() => {
+    if (!provider.current || !editor) return;
+
     const awareness = provider.current.awareness;
-    awareness.setLocalStateField("user", {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      avatar: user.avatar,
-      color: user.color,
-    });
 
-    // Listen for awareness changes (other users joining/leaving)
     const updateUsers = () => {
       const users: CollaborativeUser[] = [];
-      awareness.getStates().forEach((state: any) => {
+      awareness.getStates().forEach((state: any, clientId: number) => {
         if (state.user) {
-          users.push(state.user);
+          users.push({
+            id: state.user.id,
+            name: state.user.name,
+            email: state.user.email,
+            avatar: state.user.avatar,
+            color: state.user.color,
+          });
         }
       });
       setCollaborativeUsers(users);
     };
 
     awareness.on("change", updateUsers);
-    updateUsers(); // Initial update
+    updateUsers();
 
     return () => {
-      // Cleanup
-      if (provider.current) {
-        provider.current.destroy();
-      }
-      if (yjsDoc.current) {
-        yjsDoc.current.destroy();
+      awareness.off("change", updateUsers);
+    };
+  }, [editor]); // Only depend on editor
+
+  // Fetch document content on mount (for initial load)
+  useEffect(() => {
+    const fetchContent = async () => {
+      if (!workspaceId || !documentId || !editor) return;
+
+      try {
+        console.log("📄 Fetching document content...");
+        const response = await axios.get(
+          `/api/workspace/${workspaceId}/document/${documentId}/content`
+        );
+
+        if (response.data.status === "success" && response.data.data?.content) {
+          const fetchedContent = response.data.data.content;
+          setContent(fetchedContent);
+
+          // Only set content if the Yjs document is empty (first load)
+          if (
+            ydoc.current &&
+            ydoc.current.get("default").toString().length === 0
+          ) {
+            editor.commands.setContent(fetchedContent);
+          }
+        }
+      } catch (error: any) {
+        console.error("Error fetching document content:", error);
+        if (error.response?.status !== 404) {
+          toast.error("Failed to load document content");
+        }
       }
     };
-  }, [
-    workspaceId,
-    documentId,
-    websocketUrl,
-    user.id,
-    user.name,
-    user.email,
-    user.avatar,
-    user.color,
-  ]);
 
-  // Initialize editor with collaboration
-  const editor = useEditor({
-    extensions: [
-      StarterKit.configure({
-        // Disable the default history extension since we're using collaboration
-        history: false,
-        bulletList: {
-          keepMarks: true,
-          keepAttributes: false,
-        },
-        orderedList: {
-          keepMarks: true,
-          keepAttributes: false,
-        },
-      }),
-      // Add collaboration extensions
-      Collaboration.configure({
-        document: yjsDoc.current,
-      }),
-      CollaborationCursor.configure({
-        provider: provider.current,
-        user: {
-          name: user.name,
-          color: user.color,
-        },
-      }),
-      Underline,
-      Link.configure({
-        openOnClick: false,
-        HTMLAttributes: {
-          class: "text-blue-500 underline cursor-pointer",
-        },
-      }),
-      Image.configure({
-        HTMLAttributes: {
-          class: "max-w-full h-auto rounded-lg",
-        },
-      }),
-      Table.configure({
-        resizable: true,
-      }),
-      TableRow,
-      TableHeader,
-      TableCell,
-      TextAlign.configure({
-        types: ["heading", "paragraph"],
-      }),
-      Highlight.configure({
-        multicolor: true,
-      }),
-      TextStyle,
-      Color,
-      FontFamily,
-      TaskList,
-      TaskItem.configure({
-        nested: true,
-      }),
-      Placeholder.configure({
-        placeholder,
-      }),
-      CharacterCount,
-    ],
-    editable,
-    editorProps: {
-      attributes: {
-        class: "tiptap focus:outline-none min-h-[500px] p-6 w-full",
-      },
-    },
-    onUpdate: ({ editor }) => {
-      const currentContent = editor.getJSON();
-      setContent(currentContent);
-    },
-  });
+    // Add a delay to ensure editor is fully initialized
+    const timeoutId = setTimeout(() => {
+      fetchContent();
+    }, 1000);
 
-  // Set loading to false when editor is ready
-  useEffect(() => {
-    if (editor && yjsDoc.current && provider.current) {
-      setIsLoading(false);
-    }
-  }, [editor]);
+    return () => clearTimeout(timeoutId);
+  }, [workspaceId, documentId, editor]);
 
-  // Reconnect function
-  const reconnectCollaboration = useCallback(() => {
-    if (provider.current) {
-      setConnectionStatus("Reconnecting...");
-      setConnectionError("");
-      provider.current.connect();
-    }
-  }, []);
-
-  // Save content function
+  // Save content function (periodic backup to database)
   const saveContent = useCallback(async () => {
     if (!editor) return;
 
@@ -1092,40 +1268,48 @@ export default function CollaborativeTipTapEditor({
       setIsSaving(true);
       const currentContent = editor.getJSON();
 
-      // Mock save - replace with your actual API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const response = await axios.put(
+        `/api/workspace/${workspaceId}/document/${documentId}/content`,
+        {
+          content: currentContent,
+        }
+      );
 
-      toast.success("Document saved successfully!");
-      setContent(currentContent);
+      if (response.data.status === "success") {
+        toast.success("Document saved successfully!");
+        setContent(currentContent);
+      } else {
+        toast.error("Failed to save document");
+      }
     } catch (error: any) {
       console.error("Error saving document:", error);
-      toast.error("Failed to save document");
+      toast.error(error.response?.data?.message || "Failed to save document");
     } finally {
       setIsSaving(false);
     }
-  }, [editor]);
+  }, [editor, workspaceId, documentId]);
 
-  // Auto-save functionality
+  // Auto-save functionality (periodic backup)
   useEffect(() => {
     if (!editor) return;
 
     const interval = setInterval(() => {
       const currentContent = editor.getJSON();
       if (JSON.stringify(currentContent) !== JSON.stringify(content)) {
-        // Auto-save logic here
-        console.log("Auto-saving...");
+        // Auto-save to database as backup
+        saveContent();
       }
     }, 30000); // Save every 30 seconds
 
     return () => clearInterval(interval);
-  }, [editor, content]);
+  }, [editor, content, saveContent]);
 
   if (isLoading || !editor) {
     return (
       <div className="w-full">
         <div className="flex items-center justify-center h-64">
           <Loader2 className="h-8 w-8 animate-spin" />
-          <span className="ml-2">Loading collaborative editor...</span>
+          <span className="ml-2">Loading document...</span>
         </div>
       </div>
     );
@@ -1162,10 +1346,7 @@ export default function CollaborativeTipTapEditor({
             {editor.storage.characterCount.characters()} characters,{" "}
             {editor.storage.characterCount.words()} words
           </span>
-          <span>
-            {isConnected ? "🟢 Live Collaboration" : "🔴 Offline Mode"} •{" "}
-            {connectionStatus}
-          </span>
+          <span>Real-time collaboration • {connectionStatus}</span>
         </div>
       )}
     </div>
