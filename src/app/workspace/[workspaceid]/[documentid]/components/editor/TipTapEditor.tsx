@@ -38,7 +38,7 @@ import { CommentSystem } from "./CommentSystem";
 import axios from "axios";
 import { toast } from "react-hot-toast";
 import { debounce } from "lodash";
-import { isEqual } from "lodash";
+import { isEqual } from "lodash"; // Pastikan isEqual diimpor
 import { EditorToolbar } from "./EditorToolBar";
 import { SaveStatus } from "./SaveStatus";
 
@@ -54,7 +54,7 @@ interface TipTapEditorProps {
   documentId: string;
   placeholder?: string;
   currentUser: User;
-  initialContent?: any; // Tambahkan prop ini
+  initialContent?: any;
 }
 
 // Save status type
@@ -65,7 +65,7 @@ export default function TipTapEditor({
   documentId,
   placeholder = "Start writing...",
   currentUser,
-  initialContent, // Terima prop ini
+  initialContent,
 }: TipTapEditorProps) {
   return (
     <LiveblocksProvider
@@ -89,7 +89,7 @@ export default function TipTapEditor({
           documentId={documentId}
           placeholder={placeholder}
           currentUser={currentUser}
-          initialContent={initialContent} // Meneruskan ke CollaborativeEditor
+          initialContent={initialContent}
         />
       </RoomProvider>
     </LiveblocksProvider>
@@ -101,7 +101,7 @@ function CollaborativeEditor({
   documentId,
   placeholder,
   currentUser,
-  initialContent, // Terima prop ini
+  initialContent,
 }: TipTapEditorProps) {
   const room = useRoom();
   const [provider, setProvider] = useState<LiveblocksYjsProvider>();
@@ -313,18 +313,25 @@ function CollaborativeEditor({
         const content = editor.getJSON();
         currentContentRef.current = content;
 
-        // Mark as unsaved
-        setSaveStatus("unsaved");
-        setContentChanged(true);
+        // Cek apakah konten benar-benar berubah dari yang terakhir disimpan
+        if (!isEqual(content, lastSavedContentRef.current)) {
+          // Mark as unsaved
+          setSaveStatus("unsaved");
+          setContentChanged(true);
 
-        // Clear any existing save timeout
-        if (saveTimeoutRef.current) {
-          clearTimeout(saveTimeoutRef.current);
-          saveTimeoutRef.current = null;
+          // Clear any existing save timeout
+          if (saveTimeoutRef.current) {
+            clearTimeout(saveTimeoutRef.current);
+            saveTimeoutRef.current = null;
+          }
+
+          // Schedule a save after inactivity
+          debouncedSave(content);
+        } else {
+          // Jika konten tidak berubah, pastikan status kembali ke 'saved'
+          setSaveStatus("saved");
+          setContentChanged(false);
         }
-
-        // Schedule a save after inactivity
-        debouncedSave(content);
       },
     },
     [yDoc, provider]
@@ -335,17 +342,14 @@ function CollaborativeEditor({
     if (!editor) return;
 
     const loadOrApplyContent = async () => {
+      let contentToLoad = null;
+
       if (initialContent) {
-        // Apply AI generated content
-        editor.commands.setContent(initialContent);
-        lastSavedContentRef.current = initialContent;
-        currentContentRef.current = initialContent;
-        setSaveStatus("unsaved"); // Mark as unsaved so it gets saved
-        setContentChanged(true);
+        // Gunakan konten dari AI template
+        contentToLoad = initialContent;
         toast.success("AI template applied!");
-        debouncedSave(initialContent); // Trigger an immediate save after applying
       } else {
-        // Load content from database (existing logic)
+        // Load content dari database (existing logic)
         try {
           const response = await axios.get(
             `/api/workspace/${workspaceId}/document/${documentId}/content`
@@ -354,19 +358,33 @@ function CollaborativeEditor({
             response.data.status === "success" &&
             response.data.data.content
           ) {
-            const content = response.data.data.content;
-            editor.commands.setContent(content);
-            lastSavedContentRef.current = content;
-            currentContentRef.current = content;
+            contentToLoad = response.data.data.content;
           }
         } catch (error) {
           console.error("Failed to load document content:", error);
         }
       }
+
+      if (contentToLoad) {
+        editor.commands.setContent(contentToLoad);
+        lastSavedContentRef.current = contentToLoad;
+        currentContentRef.current = contentToLoad;
+        // Penting: Jangan set contentChanged = true atau setSaveStatus = "unsaved" di sini.
+        // Biarkan onUpdate yang menanganinya hanya jika ada perubahan nyata oleh user.
+        setSaveStatus("saved"); // Pastikan status awal adalah 'saved' setelah load
+        setContentChanged(false); // Pastikan tidak ada perubahan yang terdeteksi
+      } else {
+        // Jika tidak ada konten yang dimuat (misalnya, dokumen baru kosong)
+        editor.commands.setContent({}); // Set konten kosong jika tidak ada yang dimuat
+        lastSavedContentRef.current = {};
+        currentContentRef.current = {};
+        setSaveStatus("saved");
+        setContentChanged(false);
+      }
     };
 
     loadOrApplyContent();
-  }, [editor, workspaceId, documentId, initialContent]); // Tambahkan initialContent sebagai dependency
+  }, [editor, workspaceId, documentId, initialContent]);
 
   // Handle keyboard shortcuts
   useEffect(() => {
