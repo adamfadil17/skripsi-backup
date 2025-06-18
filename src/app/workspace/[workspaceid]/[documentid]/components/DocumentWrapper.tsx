@@ -83,13 +83,7 @@ const DocumentWrapper = ({ workspaceId, documentId, currentUser }: DocumentWrapp
   useEffect(() => {
     if (!workspaceChannel) return;
 
-    console.log("Setting up Pusher listeners for document:", documentId);
-
     const handleDocumentUpdated = (updatedDocument: WorkspaceDocument) => {
-      console.log(
-        "🔥 EVENT RECEIVED document-updated in DocumentContainer:",
-        updatedDocument
-      );
 
       if (updatedDocument.id === documentId) {
         setEmoji(updatedDocument.emoji || "");
