@@ -1,3 +1,4 @@
+// AITemplateDialog.tsx
 "use client";
 
 import { type ReactNode, useState } from "react";
@@ -24,7 +25,8 @@ import {
   FormItem,
   FormMessage,
 } from "@/components/ui/form";
-import { chatSession } from "@/lib/gemini-ai-model";
+// import { chatSession } from "@/lib/gemini-ai-model"; // Hapus atau ganti ini
+import { generateTiptapTemplate } from "@/lib/gemini-tiptap-model"; // Import fungsi yang baru
 import { toast } from "react-hot-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
@@ -37,7 +39,7 @@ const formSchema = z.object({
   prompt: z
     .string()
     .min(1, "Please enter a prompt.")
-    .max(100, "Prompt must be 100 characters or less"),
+    .max(1000, "Prompt must be 1000 characters or less"),
 });
 
 function AITemplateDialog({
@@ -66,7 +68,8 @@ function AITemplateDialog({
       setIsSubmitting(true);
       setModelError(null);
 
-      const prompt = `Generate template for editor.js in JSON for ${values.prompt}`;
+      // Sesuaikan prompt untuk TipTap
+      const prompt = `Generate a TipTap document (ProseMirror JSON format) for a "${values.prompt}". The structure should be well-organized and include relevant content based on the prompt.`;
 
       // Add timeout to prevent hanging requests
       const timeoutPromise = new Promise((_, reject) => {
@@ -74,54 +77,51 @@ function AITemplateDialog({
       });
 
       // Race the model request against the timeout
-      const result = (await Promise.race([
-        chatSession.sendMessage(prompt),
+      // Gunakan generateTiptapTemplate
+      const output = (await Promise.race([
+        generateTiptapTemplate(prompt),
         timeoutPromise,
       ])) as any;
 
-      const responseText = await result.response.text();
-
-      // Validate that the response is valid JSON
-      let output;
-      try {
-        output = JSON.parse(responseText);
-
-        // Validate the output has the expected structure
-        if (!output.blocks || !Array.isArray(output.blocks)) {
-          throw new Error("Invalid template structure");
-        }
-
-        onGenerateTemplate(output);
-        setOpen(false);
-        form.reset();
-      } catch (jsonError) {
-        console.error("JSON parsing error:", jsonError);
-        setModelError(
-          "The AI generated an invalid response. Please try a different prompt."
-        );
-        throw new Error("Invalid JSON response");
+      // Validate the output has the expected structure for TipTap
+      if (!output || output.type !== "doc" || !Array.isArray(output.content)) {
+        throw new Error("Invalid TipTap document structure received from AI.");
       }
+
+      onGenerateTemplate(output);
+      setOpen(false);
+      form.reset();
     } catch (error: any) {
       console.error("AI template generation error:", error);
 
       // Handle specific error types
       if (error.message === "Request timed out") {
         setModelError("The request timed out. Please try again.");
-      } else if (error?.response?.status === 400) {
-        setModelError(
-          "The AI model could not process your prompt. Please try a different prompt."
-        );
+      } else if (error?.message?.includes("Authentication error")) {
+        // From handleModelError
+        setModelError(error.message);
+      } else if (error?.message?.includes("Rate limit exceeded")) {
+        // From handleModelError
+        setModelError(error.message);
+      } else if (
+        error?.message?.includes("The AI model could not process your request")
+      ) {
+        // From handleModelError
+        setModelError(error.message);
         form.setError("prompt", {
           message: "Failed to generate a template.",
         });
-      } else if (error?.response?.status === 429) {
-        setModelError("Rate limit exceeded. Please try again later.");
-      } else if (error?.name === "AbortError") {
-        setModelError("The request was aborted. Please try again.");
+      } else if (error?.message?.includes("Network error")) {
+        // From handleModelError
+        setModelError(error.message);
       } else if (error?.message?.includes("safety")) {
         setModelError(
           "Your prompt was flagged by safety filters. Please try a different prompt."
         );
+      } else if (
+        error?.message?.includes("Invalid TipTap document structure")
+      ) {
+        setModelError(error.message);
       } else {
         setModelError(
           "An error occurred while generating the template. Please try again."

@@ -1,6 +1,6 @@
-import prisma from '@/lib/prismadb';
-import { User } from '@prisma/client';
-import { pusherServer } from '@/lib/pusher';
+import prisma from "@/lib/prismadb";
+import { User } from "@prisma/client";
+import { pusherServer } from "@/lib/pusher";
 
 interface DocumentInput {
   title: string;
@@ -16,15 +16,15 @@ export async function createDocument(
   try {
     if (!currentUser?.id || !currentUser?.email) {
       throw {
-        error_type: 'Unauthorized',
-        message: 'Unauthorized access',
+        error_type: "Unauthorized",
+        message: "Unauthorized access",
       };
     }
 
     if (!workspaceId) {
       throw {
-        error_type: 'BadRequest',
-        message: 'Workspace ID is required',
+        error_type: "BadRequest",
+        message: "Workspace ID is required",
       };
     }
 
@@ -32,8 +32,8 @@ export async function createDocument(
 
     if (!title || !emoji || !coverImage) {
       throw {
-        error_type: 'BadRequest',
-        message: 'All fields are required',
+        error_type: "BadRequest",
+        message: "All fields are required",
       };
     }
 
@@ -46,142 +46,28 @@ export async function createDocument(
 
     if (!membership) {
       throw {
-        error_type: 'Forbidden',
-        message: 'You do not have access to this workspace',
+        error_type: "Forbidden",
+        message: "You do not have access to this workspace",
       };
     }
 
     const newDocument = await prisma.document.create({
       data: {
-        title: title || 'Untitled Document',
-        emoji: emoji || '📝',
-        coverImage: coverImage || '/images/cover.png',
+        title: title || "Untitled Document",
+        emoji: emoji || "📝",
+        coverImage: coverImage || "/images/cover.png",
         createdById: currentUser.id,
         workspaceId,
 
         documentContents: {
           create: {
             content: {
-              type: 'doc',
+              type: "doc",
               content: [
                 {
-                  type: 'heading',
-                  attrs: {
-                    level: 1
-                  },
-                  content: [
-                    {
-                      type: 'text',
-                      text: title || 'Untitled Document'
-                    }
-                  ]
+                  type: "paragraph",
                 },
-                {
-                  type: 'paragraph',
-                  content: [
-                    {
-                      type: 'text',
-                      text: 'Start writing your content here...'
-                    }
-                  ]
-                },
-                {
-                  type: 'paragraph',
-                  content: [
-                    {
-                      type: 'text',
-                      text: 'You can use the toolbar above to:'
-                    }
-                  ]
-                },
-                {
-                  type: 'bulletList',
-                  content: [
-                    {
-                      type: 'listItem',
-                      content: [
-                        {
-                          type: 'paragraph',
-                          content: [
-                            {
-                              type: 'text',
-                              text: 'Format text with '
-                            },
-                            {
-                              type: 'text',
-                              marks: [{ type: 'bold' }],
-                              text: 'bold'
-                            },
-                            {
-                              type: 'text',
-                              text: ', '
-                            },
-                            {
-                              type: 'text',
-                              marks: [{ type: 'italic' }],
-                              text: 'italic'
-                            },
-                            {
-                              type: 'text',
-                              text: ', and '
-                            },
-                            {
-                              type: 'text',
-                              marks: [{ type: 'underline' }],
-                              text: 'underline'
-                            }
-                          ]
-                        }
-                      ]
-                    },
-                    {
-                      type: 'listItem',
-                      content: [
-                        {
-                          type: 'paragraph',
-                          content: [
-                            {
-                              type: 'text',
-                              text: 'Add headings, lists, and quotes'
-                            }
-                          ]
-                        }
-                      ]
-                    },
-                    {
-                      type: 'listItem',
-                      content: [
-                        {
-                          type: 'paragraph',
-                          content: [
-                            {
-                              type: 'text',
-                              text: 'Insert images, links, and tables'
-                            }
-                          ]
-                        }
-                      ]
-                    },
-                    {
-                      type: 'listItem',
-                      content: [
-                        {
-                          type: 'paragraph',
-                          content: [
-                            {
-                              type: 'text',
-                              text: 'Create task lists and more!'
-                            }
-                          ]
-                        }
-                      ]
-                    }
-                  ]
-                },
-                {
-                  type: 'paragraph'
-                }
-              ]
+              ],
             },
             editedById: currentUser.id,
           },
@@ -204,13 +90,13 @@ export async function createDocument(
       data: {
         workspaceId,
         message: `${currentUser.name} created document "${newDocument.title}"`,
-        type: 'DOCUMENT_CREATE',
+        type: "DOCUMENT_CREATE",
         userId: currentUser.id,
         documentId: newDocument.id,
       },
     });
 
-    await pusherServer.trigger(`workspace-${workspaceId}`, 'document-added', {
+    await pusherServer.trigger(`workspace-${workspaceId}`, "document-added", {
       id: newDocument.id,
       title: newDocument.title,
       emoji: newDocument.emoji,
@@ -221,7 +107,7 @@ export async function createDocument(
 
     await pusherServer.trigger(
       `notification-${workspaceId}`,
-      'document-added',
+      "document-added",
       {
         id: newDocument.id,
         title: newDocument.title,
@@ -237,7 +123,7 @@ export async function createDocument(
 
     return newDocument;
   } catch (error) {
-    console.error('Error creating document:', error);
+    console.error("Error creating document:", error);
     throw error;
   }
 }

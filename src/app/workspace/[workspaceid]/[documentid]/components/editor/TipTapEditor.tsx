@@ -1,3 +1,4 @@
+// TipTapEditor.tsx
 "use client";
 
 import { useEditor, EditorContent } from "@tiptap/react";
@@ -53,6 +54,7 @@ interface TipTapEditorProps {
   documentId: string;
   placeholder?: string;
   currentUser: User;
+  initialContent?: any; // Tambahkan prop ini
 }
 
 // Save status type
@@ -63,6 +65,7 @@ export default function TipTapEditor({
   documentId,
   placeholder = "Start writing...",
   currentUser,
+  initialContent, // Terima prop ini
 }: TipTapEditorProps) {
   return (
     <LiveblocksProvider
@@ -86,6 +89,7 @@ export default function TipTapEditor({
           documentId={documentId}
           placeholder={placeholder}
           currentUser={currentUser}
+          initialContent={initialContent} // Meneruskan ke CollaborativeEditor
         />
       </RoomProvider>
     </LiveblocksProvider>
@@ -97,6 +101,7 @@ function CollaborativeEditor({
   documentId,
   placeholder,
   currentUser,
+  initialContent, // Terima prop ini
 }: TipTapEditorProps) {
   const room = useRoom();
   const [provider, setProvider] = useState<LiveblocksYjsProvider>();
@@ -325,28 +330,43 @@ function CollaborativeEditor({
     [yDoc, provider]
   );
 
-  // Load initial content
+  // Load initial content from database or apply AI generated template
   useEffect(() => {
     if (!editor) return;
 
-    const loadContent = async () => {
-      try {
-        const response = await axios.get(
-          `/api/workspace/${workspaceId}/document/${documentId}/content`
-        );
-        if (response.data.status === "success" && response.data.data.content) {
-          const content = response.data.data.content;
-          editor.commands.setContent(content);
-          lastSavedContentRef.current = content;
-          currentContentRef.current = content;
+    const loadOrApplyContent = async () => {
+      if (initialContent) {
+        // Apply AI generated content
+        editor.commands.setContent(initialContent);
+        lastSavedContentRef.current = initialContent;
+        currentContentRef.current = initialContent;
+        setSaveStatus("unsaved"); // Mark as unsaved so it gets saved
+        setContentChanged(true);
+        toast.success("AI template applied!");
+        debouncedSave(initialContent); // Trigger an immediate save after applying
+      } else {
+        // Load content from database (existing logic)
+        try {
+          const response = await axios.get(
+            `/api/workspace/${workspaceId}/document/${documentId}/content`
+          );
+          if (
+            response.data.status === "success" &&
+            response.data.data.content
+          ) {
+            const content = response.data.data.content;
+            editor.commands.setContent(content);
+            lastSavedContentRef.current = content;
+            currentContentRef.current = content;
+          }
+        } catch (error) {
+          console.error("Failed to load document content:", error);
         }
-      } catch (error) {
-        console.error("Failed to load document content:", error);
       }
     };
 
-    loadContent();
-  }, [editor, workspaceId, documentId]);
+    loadOrApplyContent();
+  }, [editor, workspaceId, documentId, initialContent]); // Tambahkan initialContent sebagai dependency
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -411,9 +431,9 @@ function CollaborativeEditor({
           )}
           <SaveStatus status={saveStatus} lastSaved={lastSaved} />
         </div>
-        <div className="text-xs text-gray-400">
+        {/* <div className="text-xs text-gray-400">
           Press Ctrl+S to save manually • Auto-saves after 2s of inactivity
-        </div>
+        </div> */}
       </div>
 
       {/* Comment System */}

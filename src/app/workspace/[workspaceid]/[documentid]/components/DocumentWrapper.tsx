@@ -1,3 +1,4 @@
+// DocumentWrapper.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -34,7 +35,7 @@ const DocumentWrapper = ({ workspaceId, documentId, currentUser }: DocumentWrapp
   const [coverImage, setCoverImage] = useState("/images/placeholder.svg");
   const [documentTitle, setDocumentTitle] = useState("");
   const [titleChanged, setTitleChanged] = useState(false);
-  const [modelResponse, setModelResponse] = useState<any>(null);
+  const [modelResponse, setModelResponse] = useState<any>(null); // State untuk menyimpan respons model
 
   useEffect(() => {
     const fetchDocumentInfo = async () => {
@@ -160,7 +161,7 @@ const DocumentWrapper = ({ workspaceId, documentId, currentUser }: DocumentWrapp
   // Handle AI template generation
   const handleAITemplateGenerated = (templateContent: any) => {
     setModelResponse(templateContent);
-    // The TipTap editor will handle applying this content
+    // Editor TipTap akan menangani penerapan konten ini melalui prop `initialContent`
   };
 
   if (isLoading) {
@@ -248,6 +249,7 @@ const DocumentWrapper = ({ workspaceId, documentId, currentUser }: DocumentWrapp
           documentId={documentId}
           placeholder="Start writing your document..."
           currentUser={currentUser}
+          initialContent={modelResponse}
         />
       </div>
     </div>
