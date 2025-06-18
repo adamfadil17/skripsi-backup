@@ -19,6 +19,8 @@ import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import Placeholder from "@tiptap/extension-placeholder";
 import CharacterCount from "@tiptap/extension-character-count";
+import Collaboration from "@tiptap/extension-collaboration";
+import CollaborationCursor from "@tiptap/extension-collaboration-cursor";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Toggle } from "@/components/ui/toggle";
@@ -77,25 +79,17 @@ import {
 } from "lucide-react";
 import { useState, useCallback, useRef, useEffect } from "react";
 import { toast } from "sonner";
-import { User } from "@prisma/client";
+import * as Y from "yjs";
+import { WebsocketProvider } from "y-websocket";
+import type { User } from "@prisma/client";
 
 interface TipTapEditorProps {
   workspaceId: string;
   documentId: string;
   placeholder?: string;
   editable?: boolean;
-  currentUser: User
-}
-
-interface Attachment {
-  id: string;
-  filename: string;
-  url: string;
-  mimeType: string;
-  size: number;
-  alt?: string;
-  caption?: string;
-  type: "IMAGE" | "VIDEO" | "AUDIO" | "DOCUMENT" | "ARCHIVE" | "OTHER";
+  currentUser: User; // Changed from the mock user structure
+  websocketUrl?: string;
 }
 
 interface CollaborativeUser {
@@ -889,36 +883,123 @@ const MenuBar = ({
   );
 };
 
-export default function TipTapEditor({
+export default function CollaborativeTipTapEditor({
   workspaceId,
   documentId,
   placeholder = "Start writing your content here...",
   editable = true,
   currentUser,
+  websocketUrl = "wss://yjs-websocket-server-production-0351.up.railway.app",
 }: TipTapEditorProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [content, setContent] = useState<any>(null);
   const [isConnected, setIsConnected] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState("Offline Mode");
+  const [connectionStatus, setConnectionStatus] = useState("Connecting...");
   const [connectionError, setConnectionError] = useState<string>("");
   const [collaborativeUsers, setCollaborativeUsers] = useState<
     CollaborativeUser[]
   >([]);
   const [roomName, setRoomName] = useState<string>("");
 
+  // Yjs and WebSocket provider refs
+  const yjsDoc = useRef<Y.Doc | null>(null);
+  const provider = useRef<WebsocketProvider | null>(null);
+
   const user: CollaborativeUser = {
     id: currentUser.id,
     name: currentUser.name || currentUser.email || "Anonymous User",
-    email: currentUser.email || "",
+    email: currentUser.email,
     avatar: currentUser.image || undefined,
     color: generateUserColor(currentUser.id),
   };
 
-  // Initialize editor without collaboration first
+  // Initialize Yjs document and WebSocket provider
+  useEffect(() => {
+    const room = `${workspaceId}-${documentId}`;
+    setRoomName(room);
+
+    // Create Yjs document
+    yjsDoc.current = new Y.Doc();
+
+    // Create WebSocket provider
+    const wsUrl = `${websocketUrl}?room=${encodeURIComponent(room)}`;
+    provider.current = new WebsocketProvider(wsUrl, room, yjsDoc.current, {
+      connect: true,
+    });
+
+    // Set up connection event listeners
+    provider.current.on("status", (event: { status: string }) => {
+      console.log("WebSocket status:", event.status);
+      setConnectionStatus(event.status);
+      setIsConnected(event.status === "connected");
+
+      if (event.status === "connected") {
+        setConnectionError("");
+        toast.success("Connected to collaboration server!");
+      } else if (event.status === "disconnected") {
+        setConnectionError("Disconnected from server");
+        toast.error("Disconnected from collaboration server");
+      }
+    });
+
+    provider.current.on("connection-error", (error: any) => {
+      console.error("WebSocket connection error:", error);
+      setConnectionError("Failed to connect to collaboration server");
+      setIsConnected(false);
+      toast.error("Failed to connect to collaboration server");
+    });
+
+    // Set up awareness for user presence
+    const awareness = provider.current.awareness;
+    awareness.setLocalStateField("user", {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      avatar: user.avatar,
+      color: user.color,
+    });
+
+    // Listen for awareness changes (other users joining/leaving)
+    const updateUsers = () => {
+      const users: CollaborativeUser[] = [];
+      awareness.getStates().forEach((state: any) => {
+        if (state.user) {
+          users.push(state.user);
+        }
+      });
+      setCollaborativeUsers(users);
+    };
+
+    awareness.on("change", updateUsers);
+    updateUsers(); // Initial update
+
+    return () => {
+      // Cleanup
+      if (provider.current) {
+        provider.current.destroy();
+      }
+      if (yjsDoc.current) {
+        yjsDoc.current.destroy();
+      }
+    };
+  }, [
+    workspaceId,
+    documentId,
+    websocketUrl,
+    user.id,
+    user.name,
+    user.email,
+    user.avatar,
+    user.color,
+  ]);
+
+  // Initialize editor with collaboration
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
+        // Disable the default history extension since we're using collaboration
+        history: false,
         bulletList: {
           keepMarks: true,
           keepAttributes: false,
@@ -926,6 +1007,17 @@ export default function TipTapEditor({
         orderedList: {
           keepMarks: true,
           keepAttributes: false,
+        },
+      }),
+      // Add collaboration extensions
+      Collaboration.configure({
+        document: yjsDoc.current,
+      }),
+      CollaborationCursor.configure({
+        provider: provider.current,
+        user: {
+          name: user.name,
+          color: user.color,
         },
       }),
       Underline,
@@ -964,14 +1056,6 @@ export default function TipTapEditor({
       }),
       CharacterCount,
     ],
-    content: {
-      type: "doc",
-      content: [
-        {
-          type: "paragraph",
-        },
-      ],
-    },
     editable,
     editorProps: {
       attributes: {
@@ -979,27 +1063,25 @@ export default function TipTapEditor({
       },
     },
     onUpdate: ({ editor }) => {
-      // Auto-save logic can go here
       const currentContent = editor.getJSON();
       setContent(currentContent);
     },
   });
 
-  // Initialize editor
+  // Set loading to false when editor is ready
   useEffect(() => {
-    if (editor) {
+    if (editor && yjsDoc.current && provider.current) {
       setIsLoading(false);
-      setRoomName(`${workspaceId}-${documentId}`);
     }
-  }, [editor, workspaceId, documentId]);
+  }, [editor]);
 
-  // Mock collaboration reconnect
+  // Reconnect function
   const reconnectCollaboration = useCallback(() => {
-    setConnectionStatus("Attempting to connect...");
-    setTimeout(() => {
-      setConnectionStatus("Offline Mode");
-      toast.error("Collaboration server unavailable - working in offline mode");
-    }, 2000);
+    if (provider.current) {
+      setConnectionStatus("Reconnecting...");
+      setConnectionError("");
+      provider.current.connect();
+    }
   }, []);
 
   // Save content function
@@ -1043,7 +1125,7 @@ export default function TipTapEditor({
       <div className="w-full">
         <div className="flex items-center justify-center h-64">
           <Loader2 className="h-8 w-8 animate-spin" />
-          <span className="ml-2">Loading document...</span>
+          <span className="ml-2">Loading collaborative editor...</span>
         </div>
       </div>
     );
@@ -1080,7 +1162,10 @@ export default function TipTapEditor({
             {editor.storage.characterCount.characters()} characters,{" "}
             {editor.storage.characterCount.words()} words
           </span>
-          <span>Offline Mode • {connectionStatus}</span>
+          <span>
+            {isConnected ? "🟢 Live Collaboration" : "🔴 Offline Mode"} •{" "}
+            {connectionStatus}
+          </span>
         </div>
       )}
     </div>
