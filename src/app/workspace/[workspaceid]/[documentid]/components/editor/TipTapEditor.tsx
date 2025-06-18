@@ -144,12 +144,25 @@ function CollaborativeEditor({
     {
       extensions: [
         StarterKit.configure({
-          // Disable default history since we're using collaboration
+          // Completely disable history when using collaboration
           history: false,
-          // Disable default codeBlock to avoid conflict with CodeBlockLowlight
           codeBlock: false,
         }),
-        // Add CodeBlockLowlight after StarterKit
+        // Only add collaboration extensions when ready
+        ...(yDoc && provider
+          ? [
+              Collaboration.configure({
+                document: yDoc,
+              }),
+              CollaborationCursor.configure({
+                provider: provider,
+                user: {
+                  name: currentUser.name,
+                  color: getRandomColor(),
+                },
+              }),
+            ]
+          : []),
         CodeBlockLowlight.configure({
           lowlight,
         }),
@@ -188,21 +201,6 @@ function CollaborativeEditor({
           placeholder,
         }),
         CharacterCount,
-        // Collaboration extensions
-        ...(yDoc && provider
-          ? [
-              Collaboration.configure({
-                document: yDoc,
-              }),
-              CollaborationCursor.configure({
-                provider: provider,
-                user: {
-                  name: currentUser.name,
-                  color: getRandomColor(),
-                },
-              }),
-            ]
-          : []),
       ],
       editorProps: {
         attributes: {
