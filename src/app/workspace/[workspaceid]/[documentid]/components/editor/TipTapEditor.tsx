@@ -22,10 +22,10 @@ import Placeholder from "@tiptap/extension-placeholder";
 import CharacterCount from "@tiptap/extension-character-count";
 import Collaboration from "@tiptap/extension-collaboration";
 import CollaborationCursor from "@tiptap/extension-collaboration-cursor";
-import { LiveblocksProvider, RoomProvider } from "@liveblocks/react/suspense";
-import { useRoom } from "@liveblocks/react/suspense";
 import * as Y from "yjs";
 import { LiveblocksYjsProvider } from "@liveblocks/yjs";
+import { useRoom } from "@liveblocks/react";
+import { LiveblocksProvider, RoomProvider } from "@liveblocks/react";
 import { createLowlight } from "lowlight";
 import javascript from "highlight.js/lib/languages/javascript";
 import typescript from "highlight.js/lib/languages/typescript";
@@ -33,10 +33,10 @@ import css from "highlight.js/lib/languages/css";
 import html from "highlight.js/lib/languages/xml";
 import { useEffect, useState, useCallback } from "react";
 import type { User } from "@prisma/client";
+import { CommentSystem } from "./CommentSystem";
 import axios from "axios";
 import { toast } from "react-hot-toast";
 import { EditorToolbar } from "./EditorToolBar";
-import { CommentSystem } from "./CommentSystem";
 
 // Create lowlight instance
 const lowlight = createLowlight();
@@ -60,9 +60,7 @@ export default function TipTapEditor({
 }: TipTapEditorProps) {
   return (
     <LiveblocksProvider
-      publicApiKey={
-        "pk_dev_7z1gTlumDXQyKOYyLw3rqHXzUW2v1NstCAvC6uAZcTcGB5QoS622tSKfMX3tKe7T"
-      }
+      publicApiKey={process.env.NEXT_PUBLIC_LIVEBLOCKS_PUBLIC_KEY!}
     >
       <RoomProvider
         id={documentId} // Using documentId as roomId
@@ -148,6 +146,12 @@ function CollaborativeEditor({
         StarterKit.configure({
           // Disable default history since we're using collaboration
           history: false,
+          // Disable default codeBlock to avoid conflict with CodeBlockLowlight
+          codeBlock: false,
+        }),
+        // Add CodeBlockLowlight after StarterKit
+        CodeBlockLowlight.configure({
+          lowlight,
         }),
         Highlight.configure({
           multicolor: true,
@@ -176,9 +180,6 @@ function CollaborativeEditor({
         TaskList,
         TaskItem.configure({
           nested: true,
-        }),
-        CodeBlockLowlight.configure({
-          lowlight,
         }),
         Color,
         TextStyle,
@@ -210,6 +211,9 @@ function CollaborativeEditor({
         },
       },
       onUpdate: ({ editor }) => {
+        // Only proceed if editor is available and has the necessary methods
+        if (!editor || !editor.getJSON) return;
+
         // Auto-save every 5 seconds
         const content = editor.getJSON();
         const saveTimeout = setTimeout(() => {
@@ -252,9 +256,6 @@ function CollaborativeEditor({
 
   return (
     <div className="w-full">
-      {/* User Presence */}
-      {/* <UserPresence /> */}
-
       {/* Editor Toolbar */}
       {editor && <EditorToolbar editor={editor} />}
 
