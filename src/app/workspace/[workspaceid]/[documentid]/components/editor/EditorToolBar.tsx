@@ -25,6 +25,7 @@ import {
   CheckSquare,
   Type,
   Palette,
+  Save,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -36,9 +37,10 @@ import { useState } from "react";
 
 interface EditorToolbarProps {
   editor: Editor;
+  onSave?: () => void;
 }
 
-export function EditorToolbar({ editor }: EditorToolbarProps) {
+export function EditorToolbar({ editor, onSave }: EditorToolbarProps) {
   const [linkUrl, setLinkUrl] = useState("");
   const [imageUrl, setImageUrl] = useState("");
 
@@ -66,6 +68,21 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
 
   return (
     <div className="border rounded-lg p-2 bg-white flex flex-wrap gap-1 items-center">
+      {/* Save Button */}
+      {onSave && (
+        <>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onSave}
+            title="Save (Ctrl+S)"
+          >
+            <Save className="h-4 w-4" />
+          </Button>
+          <Separator orientation="vertical" className="h-6" />
+        </>
+      )}
+
       {/* Undo/Redo */}
       <Button
         variant="ghost"
