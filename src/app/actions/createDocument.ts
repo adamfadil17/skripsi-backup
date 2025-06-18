@@ -189,7 +189,6 @@ export async function createDocument(
       },
       include: {
         documentContents: true,
-        attachments: true,
         createdBy: {
           select: {
             id: true,

@@ -12,8 +12,8 @@ import CoverPickerDialog from "@/components/shared/CoverPickerDialog";
 import EmojiPickerPopover from "@/components/shared/EmojiPickerPopover";
 import AITemplateDialog from "./AITemplateDialog";
 import { usePusherChannelContext } from "../../components/PusherChannelProvider";
-import TipTapEditor from "./TipTapEditor";
 import { User } from "@prisma/client";
+import TipTapEditor from "./editor/TipTapEditor";
 
 interface DocumentWrapperProps {
   workspaceId: string;

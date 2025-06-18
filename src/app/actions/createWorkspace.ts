@@ -309,7 +309,6 @@ export async function createWorkspace(
         documents: {
           include: {
             documentContents: true,
-            attachments: true,
           },
         },
       },
