@@ -21,7 +21,11 @@ interface DocumentWrapperProps {
   currentUser: User;
 }
 
-const DocumentWrapper = ({ workspaceId, documentId, currentUser }: DocumentWrapperProps) => {
+const DocumentWrapper = ({
+  workspaceId,
+  documentId,
+  currentUser,
+}: DocumentWrapperProps) => {
   const router = useRouter();
   const { channel: workspaceChannel } = usePusherChannelContext();
 
@@ -247,6 +251,7 @@ const DocumentWrapper = ({ workspaceId, documentId, currentUser }: DocumentWrapp
           workspaceId={workspaceId}
           documentId={documentId}
           placeholder="Start writing your document..."
+          editable={true}
           currentUser={currentUser}
         />
       </div>
