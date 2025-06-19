@@ -38,6 +38,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { useState } from "react";
+import { CldUploadButton } from "next-cloudinary";
 
 interface EditorToolbarProps {
   editor: Editor;
@@ -307,9 +308,30 @@ export function EditorToolbar({ editor, onSave }: EditorToolbarProps) {
       </Button>
 
       {/* Image */}
-      <Button variant="ghost" size="sm" onClick={addImage}>
-        <ImageIcon className="h-4 w-4" />
-      </Button>
+      <CldUploadButton
+        uploadPreset="catatan_cerdas_document"
+        onSuccess={(result: any) => {
+          if (result?.info?.secure_url) {
+            editor
+              .chain()
+              .focus()
+              .setImage({ src: result.info.secure_url })
+              .run();
+          }
+        }}
+        options={{
+          maxFiles: 1,
+          resourceType: "image",
+          clientAllowedFormats: ["jpg", "jpeg", "png", "gif", "webp"],
+          maxFileSize: 10000000, // 10MB
+        }}
+      >
+        <Button variant="ghost" size="sm" asChild>
+          <span>
+            <ImageIcon className="h-4 w-4" />
+          </span>
+        </Button>
+      </CldUploadButton>
 
       {/* Enhanced Table Controls */}
       <DropdownMenu>

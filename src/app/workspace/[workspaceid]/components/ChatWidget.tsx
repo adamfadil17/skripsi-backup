@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import type React from 'react';
-import type { User } from '@prisma/client';
+import type React from "react";
+import type { User } from "@prisma/client";
 
-import { useState, useRef, useEffect } from 'react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { useState, useRef, useEffect } from "react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   ChevronDown,
   ChevronUp,
@@ -18,21 +18,21 @@ import {
   Edit2,
   Trash2,
   Ban,
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { useMessages } from '@/hooks/use-messages';
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useMessages } from "@/hooks/use-messages";
 import type {
   WorkspaceMember,
   WorkspaceInfo,
   ConversationMessage,
-} from '@/types/types';
+} from "@/types/types";
 import {
   PusherChannelProvider,
   usePusherChannelContext,
-} from './PusherChannelProvider';
-import useActiveList from '@/hooks/use-active-list';
-import { CldUploadButton } from 'next-cloudinary';
-import { format } from 'date-fns';
+} from "./PusherChannelProvider";
+import useActiveList from "@/hooks/use-active-list";
+import { CldUploadButton } from "next-cloudinary";
+import { format } from "date-fns";
 
 interface ChatWidgetProps {
   workspaceId: string;
@@ -42,7 +42,7 @@ interface ChatWidgetProps {
 }
 
 interface MessageWithStatus extends ConversationMessage {
-  sendStatus?: 'sending' | 'sent' | 'seen';
+  sendStatus?: "sending" | "sent" | "seen";
   isEditing?: boolean;
   editedAt?: Date | null;
   isDeleted?: boolean;
@@ -56,13 +56,13 @@ function ChatWidgetContent({
   members,
 }: ChatWidgetProps) {
   const [isExpanded, setIsExpanded] = useState(true);
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState("");
   const [imageToSend, setImageToSend] = useState<string | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [localWorkspaceInfo, setLocalWorkspaceInfo] = useState<
     WorkspaceInfo | undefined
   >(workspaceInfo);
-  const [editText, setEditText] = useState('');
+  const [editText, setEditText] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
   const { members: activeMembers } = useActiveList();
@@ -85,19 +85,19 @@ function ChatWidgetContent({
   useEffect(() => {
     if (messages.length > 0) {
       const updatedMessages = messages.map((message) => {
-        let status: 'sending' | 'sent' | 'seen' = 'sent';
+        let status: "sending" | "sent" | "seen" = "sent";
 
         if (
           message.sender.email === currentUser.email &&
           message.seenIds.length > 1
         ) {
-          status = 'seen';
+          status = "seen";
         }
 
         return {
           ...message,
           body: message.isDeleted
-            ? 'This message has been deleted'
+            ? "This message has been deleted"
             : message.body,
           sendStatus: status,
           isEdited: message.isEdited || false,
@@ -123,7 +123,7 @@ function ChatWidgetContent({
       id: Date.now().toString(),
       body: input,
       image: imageToSend || null,
-      conversationId: '',
+      conversationId: "",
       senderId: currentUser.id,
       createdAt: new Date(),
       seenIds: [currentUser.id],
@@ -136,11 +136,11 @@ function ChatWidgetContent({
       ],
       sender: {
         id: currentUser.id,
-        name: currentUser.name || '',
-        email: currentUser.email || '',
+        name: currentUser.name || "",
+        email: currentUser.email || "",
         image: currentUser.image || null,
       },
-      sendStatus: 'sending',
+      sendStatus: "sending",
       isEdited: false,
       isDeleted: false,
     };
@@ -152,15 +152,15 @@ function ChatWidgetContent({
       setLocalMessages((prev) =>
         prev.map((msg) =>
           msg.id === optimisticMessage.id
-            ? { ...msg, id: sentMessage?.id || msg.id, sendStatus: 'sent' }
+            ? { ...msg, id: sentMessage?.id || msg.id, sendStatus: "sent" }
             : msg
         )
       );
     } catch (error) {
-      console.error('Failed to send message:', error);
+      console.error("Failed to send message:", error);
     }
 
-    setInput('');
+    setInput("");
     setImageToSend(null);
   };
 
@@ -170,12 +170,12 @@ function ChatWidgetContent({
     const diffInMinutes = (now.getTime() - messageTime.getTime()) / (1000 * 60);
 
     if (diffInMinutes > 2) {
-      alert('Edit time window expired (2 minutes)');
+      alert("Edit time window expired (2 minutes)");
       return;
     }
 
     setEditingMessageId(message.id);
-    setEditText(message.body || '');
+    setEditText(message.body || "");
 
     setTimeout(() => {
       if (editInputRef.current) {
@@ -186,13 +186,13 @@ function ChatWidgetContent({
 
   const cancelEdit = () => {
     setEditingMessageId(null);
-    setEditText('');
+    setEditText("");
   };
 
   const saveEditedMessage = async () => {
     if (!editingMessageId || !editText.trim()) {
       setEditingMessageId(null);
-      setEditText('');
+      setEditText("");
       return;
     }
 
@@ -214,8 +214,8 @@ function ChatWidgetContent({
     try {
       await editMessage(editingMessageId, editText);
     } catch (error) {
-      console.error('Failed to edit message:', error);
-      alert('Failed to edit message');
+      console.error("Failed to edit message:", error);
+      alert("Failed to edit message");
 
       setLocalMessages((prev) =>
         prev.map((msg) =>
@@ -231,14 +231,14 @@ function ChatWidgetContent({
       );
     } finally {
       setEditingMessageId(null);
-      setEditText('');
+      setEditText("");
     }
   };
 
   const handleDeleteMessage = async (messageId: string) => {
     if (!messageId) return;
 
-    if (!confirm('Are you sure you want to delete this message?')) {
+    if (!confirm("Are you sure you want to delete this message?")) {
       return;
     }
 
@@ -247,7 +247,7 @@ function ChatWidgetContent({
         msg.id === messageId
           ? {
               ...msg,
-              body: 'This message has been deleted',
+              body: "This message has been deleted",
               isDeleted: true,
               deletedAt: new Date(),
             }
@@ -258,8 +258,8 @@ function ChatWidgetContent({
     try {
       await deleteMessage(messageId);
     } catch (error) {
-      console.error('Failed to delete message:', error);
-      alert('Failed to delete message');
+      console.error("Failed to delete message:", error);
+      alert("Failed to delete message");
 
       setLocalMessages((prev) =>
         prev.map((msg) =>
@@ -289,14 +289,14 @@ function ChatWidgetContent({
   const markMessageAsSeen = async (messageId: string) => {
     try {
       await fetch(`/api/workspace/${workspaceId}/conversation/seen`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ messageId }),
       });
     } catch (error) {
-      console.error('Error marking message as seen:', error);
+      console.error("Error marking message as seen:", error);
     }
   };
 
@@ -304,7 +304,6 @@ function ChatWidgetContent({
     if (!channel) return;
 
     const handleWorkspaceUpdated = (updatedWorkspace: any) => {
-
       setLocalWorkspaceInfo((prev) => {
         if (!prev) return updatedWorkspace;
 
@@ -317,10 +316,10 @@ function ChatWidgetContent({
       });
     };
 
-    channel.bind('workspace-updated', handleWorkspaceUpdated);
+    channel.bind("workspace-updated", handleWorkspaceUpdated);
 
     return () => {
-      channel.unbind('workspace-updated', handleWorkspaceUpdated);
+      channel.unbind("workspace-updated", handleWorkspaceUpdated);
     };
   }, [channel]);
 
@@ -331,7 +330,7 @@ function ChatWidgetContent({
       const messageWithStatus: MessageWithStatus = {
         ...message,
         sendStatus:
-          message.sender.email === currentUser.email ? 'sent' : undefined,
+          message.sender.email === currentUser.email ? "sent" : undefined,
       };
 
       setLocalMessages((current) => [...current, messageWithStatus]);
@@ -347,7 +346,7 @@ function ChatWidgetContent({
       const processedMessage = {
         ...message,
         body: message.isDeleted
-          ? 'This message has been deleted'
+          ? "This message has been deleted"
           : message.body,
         isEdited: message.isEdited || false,
         editedAt: message.editedAt || null,
@@ -365,8 +364,8 @@ function ChatWidgetContent({
             const status =
               message.sender.email === currentUser.email &&
               message.seenIds.length > 1
-                ? 'seen'
-                : msg.sendStatus || 'sent';
+                ? "seen"
+                : msg.sendStatus || "sent";
 
             return {
               ...processedMessage,
@@ -378,12 +377,12 @@ function ChatWidgetContent({
       );
     };
 
-    channel.bind('messages:new', handleNewMessage);
-    channel.bind('messages:update', handleMessageUpdate);
+    channel.bind("messages:new", handleNewMessage);
+    channel.bind("messages:update", handleMessageUpdate);
 
     return () => {
-      channel.unbind('messages:new', handleNewMessage);
-      channel.unbind('messages:update', handleMessageUpdate);
+      channel.unbind("messages:new", handleNewMessage);
+      channel.unbind("messages:update", handleMessageUpdate);
     };
   }, [channel, currentUser.email, currentUser.id, setMessages, workspaceId]);
 
@@ -408,7 +407,7 @@ function ChatWidgetContent({
 
   useEffect(() => {
     if (isExpanded) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [localMessages, isExpanded]);
 
@@ -435,7 +434,7 @@ function ChatWidgetContent({
   const unreadCount = localMessages.filter(
     (message) =>
       message.sender.email !== currentUser?.email &&
-      !message.seenIds.includes(currentUser?.id || '')
+      !message.seenIds.includes(currentUser?.id || "")
   ).length;
 
   if (isMessagesLoading || !workspaceId) {
@@ -449,14 +448,12 @@ function ChatWidgetContent({
       {/* Header */}
       <div
         className={`bg-black text-white p-3 flex justify-between items-center cursor-pointer ${
-          isExpanded ? 'rounded-t-lg' : 'rounded-lg'
+          isExpanded ? "rounded-t-lg" : "rounded-lg"
         }`}
         onClick={toggleExpanded}
       >
         <div>
-          <h3 className="font-semibold">
-            {localWorkspaceInfo?.name || ''}
-          </h3>
+          <h3 className="font-semibold">{localWorkspaceInfo?.name || ""}</h3>
           {unreadCount > 0 && (
             <p className="text-sm text-gray-300">{unreadCount} new messages</p>
           )}
@@ -470,11 +467,11 @@ function ChatWidgetContent({
                 className="border-2 border-black w-8 h-8"
               >
                 <AvatarImage
-                  src={member.user.image || '/images/placeholder.svg'}
-                  alt={member.user.name || ''}
+                  src={member.user.image || "/images/placeholder.svg"}
+                  alt={member.user.name || ""}
                 />
                 <AvatarFallback>
-                  {member.user.name?.charAt(0) || '?'}
+                  {member.user.name?.charAt(0) || "?"}
                 </AvatarFallback>
               </Avatar>
             ))}
@@ -495,9 +492,9 @@ function ChatWidgetContent({
             {localMessages.map((message) => {
               const isCurrentUser = message.sender.email === currentUser.email;
               const sender = message.sender;
-              const time = new Intl.DateTimeFormat('en-US', {
-                hour: 'numeric',
-                minute: 'numeric',
+              const time = new Intl.DateTimeFormat("en-US", {
+                hour: "numeric",
+                minute: "numeric",
                 hour12: true,
               }).format(new Date(message.createdAt));
 
@@ -510,8 +507,8 @@ function ChatWidgetContent({
                   {/* Sender Info */}
                   <div
                     className={cn(
-                      'flex items-center mb-1',
-                      isCurrentUser ? 'justify-end' : 'justify-start'
+                      "flex items-center mb-1",
+                      isCurrentUser ? "justify-end" : "justify-start"
                     )}
                   >
                     {!isCurrentUser && (
@@ -520,10 +517,10 @@ function ChatWidgetContent({
                         <div className="relative mr-2">
                           <Avatar className="w-8 h-8">
                             <AvatarImage
-                              src={sender?.image || '/images/placeholder.svg'}
+                              src={sender?.image || "/images/placeholder.svg"}
                             />
                             <AvatarFallback>
-                              {sender?.name?.charAt(0) || '?'}
+                              {sender?.name?.charAt(0) || "?"}
                             </AvatarFallback>
                           </Avatar>
                           {isUserActive(sender?.email) && (
@@ -553,10 +550,10 @@ function ChatWidgetContent({
                         <div className="relative">
                           <Avatar className="w-8 h-8">
                             <AvatarImage
-                              src={sender?.image || '/images/placeholder.svg'}
+                              src={sender?.image || "/images/placeholder.svg"}
                             />
                             <AvatarFallback>
-                              {sender?.name?.charAt(0) || '?'}
+                              {sender?.name?.charAt(0) || "?"}
                             </AvatarFallback>
                           </Avatar>
                           {isUserActive(sender?.email) && (
@@ -570,8 +567,8 @@ function ChatWidgetContent({
                   {/* Message Container */}
                   <div
                     className={cn(
-                      'flex w-full',
-                      isCurrentUser ? 'justify-end' : 'justify-start'
+                      "flex w-full",
+                      isCurrentUser ? "justify-end" : "justify-start"
                     )}
                   >
                     {/* For Current User's Messages - Edit/Delete icons on the left */}
@@ -601,12 +598,12 @@ function ChatWidgetContent({
                     {/* Message Bubble */}
                     <div
                       className={cn(
-                        'rounded-lg p-3 inline-block',
+                        "rounded-lg p-3 inline-block",
                         isCurrentUser
-                          ? 'bg-black text-white'
-                          : 'bg-gray-100 text-black',
-                        'max-w-[75%]',
-                        'break-words'
+                          ? "bg-black text-white"
+                          : "bg-gray-100 text-black",
+                        "max-w-[75%]",
+                        "break-words"
                       )}
                     >
                       {editingMessageId === message.id ? (
@@ -617,7 +614,7 @@ function ChatWidgetContent({
                             onChange={(e) => setEditText(e.target.value)}
                             className="mb-2 bg-gray-200 text-black"
                             onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
+                              if (e.key === "Enter") {
                                 e.preventDefault();
                                 saveEditedMessage();
                               }
@@ -672,9 +669,9 @@ function ChatWidgetContent({
                                     className="max-w-full rounded-md"
                                     onClick={() =>
                                       message.image &&
-                                      window.open(message.image, '_blank')
+                                      window.open(message.image, "_blank")
                                     }
-                                    style={{ cursor: 'pointer' }}
+                                    style={{ cursor: "pointer" }}
                                   />
                                 </div>
                               )}
@@ -690,17 +687,17 @@ function ChatWidgetContent({
                   {/* Message Status Indicators */}
                   <div
                     className={cn(
-                      'flex mt-1',
-                      isCurrentUser ? 'justify-end' : 'justify-start'
+                      "flex mt-1",
+                      isCurrentUser ? "justify-end" : "justify-start"
                     )}
                   >
                     {/* Edited indicator - show for all edited messages */}
                     {message.isEdited && !message.isDeleted && (
                       <span className="text-xs text-gray-400 mr-2">
-                        (edited{' '}
+                        (edited{" "}
                         {message.editedAt
-                          ? format(new Date(message.editedAt), 'p')
-                          : ''}
+                          ? format(new Date(message.editedAt), "p")
+                          : ""}
                         )
                       </span>
                     )}
@@ -708,17 +705,17 @@ function ChatWidgetContent({
                     {/* Read/Delivery status - only for current user's non-deleted messages */}
                     {showStatusIndicator && !message.isDeleted && (
                       <>
-                        {message.sendStatus === 'seen' ? (
+                        {message.sendStatus === "seen" ? (
                           <span
                             className={cn(
-                              'text-xs flex items-center',
-                              isSeenByAll ? 'text-green-500' : 'text-gray-400'
+                              "text-xs flex items-center",
+                              isSeenByAll ? "text-green-500" : "text-gray-400"
                             )}
                           >
                             <CheckCheck className="mr-1" size={14} />
                             Seen
                           </span>
-                        ) : message.sendStatus === 'sending' ? (
+                        ) : message.sendStatus === "sending" ? (
                           <span className="text-xs flex items-center text-gray-400">
                             Sending...
                           </span>
@@ -768,7 +765,7 @@ function ChatWidgetContent({
                 placeholder="Send a message to team!"
                 className="flex-1 mr-2 focus-visible:ring-0"
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
+                  if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
                     handleSendMessage(e);
                   }
@@ -779,7 +776,7 @@ function ChatWidgetContent({
                   <CldUploadButton
                     options={{ maxFiles: 1 }}
                     onSuccess={handleUpload}
-                    uploadPreset="catatan_cerdas"
+                    uploadPreset="catatan_cerdas_chat"
                   >
                     <Button
                       type="button"
