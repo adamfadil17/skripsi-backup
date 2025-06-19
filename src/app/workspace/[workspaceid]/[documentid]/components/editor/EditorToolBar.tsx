@@ -359,51 +359,26 @@ export function EditorToolbar({ editor, onSave }: EditorToolbarProps) {
       </Button>
 
       {/* Image Options Dropdown */}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm">
-            <ImageIcon className="h-4 w-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={addImage}>
-            <ImageIcon className="h-4 w-4 mr-2" />
-            Insert from URL
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <div className="p-1">
-            <CldUploadButton
-              uploadPreset="catatan_cerdas_document"
-              onSuccess={handleCloudinarySuccess}
-              onError={handleCloudinaryError}
-              options={{
-                maxFiles: 1,
-                resourceType: "image",
-                clientAllowedFormats: [
-                  "jpg",
-                  "jpeg",
-                  "png",
-                  "gif",
-                  "webp",
-                  "svg",
-                ],
-                maxFileSize: 10000000, // 10MB
-                folder: "tiptap-editor", // Organize uploads in a folder
-                publicId: undefined, // Let Cloudinary generate unique IDs
-                sources: ["local", "url", "camera"],
-                multiple: false,
-                cropping: true,
-                croppingAspectRatio: undefined,
-              }}
-            >
-              <div className="flex items-center w-full px-2 py-1.5 text-sm hover:bg-gray-100 rounded cursor-pointer">
-                <Upload className="h-4 w-4 mr-2" />
-                Upload Image
-              </div>
-            </CldUploadButton>
-          </div>
-        </DropdownMenuContent>
-      </DropdownMenu>
+
+      <CldUploadButton
+        uploadPreset="catatan_cerdas_document"
+        onSuccess={handleCloudinarySuccess}
+        onError={handleCloudinaryError}
+        options={{
+          maxFiles: 1,
+          resourceType: "image",
+          clientAllowedFormats: ["jpg", "jpeg", "png", "gif", "webp", "svg"],
+          maxFileSize: 10000000, // 10MB
+          folder: "tiptap-editor", // Organize uploads in a folder
+          publicId: undefined, // Let Cloudinary generate unique IDs
+          sources: ["local", "url", "camera"],
+          multiple: false,
+          cropping: true,
+          croppingAspectRatio: undefined,
+        }}
+      >
+        <ImageIcon className="h-4 w-4 mr-2" />
+      </CldUploadButton>
 
       {/* Enhanced Table Controls */}
       <DropdownMenu>
