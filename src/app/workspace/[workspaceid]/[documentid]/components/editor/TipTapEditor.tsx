@@ -51,7 +51,7 @@ interface User {
   image?: string;
 }
 
-interface EnhancedTipTapEditorProps {
+interface TipTapEditorProps {
   workspaceId: string;
   documentId: string;
   placeholder?: string;
@@ -68,7 +68,7 @@ export default function TipTapEditor({
   placeholder,
   currentUser,
   initialContent,
-}: EnhancedTipTapEditorProps) {
+}: TipTapEditorProps) {
   return (
     <LiveblocksProvider
       publicApiKey={process.env.NEXT_PUBLIC_LIVEBLOCKS_PUBLIC_KEY!}
@@ -104,7 +104,7 @@ function CollaborativeEditor({
   placeholder,
   currentUser,
   initialContent,
-}: EnhancedTipTapEditorProps) {
+}: TipTapEditorProps) {
   const room = useRoom();
   const [provider, setProvider] = useState<LiveblocksYjsProvider>();
   const [yDoc, setYDoc] = useState<Y.Doc>();
