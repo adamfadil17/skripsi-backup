@@ -37,29 +37,21 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { useState } from "react";
-import { CldUploadButton } from "next-cloudinary";
+import { ImageUploadDialog } from "./ImageUploadDialog";
 
 interface EditorToolbarProps {
   editor: Editor;
   onSave?: () => void;
 }
 
-export function EditorToolbar({ editor, onSave }: EditorToolbarProps) {
-  const [linkUrl, setLinkUrl] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
-
+export function EditorToolbar({
+  editor,
+  onSave,
+}: EditorToolbarProps) {
   const addLink = () => {
     const url = window.prompt("Enter URL:");
     if (url) {
       editor.chain().focus().setLink({ href: url }).run();
-    }
-  };
-
-  const addImage = () => {
-    const url = window.prompt("Enter image URL:");
-    if (url) {
-      editor.chain().focus().setImage({ src: url }).run();
     }
   };
 
@@ -307,31 +299,12 @@ export function EditorToolbar({ editor, onSave }: EditorToolbarProps) {
         <Link className="h-4 w-4" />
       </Button>
 
-      {/* Image */}
-      <CldUploadButton
-        uploadPreset="catatan_cerdas_document"
-        onSuccess={(result: any) => {
-          if (result?.info?.secure_url) {
-            editor
-              .chain()
-              .focus()
-              .setImage({ src: result.info.secure_url })
-              .run();
-          }
-        }}
-        options={{
-          maxFiles: 1,
-          resourceType: "image",
-          clientAllowedFormats: ["jpg", "jpeg", "png", "gif", "webp"],
-          maxFileSize: 10000000, // 10MB
-        }}
-      >
-        <Button variant="ghost" size="sm" asChild>
-          <span>
-            <ImageIcon className="h-4 w-4" />
-          </span>
+      {/* Enhanced Image Upload */}
+      <ImageUploadDialog editor={editor}>
+        <Button variant="ghost" size="sm">
+          <ImageIcon className="h-4 w-4" />
         </Button>
-      </CldUploadButton>
+      </ImageUploadDialog>
 
       {/* Enhanced Table Controls */}
       <DropdownMenu>
