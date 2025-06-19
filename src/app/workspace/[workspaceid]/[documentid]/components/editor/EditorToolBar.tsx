@@ -307,7 +307,7 @@ export function EditorToolbar({ editor, onSave }: EditorToolbarProps) {
         <Link className="h-4 w-4" />
       </Button>
 
-      {/* Image */}
+      {/* Image Upload Button */}
       <CldUploadButton
         uploadPreset="catatan_cerdas_document"
         onSuccess={(result: any) => {
@@ -315,7 +315,7 @@ export function EditorToolbar({ editor, onSave }: EditorToolbarProps) {
             editor
               .chain()
               .focus()
-              .setImage({ src: result.info.secure_url })
+              .setImage({ src: result.info.secure_url }) // Memasukkan URL gambar ke editor
               .run();
           }
         }}
