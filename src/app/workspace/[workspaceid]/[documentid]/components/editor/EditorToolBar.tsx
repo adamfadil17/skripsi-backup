@@ -29,6 +29,7 @@ import {
   Plus,
   Minus,
   Trash2,
+  Upload,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -39,6 +40,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useState } from "react";
 import { CldUploadButton } from "next-cloudinary";
+import { toast } from "react-hot-toast";
 
 interface EditorToolbarProps {
   editor: Editor;
@@ -59,7 +61,22 @@ export function EditorToolbar({ editor, onSave }: EditorToolbarProps) {
   const addImage = () => {
     const url = window.prompt("Enter image URL:");
     if (url) {
-      editor.chain().focus().setImage({ src: url }).run();
+      // Validate URL format
+      try {
+        new URL(url);
+        editor
+          .chain()
+          .focus()
+          .setImage({
+            src: url,
+            alt: "Inserted image",
+            title: "Inserted image",
+          })
+          .run();
+        toast.success("Image added successfully!");
+      } catch (error) {
+        toast.error("Please enter a valid image URL");
+      }
     }
   };
 
@@ -73,6 +90,40 @@ export function EditorToolbar({ editor, onSave }: EditorToolbarProps) {
 
   // Check if cursor is inside a table
   const isInTable = editor.isActive("table");
+
+  // Enhanced Cloudinary upload handler
+  const handleCloudinarySuccess = (result: any) => {
+    console.log("Cloudinary Upload Result:", result);
+
+    if (result?.info?.secure_url) {
+      try {
+        // Insert image with proper attributes
+        editor
+          .chain()
+          .focus()
+          .setImage({
+            src: result.info.secure_url,
+            alt: result.info.original_filename || "Uploaded image",
+            title: result.info.original_filename || "Uploaded image",
+          })
+          .run();
+
+        toast.success("Image uploaded and inserted successfully!");
+        console.log("Image inserted with URL:", result.info.secure_url);
+      } catch (error) {
+        console.error("Error inserting image:", error);
+        toast.error("Failed to insert image into editor");
+      }
+    } else {
+      console.error("Secure URL not found in Cloudinary result:", result);
+      toast.error("Upload successful but failed to get image URL");
+    }
+  };
+
+  const handleCloudinaryError = (error: any) => {
+    console.error("Cloudinary upload error:", error);
+    toast.error("Failed to upload image");
+  };
 
   return (
     <div className="sticky top-0 z-50 border rounded-lg p-2 bg-white shadow-sm flex flex-wrap gap-1 items-center">
@@ -307,37 +358,52 @@ export function EditorToolbar({ editor, onSave }: EditorToolbarProps) {
         <Link className="h-4 w-4" />
       </Button>
 
-      {/* Image Upload Button */}
-      <CldUploadButton
-        uploadPreset="catatan_cerdas_document"
-        onSuccess={(result: any) => {
-          console.log("Cloudinary Upload Result for Tiptap:", result); // <-- Tambahkan ini
-          if (result?.info?.secure_url) {
-            editor
-              .chain()
-              .focus()
-              .setImage({ src: result.info.secure_url })
-              .run();
-          } else {
-            console.error(
-              "Secure URL not found in Cloudinary result for Tiptap.",
-              result
-            ); // <-- Dan ini
-          }
-        }}
-        options={{
-          maxFiles: 1,
-          resourceType: "image",
-          clientAllowedFormats: ["jpg", "jpeg", "png", "gif", "webp"],
-          maxFileSize: 10000000, // 10MB
-        }}
-      >
-        <Button variant="ghost" size="sm" asChild>
-          <span>
+      {/* Image Options Dropdown */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="sm">
             <ImageIcon className="h-4 w-4" />
-          </span>
-        </Button>
-      </CldUploadButton>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={addImage}>
+            <ImageIcon className="h-4 w-4 mr-2" />
+            Insert from URL
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <div className="p-1">
+            <CldUploadButton
+              uploadPreset="catatan_cerdas_document"
+              onSuccess={handleCloudinarySuccess}
+              onError={handleCloudinaryError}
+              options={{
+                maxFiles: 1,
+                resourceType: "image",
+                clientAllowedFormats: [
+                  "jpg",
+                  "jpeg",
+                  "png",
+                  "gif",
+                  "webp",
+                  "svg",
+                ],
+                maxFileSize: 10000000, // 10MB
+                folder: "tiptap-editor", // Organize uploads in a folder
+                publicId: undefined, // Let Cloudinary generate unique IDs
+                sources: ["local", "url", "camera"],
+                multiple: false,
+                cropping: true,
+                croppingAspectRatio: undefined,
+              }}
+            >
+              <div className="flex items-center w-full px-2 py-1.5 text-sm hover:bg-gray-100 rounded cursor-pointer">
+                <Upload className="h-4 w-4 mr-2" />
+                Upload Image
+              </div>
+            </CldUploadButton>
+          </div>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       {/* Enhanced Table Controls */}
       <DropdownMenu>

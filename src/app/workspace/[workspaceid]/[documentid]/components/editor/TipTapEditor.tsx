@@ -269,9 +269,15 @@ function CollaborativeEditor({
         TextAlign.configure({
           types: ["heading", "paragraph"],
         }),
+        // Enhanced Image configuration with better error handling and styling
         Image.configure({
-          inline: true,
+          inline: false, // Changed from true to false for better display
           allowBase64: true,
+          HTMLAttributes: {
+            class: "max-w-full h-auto rounded-lg shadow-sm my-4 mx-auto block",
+            loading: "lazy",
+            crossorigin: "anonymous", // Add CORS support
+          },
         }),
         Link.configure({
           openOnClick: false,
@@ -317,6 +323,25 @@ function CollaborativeEditor({
         attributes: {
           class:
             "prose prose-lg max-w-none focus:outline-none min-h-[500px] p-4",
+        },
+        // Add custom image handling
+        handleDOMEvents: {
+          // Handle image load errors
+          error: (view, event) => {
+            const target = event.target as HTMLElement;
+            if (target.tagName === "IMG") {
+              console.error(
+                "Image failed to load:",
+                target.getAttribute("src")
+              );
+              // You could replace with a placeholder image here
+              target.setAttribute("alt", "Failed to load image");
+              target.style.border = "2px dashed #ccc";
+              target.style.padding = "20px";
+              target.style.textAlign = "center";
+            }
+            return false;
+          },
         },
       },
       onUpdate: ({ editor }) => {
@@ -445,9 +470,12 @@ function CollaborativeEditor({
       {/* Enhanced Editor Toolbar */}
       {editor && <EditorToolbar editor={editor} onSave={handleManualSave} />}
 
-      {/* Editor Content */}
+      {/* Editor Content with enhanced image styling */}
       <div className="border rounded-lg mt-4 bg-white">
-        <EditorContent editor={editor} />
+        <EditorContent
+          editor={editor}
+          className="[&_.ProseMirror_img]:max-w-full [&_.ProseMirror_img]:h-auto [&_.ProseMirror_img]:rounded-lg [&_.ProseMirror_img]:shadow-sm [&_.ProseMirror_img]:my-4 [&_.ProseMirror_img]:mx-auto [&_.ProseMirror_img]:block"
+        />
       </div>
 
       {/* Status Bar */}
