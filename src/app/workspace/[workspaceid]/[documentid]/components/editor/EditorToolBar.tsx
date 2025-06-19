@@ -311,12 +311,18 @@ export function EditorToolbar({ editor, onSave }: EditorToolbarProps) {
       <CldUploadButton
         uploadPreset="catatan_cerdas_document"
         onSuccess={(result: any) => {
+          console.log("Cloudinary Upload Result for Tiptap:", result); // <-- Tambahkan ini
           if (result?.info?.secure_url) {
             editor
               .chain()
               .focus()
-              .setImage({ src: result.info.secure_url }) // Memasukkan URL gambar ke editor
+              .setImage({ src: result.info.secure_url })
               .run();
+          } else {
+            console.error(
+              "Secure URL not found in Cloudinary result for Tiptap.",
+              result
+            ); // <-- Dan ini
           }
         }}
         options={{
