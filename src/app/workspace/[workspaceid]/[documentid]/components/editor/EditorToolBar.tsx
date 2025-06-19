@@ -74,7 +74,7 @@ export function EditorToolbar({ editor, onSave }: EditorToolbarProps) {
   const isInTable = editor.isActive("table");
 
   return (
-    <div className="border rounded-lg p-2 bg-white flex flex-wrap gap-1 items-center">
+    <div className="sticky top-0 z-50 border rounded-lg p-2 bg-white shadow-sm flex flex-wrap gap-1 items-center">
       {/* Save Button */}
       {onSave && (
         <>
