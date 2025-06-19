@@ -36,6 +36,7 @@ import { toast } from "react-hot-toast";
 import { debounce } from "lodash";
 import { isEqual } from "lodash";
 import { EditorToolbar } from "./EditorToolBar";
+import { User } from "@prisma/client";
 
 // Create lowlight instance
 const lowlight = createLowlight();
@@ -43,13 +44,6 @@ lowlight.register("javascript", javascript);
 lowlight.register("typescript", typescript);
 lowlight.register("css", css);
 lowlight.register("html", html);
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  image?: string;
-}
 
 interface TipTapEditorProps {
   workspaceId: string;
