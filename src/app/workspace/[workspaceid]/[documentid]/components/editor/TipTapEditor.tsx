@@ -32,11 +32,13 @@ import typescript from "highlight.js/lib/languages/typescript";
 import css from "highlight.js/lib/languages/css";
 import html from "highlight.js/lib/languages/xml";
 import { useEffect, useState, useCallback, useRef } from "react";
+import type { User } from "@prisma/client";
+import axios from "axios";
 import { toast } from "react-hot-toast";
 import { debounce } from "lodash";
 import { isEqual } from "lodash";
+import { SaveStatus } from "./SaveStatus";
 import { EditorToolbar } from "./EditorToolBar";
-import { User } from "@prisma/client";
 
 // Create lowlight instance
 const lowlight = createLowlight();
@@ -199,8 +201,13 @@ function CollaborativeEditor({
     setSaveStatus("saving");
 
     try {
-      // Simulate API call - replace with your actual API endpoint
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await axios.put(
+        `/api/workspace/${workspaceId}/document/${documentId}/content`,
+        {
+          content,
+          userEmail: currentUser.email,
+        }
+      );
 
       // Update refs and state
       lastSavedContentRef.current = content;
@@ -265,24 +272,18 @@ function CollaborativeEditor({
         Image.configure({
           inline: true,
           allowBase64: true,
-          HTMLAttributes: {
-            class:
-              "rounded-lg shadow-md max-w-full h-auto my-4 cursor-pointer hover:shadow-lg transition-shadow",
-          },
         }),
         Link.configure({
           openOnClick: false,
           HTMLAttributes: {
-            class:
-              "text-blue-500 underline cursor-pointer hover:text-blue-700 transition-colors",
+            class: "text-blue-500 underline cursor-pointer",
           },
         }),
         // Enhanced Table configuration with more options
         Table.configure({
           resizable: true,
           HTMLAttributes: {
-            class:
-              "border-collapse border border-gray-300 w-full my-4 rounded-lg overflow-hidden",
+            class: "border-collapse border border-gray-300 w-full my-4",
           },
         }),
         TableRow.configure({
@@ -292,12 +293,12 @@ function CollaborativeEditor({
         }),
         TableHeader.configure({
           HTMLAttributes: {
-            class: "border border-gray-300 bg-gray-100 font-bold p-3 text-left",
+            class: "border border-gray-300 bg-gray-100 font-bold p-2 text-left",
           },
         }),
         TableCell.configure({
           HTMLAttributes: {
-            class: "border border-gray-300 p-3 min-w-[100px]",
+            class: "border border-gray-300 p-2 min-w-[100px]",
           },
         }),
         TaskList,
@@ -308,14 +309,14 @@ function CollaborativeEditor({
         TextStyle,
         FontFamily,
         Placeholder.configure({
-          placeholder: placeholder || "Start writing your document...",
+          placeholder,
         }),
         CharacterCount,
       ],
       editorProps: {
         attributes: {
           class:
-            "prose prose-lg max-w-none focus:outline-none min-h-[500px] p-6 bg-white rounded-lg",
+            "prose prose-lg max-w-none focus:outline-none min-h-[500px] p-4",
         },
       },
       onUpdate: ({ editor }) => {
@@ -364,9 +365,15 @@ function CollaborativeEditor({
       } else {
         // Load content from database (existing logic)
         try {
-          // Simulate loading content - replace with your actual API call
-          await new Promise((resolve) => setTimeout(resolve, 500));
-          // contentToLoad = response.data.data.content;
+          const response = await axios.get(
+            `/api/workspace/${workspaceId}/document/${documentId}/content`
+          );
+          if (
+            response.data.status === "success" &&
+            response.data.data.content
+          ) {
+            contentToLoad = response.data.data.content;
+          }
         } catch (error) {
           console.error("Failed to load document content:", error);
         }
@@ -434,17 +441,17 @@ function CollaborativeEditor({
   }
 
   return (
-    <div className="w-full max-w-4xl mx-auto">
+    <div className="w-full">
       {/* Enhanced Editor Toolbar */}
       {editor && <EditorToolbar editor={editor} onSave={handleManualSave} />}
 
       {/* Editor Content */}
-      <div className="border rounded-lg mt-4 bg-gray-50 p-1">
+      <div className="border rounded-lg mt-4 bg-white">
         <EditorContent editor={editor} />
       </div>
 
       {/* Status Bar */}
-      <div className="flex justify-between items-center mt-2 text-sm text-gray-500 p-3 bg-gray-50 rounded-lg">
+      <div className="flex justify-between items-center mt-2 text-sm text-gray-500 p-2 bg-gray-50 rounded-lg">
         <div className="flex items-center gap-4">
           {editor && (
             <span>
@@ -452,25 +459,7 @@ function CollaborativeEditor({
               {editor.storage.characterCount.words()} words
             </span>
           )}
-          <div className="flex items-center gap-2">
-            <div
-              className={`w-2 h-2 rounded-full ${
-                saveStatus === "saved"
-                  ? "bg-green-500"
-                  : saveStatus === "saving"
-                  ? "bg-yellow-500"
-                  : saveStatus === "unsaved"
-                  ? "bg-orange-500"
-                  : "bg-red-500"
-              }`}
-            />
-            <span className="capitalize">{saveStatus}</span>
-            {lastSaved && (
-              <span className="text-xs">
-                • Last saved {lastSaved.toLocaleTimeString()}
-              </span>
-            )}
-          </div>
+          <SaveStatus status={saveStatus} lastSaved={lastSaved} />
         </div>
       </div>
     </div>
