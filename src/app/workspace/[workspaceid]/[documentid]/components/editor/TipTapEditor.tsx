@@ -59,7 +59,7 @@ interface TipTapEditorProps {
 // Save status type
 type SaveStatusType = "saved" | "saving" | "unsaved" | "error";
 
-export default function EnhancedTipTapEditor({
+export default function TipTapEditor({
   workspaceId,
   documentId,
   placeholder,
