@@ -1,4 +1,3 @@
-// TipTapEditor.tsx
 "use client";
 
 import { useEditor, EditorContent } from "@tiptap/react";
@@ -38,9 +37,9 @@ import { CommentSystem } from "./CommentSystem";
 import axios from "axios";
 import { toast } from "react-hot-toast";
 import { debounce } from "lodash";
-import { isEqual } from "lodash"; // Pastikan isEqual diimpor
-import { EditorToolbar } from "./EditorToolBar";
+import { isEqual } from "lodash";
 import { SaveStatus } from "./SaveStatus";
+import { EditorToolbar } from "./EditorToolBar";
 
 // Create lowlight instance
 const lowlight = createLowlight();
@@ -60,7 +59,7 @@ interface TipTapEditorProps {
 // Save status type
 type SaveStatusType = "saved" | "saving" | "unsaved" | "error";
 
-export default function TipTapEditor({
+export default function EnhancedTipTapEditor({
   workspaceId,
   documentId,
   placeholder,
@@ -72,7 +71,7 @@ export default function TipTapEditor({
       publicApiKey={process.env.NEXT_PUBLIC_LIVEBLOCKS_PUBLIC_KEY!}
     >
       <RoomProvider
-        id={documentId} // Using documentId as roomId
+        id={documentId}
         initialPresence={{
           cursor: null,
           selection: null,
@@ -281,12 +280,28 @@ function CollaborativeEditor({
             class: "text-blue-500 underline cursor-pointer",
           },
         }),
+        // Enhanced Table configuration with more options
         Table.configure({
           resizable: true,
+          HTMLAttributes: {
+            class: "border-collapse border border-gray-300 w-full my-4",
+          },
         }),
-        TableRow,
-        TableHeader,
-        TableCell,
+        TableRow.configure({
+          HTMLAttributes: {
+            class: "border border-gray-300",
+          },
+        }),
+        TableHeader.configure({
+          HTMLAttributes: {
+            class: "border border-gray-300 bg-gray-100 font-bold p-2 text-left",
+          },
+        }),
+        TableCell.configure({
+          HTMLAttributes: {
+            class: "border border-gray-300 p-2 min-w-[100px]",
+          },
+        }),
         TaskList,
         TaskItem.configure({
           nested: true,
@@ -313,7 +328,7 @@ function CollaborativeEditor({
         const content = editor.getJSON();
         currentContentRef.current = content;
 
-        // Cek apakah konten benar-benar berubah dari yang terakhir disimpan
+        // Check if content has actually changed from what was last saved
         if (!isEqual(content, lastSavedContentRef.current)) {
           // Mark as unsaved
           setSaveStatus("unsaved");
@@ -328,7 +343,7 @@ function CollaborativeEditor({
           // Schedule a save after inactivity
           debouncedSave(content);
         } else {
-          // Jika konten tidak berubah, pastikan status kembali ke 'saved'
+          // If content hasn't changed, ensure status returns to 'saved'
           setSaveStatus("saved");
           setContentChanged(false);
         }
@@ -345,11 +360,11 @@ function CollaborativeEditor({
       let contentToLoad = null;
 
       if (initialContent) {
-        // Gunakan konten dari AI template
+        // Use content from AI template
         contentToLoad = initialContent;
         toast.success("AI template applied!");
       } else {
-        // Load content dari database (existing logic)
+        // Load content from database (existing logic)
         try {
           const response = await axios.get(
             `/api/workspace/${workspaceId}/document/${documentId}/content`
@@ -369,13 +384,11 @@ function CollaborativeEditor({
         editor.commands.setContent(contentToLoad);
         lastSavedContentRef.current = contentToLoad;
         currentContentRef.current = contentToLoad;
-        // Penting: Jangan set contentChanged = true atau setSaveStatus = "unsaved" di sini.
-        // Biarkan onUpdate yang menanganinya hanya jika ada perubahan nyata oleh user.
-        setSaveStatus("saved"); // Pastikan status awal adalah 'saved' setelah load
-        setContentChanged(false); // Pastikan tidak ada perubahan yang terdeteksi
+        setSaveStatus("saved");
+        setContentChanged(false);
       } else {
-        // Jika tidak ada konten yang dimuat (misalnya, dokumen baru kosong)
-        editor.commands.setContent({}); // Set konten kosong jika tidak ada yang dimuat
+        // If no content to load (e.g., new empty document)
+        editor.commands.setContent({});
         lastSavedContentRef.current = {};
         currentContentRef.current = {};
         setSaveStatus("saved");
@@ -430,8 +443,10 @@ function CollaborativeEditor({
 
   return (
     <div className="w-full">
-      {/* Editor Toolbar */}
-      {editor && <EditorToolbar editor={editor} onSave={handleManualSave} />}
+      {/* Enhanced Editor Toolbar */}
+      {editor && (
+        <EditorToolbar editor={editor} onSave={handleManualSave} />
+      )}
 
       {/* Editor Content */}
       <div className="border rounded-lg mt-4 bg-white">
@@ -449,9 +464,6 @@ function CollaborativeEditor({
           )}
           <SaveStatus status={saveStatus} lastSaved={lastSaved} />
         </div>
-        {/* <div className="text-xs text-gray-400">
-          Press Ctrl+S to save manually • Auto-saves after 2s of inactivity
-        </div> */}
       </div>
 
       {/* Comment System */}
