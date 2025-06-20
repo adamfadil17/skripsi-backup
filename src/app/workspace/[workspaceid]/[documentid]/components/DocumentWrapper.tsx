@@ -13,7 +13,7 @@ import CoverPickerDialog from "@/components/shared/CoverPickerDialog";
 import EmojiPickerPopover from "@/components/shared/EmojiPickerPopover";
 import AITemplateDialog from "./AITemplateDialog";
 import { usePusherChannelContext } from "../../components/PusherChannelProvider";
-import { User } from "@prisma/client";
+import type { User } from "@prisma/client";
 import TipTapEditor from "./editor/TipTapEditor";
 
 interface DocumentWrapperProps {
@@ -22,7 +22,11 @@ interface DocumentWrapperProps {
   currentUser: User;
 }
 
-const DocumentWrapper = ({ workspaceId, documentId, currentUser }: DocumentWrapperProps) => {
+const DocumentWrapper = ({
+  workspaceId,
+  documentId,
+  currentUser,
+}: DocumentWrapperProps) => {
   const router = useRouter();
   const { channel: workspaceChannel } = usePusherChannelContext();
 
@@ -84,7 +88,6 @@ const DocumentWrapper = ({ workspaceId, documentId, currentUser }: DocumentWrapp
     if (!workspaceChannel) return;
 
     const handleDocumentUpdated = (updatedDocument: WorkspaceDocument) => {
-
       if (updatedDocument.id === documentId) {
         setEmoji(updatedDocument.emoji || "");
         setCoverImage(updatedDocument.coverImage || "/images/placeholder.svg");
@@ -154,9 +157,25 @@ const DocumentWrapper = ({ workspaceId, documentId, currentUser }: DocumentWrapp
 
   // Handle AI template generation
   const handleAITemplateGenerated = (templateContent: any) => {
-    setModelResponse(templateContent);
-    // Editor TipTap akan menangani penerapan konten ini melalui prop `initialContent`
+    // Clear any previous model response to ensure fresh insertion
+    setModelResponse(null);
+
+    // Set the new template content
+    setTimeout(() => {
+      setModelResponse(templateContent);
+    }, 100); // Small delay to ensure state is cleared first
   };
+
+  // Clear model response after it's been applied to prevent re-application
+  useEffect(() => {
+    if (modelResponse) {
+      const timer = setTimeout(() => {
+        setModelResponse(null);
+      }, 1000); // Clear after 1 second to allow editor to process
+
+      return () => clearTimeout(timer);
+    }
+  }, [modelResponse]);
 
   if (isLoading) {
     return (

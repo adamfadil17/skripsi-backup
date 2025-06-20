@@ -384,11 +384,41 @@ function CollaborativeEditor({
       let contentToLoad = null;
 
       if (initialContent) {
-        // Use content from AI template
-        contentToLoad = initialContent;
+        // Instead of replacing all content, insert at current position or append
+        const currentContent = editor.getJSON();
+
+        // Check if editor has existing content
+        if (currentContent.content && currentContent.content.length > 0) {
+          // Get current cursor position
+          const { from } = editor.state.selection;
+
+          // Insert a line break and then the AI content
+          editor
+            .chain()
+            .focus()
+            .setTextSelection(from)
+            .insertContent([
+              {
+                type: "paragraph",
+                content: [],
+              },
+              ...initialContent.content,
+            ])
+            .run();
+        } else {
+          // If editor is empty, set the content normally
+          editor.commands.setContent(initialContent);
+        }
+
+        // Update refs with the new combined content
+        const newContent = editor.getJSON();
+        lastSavedContentRef.current = newContent;
+        currentContentRef.current = newContent;
+        setSaveStatus("unsaved"); // Mark as unsaved since we added new content
+        setContentChanged(true);
         toast.success("AI template applied!");
       } else {
-        // Load content from database (existing logic)
+        // Existing logic for loading from database remains the same
         try {
           const response = await axios.get(
             `/api/workspace/${workspaceId}/document/${documentId}/content`
@@ -402,21 +432,21 @@ function CollaborativeEditor({
         } catch (error) {
           console.error("Failed to load document content:", error);
         }
-      }
 
-      if (contentToLoad) {
-        editor.commands.setContent(contentToLoad);
-        lastSavedContentRef.current = contentToLoad;
-        currentContentRef.current = contentToLoad;
-        setSaveStatus("saved");
-        setContentChanged(false);
-      } else {
-        // If no content to load (e.g., new empty document)
-        editor.commands.setContent({});
-        lastSavedContentRef.current = {};
-        currentContentRef.current = {};
-        setSaveStatus("saved");
-        setContentChanged(false);
+        if (contentToLoad) {
+          editor.commands.setContent(contentToLoad);
+          lastSavedContentRef.current = contentToLoad;
+          currentContentRef.current = contentToLoad;
+          setSaveStatus("saved");
+          setContentChanged(false);
+        } else {
+          // If no content to load (e.g., new empty document)
+          editor.commands.setContent({});
+          lastSavedContentRef.current = {};
+          currentContentRef.current = {};
+          setSaveStatus("saved");
+          setContentChanged(false);
+        }
       }
     };
 
