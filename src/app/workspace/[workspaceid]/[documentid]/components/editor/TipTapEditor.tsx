@@ -35,7 +35,6 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import type { User } from "@prisma/client";
 import axios from "axios";
 import { toast } from "react-hot-toast";
-import { debounce } from "lodash";
 import { isEqual } from "lodash";
 import { SaveStatus } from "./SaveStatus";
 import { EditorToolbar } from "./EditorToolBar";
@@ -57,6 +56,13 @@ interface TipTapEditorProps {
 
 // Save status type
 type SaveStatusType = "saved" | "saving" | "unsaved" | "error";
+
+// Save queue item type
+interface SaveQueueItem {
+  content: any;
+  timestamp: number;
+  retryCount: number;
+}
 
 export default function TipTapEditor({
   workspaceId,
@@ -107,20 +113,23 @@ function CollaborativeEditor({
   const [isLoading, setIsLoading] = useState(true);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatusType>("saved");
-  const [contentChanged, setContentChanged] = useState(false);
 
-  // Store the last saved content to compare for changes
+  // Enhanced save management refs
   const lastSavedContentRef = useRef<any>(null);
-  // Store the current content
   const currentContentRef = useRef<any>(null);
-  // Store the save timeout
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  // Store the idle detection timeout
-  const idleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  // Track user activity
-  const lastActivityRef = useRef<number>(Date.now());
-  // Track if a save is in progress
+  const saveQueueRef = useRef<SaveQueueItem[]>([]);
   const isSavingRef = useRef<boolean>(false);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastActivityRef = useRef<number>(Date.now());
+  const saveIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const consecutiveFailuresRef = useRef<number>(0);
+
+  // Configuration constants
+  const SAVE_DEBOUNCE_DELAY = 5000; // Increased from 2s to 5s
+  const IDLE_SAVE_DELAY = 60000; // Increased from 30s to 60s
+  const MAX_RETRY_ATTEMPTS = 3;
+  const BATCH_SAVE_INTERVAL = 10000; // Process save queue every 10s
+  const MAX_CONSECUTIVE_FAILURES = 5;
 
   // Initialize Yjs document and provider
   useEffect(() => {
@@ -137,65 +146,21 @@ function CollaborativeEditor({
     };
   }, [room]);
 
-  // Track user activity
-  useEffect(() => {
-    const updateActivity = () => {
-      lastActivityRef.current = Date.now();
-    };
+  // Enhanced save queue processor
+  const processSaveQueue = useCallback(async () => {
+    if (isSavingRef.current || saveQueueRef.current.length === 0) {
+      return;
+    }
 
-    // Listen for user activity events
-    window.addEventListener("mousemove", updateActivity);
-    window.addEventListener("keydown", updateActivity);
-    window.addEventListener("click", updateActivity);
-    window.addEventListener("scroll", updateActivity);
+    // Get the most recent save item (discard older ones)
+    const latestSave = saveQueueRef.current[saveQueueRef.current.length - 1];
+    saveQueueRef.current = []; // Clear the queue
 
-    // Set up idle detection - check every 10 seconds if user has been idle for 30+ seconds
-    const idleCheckInterval = setInterval(() => {
-      const idleTime = Date.now() - lastActivityRef.current;
-      // If user has been idle for 30+ seconds and there are unsaved changes, save them
-      if (
-        idleTime > 30000 &&
-        contentChanged &&
-        !isSavingRef.current &&
-        currentContentRef.current
-      ) {
-        saveContent(currentContentRef.current);
-      }
-    }, 10000);
-
-    return () => {
-      window.removeEventListener("mousemove", updateActivity);
-      window.removeEventListener("keydown", updateActivity);
-      window.removeEventListener("click", updateActivity);
-      window.removeEventListener("scroll", updateActivity);
-      clearInterval(idleCheckInterval);
-    };
-  }, [contentChanged]);
-
-  // Save content to database with debounce
-  const debouncedSave = useCallback(
-    debounce((content: any) => {
-      if (isSavingRef.current) return;
-
-      // Check if content has actually changed
-      if (
-        lastSavedContentRef.current &&
-        isEqual(content, lastSavedContentRef.current)
-      ) {
-        setSaveStatus("saved");
-        setContentChanged(false);
-        return;
-      }
-
-      // Save content
-      saveContent(content);
-    }, 2000), // Wait 2 seconds of inactivity before saving
-    []
-  );
-
-  // Actual save function
-  const saveContent = async (content: any) => {
-    if (isSavingRef.current) return;
+    // Check if content has actually changed from last saved
+    if (isEqual(latestSave.content, lastSavedContentRef.current)) {
+      setSaveStatus("saved");
+      return;
+    }
 
     isSavingRef.current = true;
     setSaveStatus("saving");
@@ -204,46 +169,170 @@ function CollaborativeEditor({
       await axios.put(
         `/api/workspace/${workspaceId}/document/${documentId}/content`,
         {
-          content,
+          content: latestSave.content,
           userEmail: currentUser.email,
+        },
+        {
+          timeout: 10000, // 10 second timeout
         }
       );
 
-      // Update refs and state
-      lastSavedContentRef.current = content;
+      // Success
+      lastSavedContentRef.current = latestSave.content;
       setLastSaved(new Date());
       setSaveStatus("saved");
-      setContentChanged(false);
+      consecutiveFailuresRef.current = 0;
 
-      // Show toast only for manual saves, not auto-saves
-      if (document.hasFocus()) {
+      // Only show toast for manual saves or after recovering from errors
+      if (document.hasFocus() || consecutiveFailuresRef.current > 0) {
         toast.success("Document saved");
       }
     } catch (error) {
       console.error("Failed to save document:", error);
-      setSaveStatus("error");
-      toast.error("Failed to save document");
+      consecutiveFailuresRef.current++;
+
+      // Retry logic with exponential backoff
+      if (latestSave.retryCount < MAX_RETRY_ATTEMPTS) {
+        const retryDelay = Math.min(
+          1000 * Math.pow(2, latestSave.retryCount),
+          30000
+        );
+
+        setTimeout(() => {
+          saveQueueRef.current.push({
+            ...latestSave,
+            retryCount: latestSave.retryCount + 1,
+          });
+          processSaveQueue();
+        }, retryDelay);
+
+        setSaveStatus("saving");
+      } else {
+        setSaveStatus("error");
+
+        // Show error toast only if we've exceeded max consecutive failures
+        if (consecutiveFailuresRef.current >= MAX_CONSECUTIVE_FAILURES) {
+          toast.error("Failed to save document. Please check your connection.");
+        }
+      }
     } finally {
       isSavingRef.current = false;
     }
-  };
+  }, [workspaceId, documentId, currentUser.email]);
 
-  // Manual save function for keyboard shortcuts
-  const handleManualSave = useCallback(() => {
-    if (currentContentRef.current && !isSavingRef.current) {
-      saveContent(currentContentRef.current);
+  // Set up batch save processor
+  useEffect(() => {
+    saveIntervalRef.current = setInterval(
+      processSaveQueue,
+      BATCH_SAVE_INTERVAL
+    );
+
+    return () => {
+      if (saveIntervalRef.current) {
+        clearInterval(saveIntervalRef.current);
+      }
+    };
+  }, [processSaveQueue]);
+
+  // Enhanced debounced save function
+  const debouncedSave = useCallback(
+    (content: any) => {
+      // Clear existing timeout
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+
+      // Add to save queue (replace any existing items with same content)
+      const existingIndex = saveQueueRef.current.findIndex((item) =>
+        isEqual(item.content, content)
+      );
+
+      if (existingIndex >= 0) {
+        // Update timestamp of existing item
+        saveQueueRef.current[existingIndex].timestamp = Date.now();
+      } else {
+        // Add new item to queue
+        saveQueueRef.current.push({
+          content,
+          timestamp: Date.now(),
+          retryCount: 0,
+        });
+      }
+
+      // Set timeout for processing
+      saveTimeoutRef.current = setTimeout(() => {
+        processSaveQueue();
+      }, SAVE_DEBOUNCE_DELAY);
+    },
+    [processSaveQueue]
+  );
+
+  // Track user activity with enhanced idle detection
+  useEffect(() => {
+    const updateActivity = () => {
+      lastActivityRef.current = Date.now();
+    };
+
+    const events = ["mousemove", "keydown", "click", "scroll", "focus"];
+    events.forEach((event) => {
+      window.addEventListener(event, updateActivity);
+    });
+
+    // Enhanced idle detection
+    const idleCheckInterval = setInterval(() => {
+      const idleTime = Date.now() - lastActivityRef.current;
+
+      // Save on idle if there are unsaved changes and no active saving
+      if (
+        idleTime > IDLE_SAVE_DELAY &&
+        saveQueueRef.current.length === 0 &&
+        currentContentRef.current &&
+        !isEqual(currentContentRef.current, lastSavedContentRef.current) &&
+        !isSavingRef.current
+      ) {
+        debouncedSave(currentContentRef.current);
+      }
+    }, 15000); // Check every 15 seconds
+
+    return () => {
+      events.forEach((event) => {
+        window.removeEventListener(event, updateActivity);
+      });
+      clearInterval(idleCheckInterval);
+    };
+  }, [debouncedSave]);
+
+  // Manual save function with immediate processing
+  const handleManualSave = useCallback(async () => {
+    if (!currentContentRef.current || isSavingRef.current) {
+      return;
     }
-  }, []);
+
+    // Clear any pending debounced saves
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+
+    // Add to queue with high priority and process immediately
+    saveQueueRef.current = [
+      {
+        content: currentContentRef.current,
+        timestamp: Date.now(),
+        retryCount: 0,
+      },
+    ];
+
+    await processSaveQueue();
+  }, [processSaveQueue]);
 
   const editor = useEditor(
     {
       extensions: [
         StarterKit.configure({
-          // Completely disable history when using collaboration
           history: false,
           codeBlock: false,
         }),
-        // Only add collaboration extensions when ready
         ...(yDoc && provider
           ? [
               Collaboration.configure({
@@ -269,14 +358,13 @@ function CollaborativeEditor({
         TextAlign.configure({
           types: ["heading", "paragraph"],
         }),
-        // Enhanced Image configuration with better error handling and styling
         Image.configure({
-          inline: false, // Changed from true to false for better display
+          inline: false,
           allowBase64: true,
           HTMLAttributes: {
             class: "max-w-full h-auto rounded-lg shadow-sm my-4 mx-auto block",
             loading: "lazy",
-            crossorigin: "anonymous", // Add CORS support
+            crossorigin: "anonymous",
           },
         }),
         Link.configure({
@@ -285,7 +373,6 @@ function CollaborativeEditor({
             class: "text-blue-500 underline cursor-pointer",
           },
         }),
-        // Enhanced Table configuration with more options
         Table.configure({
           resizable: true,
           HTMLAttributes: {
@@ -324,9 +411,7 @@ function CollaborativeEditor({
           class:
             "prose prose-lg max-w-none focus:outline-none min-h-[500px] p-4",
         },
-        // Add custom image handling
         handleDOMEvents: {
-          // Handle image load errors
           error: (view, event) => {
             const target = event.target as HTMLElement;
             if (target.tagName === "IMG") {
@@ -334,7 +419,6 @@ function CollaborativeEditor({
                 "Image failed to load:",
                 target.getAttribute("src")
               );
-              // You could replace with a placeholder image here
               target.setAttribute("alt", "Failed to load image");
               target.style.border = "2px dashed #ccc";
               target.style.padding = "20px";
@@ -345,38 +429,27 @@ function CollaborativeEditor({
         },
       },
       onUpdate: ({ editor }) => {
-        // Only proceed if editor is available and has the necessary methods
         if (!editor || !editor.getJSON) return;
 
-        // Get current content
         const content = editor.getJSON();
         currentContentRef.current = content;
 
-        // Check if content has actually changed from what was last saved
+        // Update activity timestamp
+        lastActivityRef.current = Date.now();
+
+        // Check if content has changed
         if (!isEqual(content, lastSavedContentRef.current)) {
-          // Mark as unsaved
           setSaveStatus("unsaved");
-          setContentChanged(true);
-
-          // Clear any existing save timeout
-          if (saveTimeoutRef.current) {
-            clearTimeout(saveTimeoutRef.current);
-            saveTimeoutRef.current = null;
-          }
-
-          // Schedule a save after inactivity
           debouncedSave(content);
         } else {
-          // If content hasn't changed, ensure status returns to 'saved'
           setSaveStatus("saved");
-          setContentChanged(false);
         }
       },
     },
     [yDoc, provider]
   );
 
-  // Load initial content from database or apply AI generated template
+  // Load initial content
   useEffect(() => {
     if (!editor) return;
 
@@ -384,15 +457,10 @@ function CollaborativeEditor({
       let contentToLoad = null;
 
       if (initialContent) {
-        // Instead of replacing all content, insert at current position or append
         const currentContent = editor.getJSON();
 
-        // Check if editor has existing content
         if (currentContent.content && currentContent.content.length > 0) {
-          // Get current cursor position
           const { from } = editor.state.selection;
-
-          // Insert a line break and then the AI content
           editor
             .chain()
             .focus()
@@ -406,19 +474,15 @@ function CollaborativeEditor({
             ])
             .run();
         } else {
-          // If editor is empty, set the content normally
           editor.commands.setContent(initialContent);
         }
 
-        // Update refs with the new combined content
         const newContent = editor.getJSON();
-        lastSavedContentRef.current = newContent;
         currentContentRef.current = newContent;
-        setSaveStatus("unsaved"); // Mark as unsaved since we added new content
-        setContentChanged(true);
+        setSaveStatus("unsaved");
+        debouncedSave(newContent);
         toast.success("AI template applied!");
       } else {
-        // Existing logic for loading from database remains the same
         try {
           const response = await axios.get(
             `/api/workspace/${workspaceId}/document/${documentId}/content`
@@ -438,25 +502,21 @@ function CollaborativeEditor({
           lastSavedContentRef.current = contentToLoad;
           currentContentRef.current = contentToLoad;
           setSaveStatus("saved");
-          setContentChanged(false);
         } else {
-          // If no content to load (e.g., new empty document)
           editor.commands.setContent({});
           lastSavedContentRef.current = {};
           currentContentRef.current = {};
           setSaveStatus("saved");
-          setContentChanged(false);
         }
       }
     };
 
     loadOrApplyContent();
-  }, [editor, workspaceId, documentId, initialContent]);
+  }, [editor, workspaceId, documentId, initialContent, debouncedSave]);
 
   // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Save on Ctrl+S or Cmd+S
       if ((event.ctrlKey || event.metaKey) && event.key === "s") {
         event.preventDefault();
         handleManualSave();
@@ -467,25 +527,48 @@ function CollaborativeEditor({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [handleManualSave]);
 
-  // Save before unloading if there are unsaved changes
+  // Enhanced beforeunload handler
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      if (contentChanged) {
-        // Save content before unloading
+      const hasUnsavedChanges =
+        saveQueueRef.current.length > 0 ||
+        (currentContentRef.current &&
+          !isEqual(currentContentRef.current, lastSavedContentRef.current));
+
+      if (hasUnsavedChanges) {
+        // Attempt to save synchronously
         if (currentContentRef.current) {
-          saveContent(currentContentRef.current);
+          navigator.sendBeacon(
+            `/api/workspace/${workspaceId}/document/${documentId}/content`,
+            JSON.stringify({
+              content: currentContentRef.current,
+              userEmail: currentUser.email,
+            })
+          );
         }
 
-        // Show confirmation dialog
         event.preventDefault();
-        event.returnValue = "";
-        return "";
+        event.returnValue =
+          "You have unsaved changes. Are you sure you want to leave?";
+        return event.returnValue;
       }
     };
 
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [contentChanged]);
+  }, [workspaceId, documentId, currentUser.email]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+      if (saveIntervalRef.current) {
+        clearInterval(saveIntervalRef.current);
+      }
+    };
+  }, []);
 
   if (isLoading) {
     return (
@@ -497,10 +580,8 @@ function CollaborativeEditor({
 
   return (
     <div className="w-full">
-      {/* Enhanced Editor Toolbar */}
       {editor && <EditorToolbar editor={editor} onSave={handleManualSave} />}
 
-      {/* Editor Content with enhanced image styling */}
       <div className="border rounded-lg mt-4 bg-white">
         <EditorContent
           editor={editor}
@@ -508,7 +589,6 @@ function CollaborativeEditor({
         />
       </div>
 
-      {/* Status Bar */}
       <div className="flex justify-between items-center mt-2 text-sm text-gray-500 p-2 bg-gray-50 rounded-lg">
         <div className="flex items-center gap-4">
           {editor && (
@@ -519,12 +599,16 @@ function CollaborativeEditor({
           )}
           <SaveStatus status={saveStatus} lastSaved={lastSaved} />
         </div>
+        {saveQueueRef.current.length > 0 && (
+          <span className="text-xs text-orange-500">
+            {saveQueueRef.current.length} pending save(s)
+          </span>
+        )}
       </div>
     </div>
   );
 }
 
-// Helper function to generate random colors for cursors
 function getRandomColor() {
   const colors = [
     "#FF6B6B",
