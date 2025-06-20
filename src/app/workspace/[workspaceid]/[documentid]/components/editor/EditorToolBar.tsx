@@ -361,7 +361,7 @@ export function EditorToolbar({ editor, onSave }: EditorToolbarProps) {
       {/* Image Options Dropdown */}
 
       <CldUploadButton
-        uploadPreset="catatan_cerdas_document"
+        uploadPreset="catatan_cerdas_chat"
         onSuccess={handleCloudinarySuccess}
         onError={handleCloudinaryError}
         options={{
