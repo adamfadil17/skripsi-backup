@@ -35,10 +35,11 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import type { User } from "@prisma/client";
 import axios from "axios";
 import { toast } from "react-hot-toast";
-import { debounce } from "lodash";
 import { isEqual } from "lodash";
-import { SaveStatus } from "./SaveStatus";
 import { EditorToolbar } from "./EditorToolBar";
+import { useRobustSave } from "@/hooks/use-robust-save";
+import { RecoveryDialog } from "./RecoveryDialog";
+import { SaveStatusIndicator } from "./SaveStatusIndicator";
 
 // Create lowlight instance
 const lowlight = createLowlight();
@@ -54,9 +55,6 @@ interface TipTapEditorProps {
   currentUser: User;
   initialContent?: any;
 }
-
-// Save status type
-type SaveStatusType = "saved" | "saving" | "unsaved" | "error";
 
 export default function TipTapEditor({
   workspaceId,
@@ -105,22 +103,32 @@ function CollaborativeEditor({
   const [provider, setProvider] = useState<LiveblocksYjsProvider>();
   const [yDoc, setYDoc] = useState<Y.Doc>();
   const [isLoading, setIsLoading] = useState(true);
-  const [lastSaved, setLastSaved] = useState<Date | null>(null);
-  const [saveStatus, setSaveStatus] = useState<SaveStatusType>("saved");
-  const [contentChanged, setContentChanged] = useState(false);
+  const [showRecoveryDialog, setShowRecoveryDialog] = useState(false);
+  const [hasCheckedRecovery, setHasCheckedRecovery] = useState(false);
+
+  // Use robust save hook
+  const {
+    saveStatus,
+    lastSaved,
+    saveQueue,
+    isProcessingQueue,
+    debouncedSave,
+    saveAIContent,
+    manualSave,
+    retryFailedSaves,
+    getRecoveryData,
+    clearRecoveryData,
+    isOnline,
+  } = useRobustSave({
+    workspaceId,
+    documentId,
+    userEmail: currentUser.email,
+  });
 
   // Store the last saved content to compare for changes
   const lastSavedContentRef = useRef<any>(null);
-  // Store the current content
   const currentContentRef = useRef<any>(null);
-  // Store the save timeout
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  // Store the idle detection timeout
-  const idleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  // Track user activity
-  const lastActivityRef = useRef<number>(Date.now());
-  // Track if a save is in progress
-  const isSavingRef = useRef<boolean>(false);
+  const isApplyingRecoveryRef = useRef(false);
 
   // Initialize Yjs document and provider
   useEffect(() => {
@@ -137,113 +145,24 @@ function CollaborativeEditor({
     };
   }, [room]);
 
-  // Track user activity
+  // Check for recovery data on mount
   useEffect(() => {
-    const updateActivity = () => {
-      lastActivityRef.current = Date.now();
-    };
-
-    // Listen for user activity events
-    window.addEventListener("mousemove", updateActivity);
-    window.addEventListener("keydown", updateActivity);
-    window.addEventListener("click", updateActivity);
-    window.addEventListener("scroll", updateActivity);
-
-    // Set up idle detection - check every 10 seconds if user has been idle for 30+ seconds
-    const idleCheckInterval = setInterval(() => {
-      const idleTime = Date.now() - lastActivityRef.current;
-      // If user has been idle for 30+ seconds and there are unsaved changes, save them
-      if (
-        idleTime > 30000 &&
-        contentChanged &&
-        !isSavingRef.current &&
-        currentContentRef.current
-      ) {
-        saveContent(currentContentRef.current);
+    if (!hasCheckedRecovery && !isLoading) {
+      const recoveryData = getRecoveryData();
+      if (recoveryData.hasRecoveryData) {
+        setShowRecoveryDialog(true);
       }
-    }, 10000);
-
-    return () => {
-      window.removeEventListener("mousemove", updateActivity);
-      window.removeEventListener("keydown", updateActivity);
-      window.removeEventListener("click", updateActivity);
-      window.removeEventListener("scroll", updateActivity);
-      clearInterval(idleCheckInterval);
-    };
-  }, [contentChanged]);
-
-  // Save content to database with debounce
-  const debouncedSave = useCallback(
-    debounce((content: any) => {
-      if (isSavingRef.current) return;
-
-      // Check if content has actually changed
-      if (
-        lastSavedContentRef.current &&
-        isEqual(content, lastSavedContentRef.current)
-      ) {
-        setSaveStatus("saved");
-        setContentChanged(false);
-        return;
-      }
-
-      // Save content
-      saveContent(content);
-    }, 2000), // Wait 2 seconds of inactivity before saving
-    []
-  );
-
-  // Actual save function
-  const saveContent = async (content: any) => {
-    if (isSavingRef.current) return;
-
-    isSavingRef.current = true;
-    setSaveStatus("saving");
-
-    try {
-      await axios.put(
-        `/api/workspace/${workspaceId}/document/${documentId}/content`,
-        {
-          content,
-          userEmail: currentUser.email,
-        }
-      );
-
-      // Update refs and state
-      lastSavedContentRef.current = content;
-      setLastSaved(new Date());
-      setSaveStatus("saved");
-      setContentChanged(false);
-
-      // Show toast only for manual saves, not auto-saves
-      if (document.hasFocus()) {
-        toast.success("Document saved");
-      }
-    } catch (error) {
-      console.error("Failed to save document:", error);
-      setSaveStatus("error");
-      toast.error("Failed to save document");
-    } finally {
-      isSavingRef.current = false;
+      setHasCheckedRecovery(true);
     }
-  };
-
-  // Manual save function for keyboard shortcuts
-  const handleManualSave = useCallback(() => {
-    if (currentContentRef.current && !isSavingRef.current) {
-      saveContent(currentContentRef.current);
-    }
-  }, []);
+  }, [hasCheckedRecovery, isLoading, getRecoveryData]);
 
   const editor = useEditor(
     {
       extensions: [
         StarterKit.configure({
-          // Completely disable history when using collaboration
           history: false,
           codeBlock: false,
         }),
-        // Only add collaboration extensions when ready
         ...(yDoc && provider
           ? [
               Collaboration.configure({
@@ -269,14 +188,13 @@ function CollaborativeEditor({
         TextAlign.configure({
           types: ["heading", "paragraph"],
         }),
-        // Enhanced Image configuration with better error handling and styling
         Image.configure({
-          inline: false, // Changed from true to false for better display
+          inline: false,
           allowBase64: true,
           HTMLAttributes: {
             class: "max-w-full h-auto rounded-lg shadow-sm my-4 mx-auto block",
             loading: "lazy",
-            crossorigin: "anonymous", // Add CORS support
+            crossorigin: "anonymous",
           },
         }),
         Link.configure({
@@ -285,7 +203,6 @@ function CollaborativeEditor({
             class: "text-blue-500 underline cursor-pointer",
           },
         }),
-        // Enhanced Table configuration with more options
         Table.configure({
           resizable: true,
           HTMLAttributes: {
@@ -324,52 +241,15 @@ function CollaborativeEditor({
           class:
             "prose prose-lg max-w-none focus:outline-none min-h-[500px] p-4",
         },
-        // Add custom image handling
-        handleDOMEvents: {
-          // Handle image load errors
-          error: (view, event) => {
-            const target = event.target as HTMLElement;
-            if (target.tagName === "IMG") {
-              console.error(
-                "Image failed to load:",
-                target.getAttribute("src")
-              );
-              // You could replace with a placeholder image here
-              target.setAttribute("alt", "Failed to load image");
-              target.style.border = "2px dashed #ccc";
-              target.style.padding = "20px";
-              target.style.textAlign = "center";
-            }
-            return false;
-          },
-        },
       },
       onUpdate: ({ editor }) => {
-        // Only proceed if editor is available and has the necessary methods
-        if (!editor || !editor.getJSON) return;
+        if (!editor || !editor.getJSON || isApplyingRecoveryRef.current) return;
 
-        // Get current content
         const content = editor.getJSON();
         currentContentRef.current = content;
 
-        // Check if content has actually changed from what was last saved
         if (!isEqual(content, lastSavedContentRef.current)) {
-          // Mark as unsaved
-          setSaveStatus("unsaved");
-          setContentChanged(true);
-
-          // Clear any existing save timeout
-          if (saveTimeoutRef.current) {
-            clearTimeout(saveTimeoutRef.current);
-            saveTimeoutRef.current = null;
-          }
-
-          // Schedule a save after inactivity
           debouncedSave(content);
-        } else {
-          // If content hasn't changed, ensure status returns to 'saved'
-          setSaveStatus("saved");
-          setContentChanged(false);
         }
       },
     },
@@ -384,15 +264,12 @@ function CollaborativeEditor({
       let contentToLoad = null;
 
       if (initialContent) {
-        // Instead of replacing all content, insert at current position or append
+        // Handle AI-generated content with robust saving
         const currentContent = editor.getJSON();
 
-        // Check if editor has existing content
         if (currentContent.content && currentContent.content.length > 0) {
-          // Get current cursor position
           const { from } = editor.state.selection;
 
-          // Insert a line break and then the AI content
           editor
             .chain()
             .focus()
@@ -406,19 +283,17 @@ function CollaborativeEditor({
             ])
             .run();
         } else {
-          // If editor is empty, set the content normally
           editor.commands.setContent(initialContent);
         }
 
-        // Update refs with the new combined content
+        // Immediately save AI content with high priority
         const newContent = editor.getJSON();
-        lastSavedContentRef.current = newContent;
         currentContentRef.current = newContent;
-        setSaveStatus("unsaved"); // Mark as unsaved since we added new content
-        setContentChanged(true);
-        toast.success("AI template applied!");
+        saveAIContent(newContent);
+
+        toast.success("AI template applied and saved!");
       } else {
-        // Existing logic for loading from database remains the same
+        // Load existing content
         try {
           const response = await axios.get(
             `/api/workspace/${workspaceId}/document/${documentId}/content`
@@ -437,55 +312,60 @@ function CollaborativeEditor({
           editor.commands.setContent(contentToLoad);
           lastSavedContentRef.current = contentToLoad;
           currentContentRef.current = contentToLoad;
-          setSaveStatus("saved");
-          setContentChanged(false);
-        } else {
-          // If no content to load (e.g., new empty document)
-          editor.commands.setContent({});
-          lastSavedContentRef.current = {};
-          currentContentRef.current = {};
-          setSaveStatus("saved");
-          setContentChanged(false);
         }
       }
     };
 
     loadOrApplyContent();
-  }, [editor, workspaceId, documentId, initialContent]);
+  }, [editor, workspaceId, documentId, initialContent, saveAIContent]);
 
   // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Save on Ctrl+S or Cmd+S
       if ((event.ctrlKey || event.metaKey) && event.key === "s") {
         event.preventDefault();
-        handleManualSave();
+        if (currentContentRef.current) {
+          manualSave(currentContentRef.current);
+        }
       }
     };
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [handleManualSave]);
+  }, [manualSave]);
 
-  // Save before unloading if there are unsaved changes
-  useEffect(() => {
-    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      if (contentChanged) {
-        // Save content before unloading
-        if (currentContentRef.current) {
-          saveContent(currentContentRef.current);
+  // Handle recovery
+  const handleRecover = useCallback(
+    (content: any, type: "ai" | "backup" | "queued") => {
+      if (!editor) return;
+
+      isApplyingRecoveryRef.current = true;
+
+      try {
+        editor.commands.setContent(content);
+        currentContentRef.current = content;
+
+        // Save recovered content immediately
+        if (type === "ai") {
+          saveAIContent(content);
+          toast.success("AI content recovered and saved!");
+        } else {
+          manualSave(content);
+          toast.success("Content recovered and saved!");
         }
 
-        // Show confirmation dialog
-        event.preventDefault();
-        event.returnValue = "";
-        return "";
+        clearRecoveryData();
+      } finally {
+        isApplyingRecoveryRef.current = false;
       }
-    };
+    },
+    [editor, saveAIContent, manualSave, clearRecoveryData]
+  );
 
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [contentChanged]);
+  const handleDiscardRecovery = useCallback(() => {
+    clearRecoveryData();
+    toast.success("Recovery data cleared");
+  }, [clearRecoveryData]);
 
   if (isLoading) {
     return (
@@ -497,10 +377,26 @@ function CollaborativeEditor({
 
   return (
     <div className="w-full">
-      {/* Enhanced Editor Toolbar */}
-      {editor && <EditorToolbar editor={editor} onSave={handleManualSave} />}
+      {/* Recovery Dialog */}
+      <RecoveryDialog
+        isOpen={showRecoveryDialog}
+        onClose={() => setShowRecoveryDialog(false)}
+        recoveryData={getRecoveryData()}
+        onRecover={handleRecover}
+        onDiscard={handleDiscardRecovery}
+      />
 
-      {/* Editor Content with enhanced image styling */}
+      {/* Enhanced Editor Toolbar */}
+      {editor && (
+        <EditorToolbar
+          editor={editor}
+          onSave={() =>
+            currentContentRef.current && manualSave(currentContentRef.current)
+          }
+        />
+      )}
+
+      {/* Editor Content */}
       <div className="border rounded-lg mt-4 bg-white">
         <EditorContent
           editor={editor}
@@ -508,8 +404,8 @@ function CollaborativeEditor({
         />
       </div>
 
-      {/* Status Bar */}
-      <div className="flex justify-between items-center mt-2 text-sm text-gray-500 p-2 bg-gray-50 rounded-lg">
+      {/* Enhanced Status Bar */}
+      <div className="flex justify-between items-center mt-2 text-sm text-gray-500 p-3 bg-gray-50 rounded-lg">
         <div className="flex items-center gap-4">
           {editor && (
             <span>
@@ -517,8 +413,15 @@ function CollaborativeEditor({
               {editor.storage.characterCount.words()} words
             </span>
           )}
-          <SaveStatus status={saveStatus} lastSaved={lastSaved} />
         </div>
+
+        <SaveStatusIndicator
+          status={saveStatus}
+          lastSaved={lastSaved}
+          queuedSaves={saveQueue}
+          isOnline={isOnline}
+          onRetry={retryFailedSaves}
+        />
       </div>
     </div>
   );
