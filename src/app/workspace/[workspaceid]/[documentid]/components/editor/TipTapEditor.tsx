@@ -108,6 +108,7 @@ function CollaborativeEditor({
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatusType>("saved");
   const [contentChanged, setContentChanged] = useState(false);
+  const [isContentLoaded, setIsContentLoaded] = useState(false);
 
   // Store the last saved content to compare for changes
   const lastSavedContentRef = useRef<any>(null);
@@ -149,19 +150,19 @@ function CollaborativeEditor({
     window.addEventListener("click", updateActivity);
     window.addEventListener("scroll", updateActivity);
 
-    // Set up idle detection - check every 10 seconds if user has been idle for 30+ seconds
+    // Set up idle detection - check every 30 seconds if user has been idle for 60+ seconds
     const idleCheckInterval = setInterval(() => {
       const idleTime = Date.now() - lastActivityRef.current;
-      // If user has been idle for 30+ seconds and there are unsaved changes, save them
+      // If user has been idle for 60+ seconds and there are unsaved changes, save them
       if (
-        idleTime > 30000 &&
+        idleTime > 60000 && // Increased from 30000 to 60000 (1 minute)
         contentChanged &&
         !isSavingRef.current &&
         currentContentRef.current
       ) {
         saveContent(currentContentRef.current);
       }
-    }, 10000);
+    }, 30000); // Increased from 10000 to 30000 (30 seconds)
 
     return () => {
       window.removeEventListener("mousemove", updateActivity);
@@ -189,7 +190,7 @@ function CollaborativeEditor({
 
       // Save content
       saveContent(content);
-    }, 2000), // Wait 2 seconds of inactivity before saving
+    }, 5000), // Increased from 2000 to 5000ms (5 seconds) to reduce database hits
     []
   );
 
@@ -378,72 +379,78 @@ function CollaborativeEditor({
 
   // Load initial content from database or apply AI generated template
   useEffect(() => {
-    if (!editor) return;
+    if (!editor || isContentLoaded) return;
 
     const loadOrApplyContent = async () => {
+      // Wait a bit for collaboration to sync before loading/applying content
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
       let contentToLoad = null;
 
       if (initialContent) {
-        // Instead of replacing all content, insert at current position or append
+        // Check if the editor already has meaningful content from collaboration
         const currentContent = editor.getJSON();
+        const hasExistingContent =
+          (currentContent.content && currentContent.content.length > 1) ||
+          (currentContent.content &&
+            currentContent.content[0] &&
+            currentContent.content[0].content &&
+            currentContent.content[0].content.length > 0);
 
-        // Check if editor has existing content
-        if (currentContent.content && currentContent.content.length > 0) {
-          // Get current cursor position
-          const { from } = editor.state.selection;
-
-          // Insert a line break and then the AI content
-          editor
-            .chain()
-            .focus()
-            .setTextSelection(from)
-            .insertContent([
-              {
-                type: "paragraph",
-                content: [],
-              },
-              ...initialContent.content,
-            ])
-            .run();
-        } else {
-          // If editor is empty, set the content normally
+        if (!hasExistingContent) {
+          // Only apply initial content if editor is truly empty
           editor.commands.setContent(initialContent);
-        }
 
-        // Update refs with the new combined content
-        const newContent = editor.getJSON();
-        lastSavedContentRef.current = newContent;
-        currentContentRef.current = newContent;
-        setSaveStatus("unsaved"); // Mark as unsaved since we added new content
-        setContentChanged(true);
-        toast.success("AI template applied!");
-      } else {
-        // Existing logic for loading from database remains the same
-        try {
-          const response = await axios.get(
-            `/api/workspace/${workspaceId}/document/${documentId}/content`
-          );
-          if (
-            response.data.status === "success" &&
-            response.data.data.content
-          ) {
-            contentToLoad = response.data.data.content;
-          }
-        } catch (error) {
-          console.error("Failed to load document content:", error);
-        }
-
-        if (contentToLoad) {
-          editor.commands.setContent(contentToLoad);
-          lastSavedContentRef.current = contentToLoad;
-          currentContentRef.current = contentToLoad;
-          setSaveStatus("saved");
-          setContentChanged(false);
+          // Update refs with the new content
+          const newContent = editor.getJSON();
+          lastSavedContentRef.current = newContent;
+          currentContentRef.current = newContent;
+          setSaveStatus("unsaved");
+          setContentChanged(true);
+          toast.success("AI template applied!");
         } else {
-          // If no content to load (e.g., new empty document)
-          editor.commands.setContent({});
-          lastSavedContentRef.current = {};
-          currentContentRef.current = {};
+          // If there's already content, don't apply initial content to avoid duplication
+          console.log(
+            "Editor already has content, skipping initial content application"
+          );
+        }
+      } else {
+        // Load content from database only if editor is empty
+        const currentContent = editor.getJSON();
+        const hasExistingContent =
+          (currentContent.content && currentContent.content.length > 1) ||
+          (currentContent.content &&
+            currentContent.content[0] &&
+            currentContent.content[0].content &&
+            currentContent.content[0].content.length > 0);
+
+        if (!hasExistingContent) {
+          try {
+            const response = await axios.get(
+              `/api/workspace/${workspaceId}/document/${documentId}/content`
+            );
+            if (
+              response.data.status === "success" &&
+              response.data.data.content
+            ) {
+              contentToLoad = response.data.data.content;
+            }
+          } catch (error) {
+            console.error("Failed to load document content:", error);
+          }
+
+          if (contentToLoad) {
+            editor.commands.setContent(contentToLoad);
+            lastSavedContentRef.current = contentToLoad;
+            currentContentRef.current = contentToLoad;
+            setSaveStatus("saved");
+            setContentChanged(false);
+          }
+        } else {
+          // If editor has content from collaboration, use that as the baseline
+          const existingContent = editor.getJSON();
+          lastSavedContentRef.current = existingContent;
+          currentContentRef.current = existingContent;
           setSaveStatus("saved");
           setContentChanged(false);
         }
@@ -451,7 +458,8 @@ function CollaborativeEditor({
     };
 
     loadOrApplyContent();
-  }, [editor, workspaceId, documentId, initialContent]);
+    setIsContentLoaded(true);
+  }, [editor, workspaceId, documentId, initialContent, isContentLoaded]);
 
   // Handle keyboard shortcuts
   useEffect(() => {
