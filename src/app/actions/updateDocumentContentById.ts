@@ -1,6 +1,5 @@
 import prisma from "@/lib/prismadb";
 import { User } from "@prisma/client";
-import { pusherServer } from "@/lib/pusher";
 
 // Define TipTap content types
 interface TipTapNode {
@@ -54,6 +53,7 @@ function validateTipTapContent(content: any): TipTapDocument {
   return content;
 }
 
+// Simple notification timeout tracking without external dependencies
 const notificationTimeouts = new Map<string, NodeJS.Timeout>();
 
 export async function updateDocumentContentById(
@@ -85,6 +85,7 @@ export async function updateDocumentContentById(
       };
     }
 
+    // Check if user has access to the workspace
     const membership = await prisma.workspaceMember.findFirst({
       where: {
         workspaceId,
@@ -99,12 +100,16 @@ export async function updateDocumentContentById(
       };
     }
 
+    // Check if document exists and belongs to the workspace
     const document = await prisma.document.findFirst({
       where: {
         id: documentId,
         workspaceId, // Ensure document belongs to workspace
       },
-      select: { title: true },
+      select: {
+        id: true,
+        title: true,
+      },
     });
 
     if (!document) {
@@ -114,6 +119,7 @@ export async function updateDocumentContentById(
       };
     }
 
+    // Get user data
     const user = await prisma.user.findUnique({
       where: { email: currentUser.email },
       select: { id: true, name: true, image: true },
@@ -129,12 +135,14 @@ export async function updateDocumentContentById(
     // Validate and sanitize TipTap content
     const safeContent = validateTipTapContent(content);
 
+    // Check if document content already exists
     const existingContent = await prisma.documentContent.findFirst({
       where: { documentId },
     });
 
     let updatedContent;
     if (existingContent) {
+      // Update existing content
       updatedContent = await prisma.documentContent.update({
         where: { id: existingContent.id },
         data: {
@@ -154,6 +162,7 @@ export async function updateDocumentContentById(
         },
       });
     } else {
+      // Create new content
       updatedContent = await prisma.documentContent.create({
         data: {
           documentId,
@@ -174,7 +183,7 @@ export async function updateDocumentContentById(
       });
     }
 
-    // Update document's updatedAt timestamp
+    // Update document's updatedAt timestamp and updatedBy
     await prisma.document.update({
       where: { id: documentId },
       data: {
@@ -183,42 +192,33 @@ export async function updateDocumentContentById(
       },
     });
 
-    // Send real-time update via Pusher
-    await pusherServer.trigger(
-      `workspace-${workspaceId}`,
-      "document-content-updated",
-      {
-        documentId,
-        content: safeContent,
-        editorEmail,
-        timestamp: new Date().toISOString(),
-        documentName: document?.title,
-        editedBy: {
-          id: currentUser.id,
-          name: currentUser.name,
-          email: currentUser.email,
-          image: currentUser.image,
-        },
-      }
-    );
-
     // Handle delayed notification (after 3 minutes of inactivity)
+    // This creates a database notification without real-time updates
     handleDelayedNotification(
       workspaceId,
       documentId,
       document.title,
       currentUser,
-      safeContent,
-      editorEmail
+      safeContent
     );
 
     return {
       updatedContent,
       content: safeContent,
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error updating document content:", error);
-    throw error;
+
+    // Re-throw structured errors
+    if (error.error_type) {
+      throw error;
+    }
+
+    // Handle unexpected errors
+    throw {
+      error_type: "InternalServerError",
+      message: "Failed to update document content",
+    };
   }
 }
 
@@ -227,16 +227,18 @@ async function handleDelayedNotification(
   documentId: string,
   documentTitle: string,
   currentUser: User,
-  content: TipTapDocument,
-  editorEmail: string
+  content: TipTapDocument
 ) {
+  // Clear existing timeout for this document
   const existingTimeout = notificationTimeouts.get(documentId);
   if (existingTimeout) {
     clearTimeout(existingTimeout);
   }
 
+  // Set new timeout for delayed notification
   const timeout = setTimeout(async () => {
     try {
+      // Create notification in database
       await prisma.notification.create({
         data: {
           workspaceId,
@@ -247,33 +249,18 @@ async function handleDelayedNotification(
         },
       });
 
-      await pusherServer.trigger(
-        `notification-${workspaceId}`,
-        "document-content-updated",
-        {
-          documentId,
-          content,
-          editorEmail,
-          timestamp: new Date().toISOString(),
-          documentName: documentTitle,
-          editedBy: {
-            id: currentUser.id,
-            name: currentUser.name,
-            image: currentUser.image,
-          },
-        }
-      );
-
+      // Remove timeout from map
       notificationTimeouts.delete(documentId);
 
       console.log(
-        `Delayed notification sent for document: ${documentId} after 3 minutes`
+        `Delayed notification created for document: ${documentId} after 3 minutes`
       );
     } catch (error) {
-      console.error("Error sending delayed notification:", error);
+      console.error("Error creating delayed notification:", error);
       notificationTimeouts.delete(documentId);
     }
   }, 180000); // 3 minutes
 
+  // Store timeout reference
   notificationTimeouts.set(documentId, timeout);
 }

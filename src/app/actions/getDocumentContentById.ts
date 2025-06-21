@@ -1,211 +1,66 @@
 import prisma from "@/lib/prismadb";
 import { User } from "@prisma/client";
 
-// Define TipTap content types
-interface TipTapNode {
-  type: string;
-  attrs?: Record<string, any>;
-  content?: TipTapNode[];
-  marks?: Array<{ type: string; attrs?: Record<string, any> }>;
-  text?: string;
-}
-
-interface TipTapDocument {
-  type: "doc";
-  content?: TipTapNode[];
-}
-
-// Type guard to check if content is a valid TipTap document
-function isTipTapDocument(content: any): content is TipTapDocument {
-  return (
-    content &&
-    typeof content === "object" &&
-    content.type === "doc" &&
-    (content.content === undefined || Array.isArray(content.content))
-  );
-}
-
-// Function to create default TipTap content
-function createDefaultTipTapContent(): TipTapDocument {
-  return {
-    type: "doc",
-    content: [
-      {
-        type: "paragraph",
-      },
-    ],
-  };
-}
-
-// Function to convert legacy content to TipTap format
-function convertToTipTapFormat(content: any): TipTapDocument {
-  // If content is already in TipTap format
-  if (isTipTapDocument(content)) {
-    return content;
-  }
-
-  // If content is a string, convert to paragraph
-  if (typeof content === "string" && content.trim()) {
-    return {
-      type: "doc",
-      content: [
-        {
-          type: "paragraph",
-          content: [
-            {
-              type: "text",
-              text: content,
-            },
-          ],
-        },
-      ],
-    };
-  }
-
-  // If content is Editor.js format (has blocks array)
-  if (content && typeof content === "object" && Array.isArray(content.blocks)) {
-    const tipTapContent: TipTapNode[] = [];
-
-    content.blocks.forEach((block: any) => {
-      switch (block.type) {
-        case "paragraph":
-          if (block.data?.text) {
-            tipTapContent.push({
-              type: "paragraph",
-              content: [
-                {
-                  type: "text",
-                  text: block.data.text,
-                },
-              ],
-            });
-          } else {
-            tipTapContent.push({ type: "paragraph" });
-          }
-          break;
-        case "header":
-          tipTapContent.push({
-            type: "heading",
-            attrs: {
-              level: block.data?.level || 1,
-            },
-            content: block.data?.text
-              ? [
-                  {
-                    type: "text",
-                    text: block.data.text,
-                  },
-                ]
-              : undefined,
-          });
-          break;
-        case "list":
-          tipTapContent.push({
-            type:
-              block.data?.style === "ordered" ? "orderedList" : "bulletList",
-            content:
-              block.data?.items?.map((item: string) => ({
-                type: "listItem",
-                content: [
-                  {
-                    type: "paragraph",
-                    content: [
-                      {
-                        type: "text",
-                        text: item,
-                      },
-                    ],
-                  },
-                ],
-              })) || [],
-          });
-          break;
-        default:
-          // For unknown block types, convert to paragraph
-          if (block.data?.text) {
-            tipTapContent.push({
-              type: "paragraph",
-              content: [
-                {
-                  type: "text",
-                  text: block.data.text,
-                },
-              ],
-            });
-          }
-      }
-    });
-
-    return {
-      type: "doc",
-      content:
-        tipTapContent.length > 0 ? tipTapContent : [{ type: "paragraph" }],
-    };
-  }
-
-  // If content is an array, try to use it as TipTap content
-  if (Array.isArray(content)) {
-    return {
-      type: "doc",
-      content: content.length > 0 ? content : [{ type: "paragraph" }],
-    };
-  }
-
-  // Default fallback
-  return createDefaultTipTapContent();
-}
-
 export async function getDocumentContentById(
   documentId: string,
-  currentUser?: User,
-  workspaceId?: string
+  currentUser: User,
+  workspaceId: string
 ) {
   try {
-    if (!documentId) {
+    if (!currentUser?.id || !currentUser?.email) {
       throw {
-        error_type: "BadRequest",
-        message: "Document ID is required",
+        error_type: "Unauthorized",
+        message: "Unauthorized access",
       };
     }
 
-    // If user and workspace are provided, check permissions
-    if (currentUser && workspaceId) {
-      const membership = await prisma.workspaceMember.findFirst({
-        where: {
-          workspaceId,
-          userId: currentUser.id,
-        },
-      });
-
-      if (!membership) {
-        throw {
-          error_type: "Forbidden",
-          message: "You do not have access to this workspace",
-        };
-      }
-
-      // Verify document belongs to workspace
-      const document = await prisma.document.findFirst({
-        where: {
-          id: documentId,
-          workspaceId,
-        },
-      });
-
-      if (!document) {
-        throw {
-          error_type: "NotFound",
-          message: "Document not found in this workspace",
-        };
-      }
+    if (!workspaceId || !documentId) {
+      throw {
+        error_type: "BadRequest",
+        message: "workspaceId and documentId are required",
+      };
     }
 
-    const documentContent = await prisma.documentContent.findFirst({
-      where: { documentId },
-      orderBy: { editedAt: "desc" },
+    // Check if user has access to the workspace
+    const membership = await prisma.workspaceMember.findFirst({
+      where: {
+        workspaceId,
+        userId: currentUser.id,
+      },
+    });
+
+    if (!membership) {
+      throw {
+        error_type: "Forbidden",
+        message: "You do not have access to this workspace",
+      };
+    }
+
+    // Check if document exists and belongs to the workspace
+    const document = await prisma.document.findFirst({
+      where: {
+        id: documentId,
+        workspaceId, // Ensure document belongs to workspace
+      },
       select: {
-        content: true,
-        editedAt: true,
+        id: true,
+        title: true,
+      },
+    });
+
+    if (!document) {
+      throw {
+        error_type: "NotFound",
+        message: "Document not found in this workspace",
+      };
+    }
+
+    // Get document content
+    const documentContent = await prisma.documentContent.findFirst({
+      where: {
+        documentId,
+      },
+      include: {
         editedBy: {
           select: {
             id: true,
@@ -215,27 +70,25 @@ export async function getDocumentContentById(
           },
         },
       },
+      orderBy: {
+        editedAt: "desc",
+      },
     });
 
-    if (!documentContent) {
-      // Return default TipTap content structure if no content exists
-      return {
-        content: createDefaultTipTapContent(),
-        editedAt: new Date(),
-        editedBy: null,
-      };
+    // Return the content or null if not found
+    return documentContent;
+  } catch (error: any) {
+    console.error("Error fetching document content by ID:", error);
+
+    // Re-throw structured errors
+    if (error.error_type) {
+      throw error;
     }
 
-    // Convert content to TipTap format
-    const tipTapContent = convertToTipTapFormat(documentContent.content);
-
-    return {
-      content: tipTapContent,
-      editedAt: documentContent.editedAt,
-      editedBy: documentContent.editedBy,
+    // Handle unexpected errors
+    throw {
+      error_type: "InternalServerError",
+      message: "Failed to fetch document content",
     };
-  } catch (error) {
-    console.error("Error fetching document content:", error);
-    throw error;
   }
 }
