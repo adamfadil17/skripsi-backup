@@ -123,6 +123,8 @@ function CollaborativeEditor({
   // Track if a save is in progress
   const isSavingRef = useRef<boolean>(false);
 
+  console.log(initialContent);
+
   // Initialize Yjs document and provider
   useEffect(() => {
     const yDoc = new Y.Doc();
