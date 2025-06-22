@@ -379,7 +379,6 @@ function CollaborativeEditor({
     [yDoc, provider]
   );
 
-  // Load initial content from database or apply AI generated template
   useEffect(() => {
     if (!editor || isContentLoaded) return;
 
@@ -431,6 +430,26 @@ function CollaborativeEditor({
 
     loadOrApplyContent();
   }, [editor, workspaceId, documentId, initialContent, isContentLoaded]);
+
+  useEffect(() => {
+    if (!editor || !initialContent?.content?.length || !isContentLoaded) return;
+
+    editor
+      .chain()
+      .focus()
+      .insertContentAt(0, [
+        ...initialContent.content,
+        { type: "paragraph", content: [] }, // spacer
+      ])
+      .run();
+
+    const updated = editor.getJSON();
+    lastSavedContentRef.current = updated;
+    currentContentRef.current = updated;
+    setSaveStatus("unsaved");
+    setContentChanged(true);
+    toast.success("AI content added at the top");
+  }, [initialContent, editor, isContentLoaded]);
 
   // Handle keyboard shortcuts
   useEffect(() => {
