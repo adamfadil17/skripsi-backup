@@ -123,8 +123,6 @@ function CollaborativeEditor({
   // Track if a save is in progress
   const isSavingRef = useRef<boolean>(false);
 
-  console.log(initialContent);
-
   // Initialize Yjs document and provider
   useEffect(() => {
     const yDoc = new Y.Doc();
@@ -279,7 +277,7 @@ function CollaborativeEditor({
           HTMLAttributes: {
             class: "max-w-full h-auto rounded-lg shadow-sm my-4 mx-auto block",
             loading: "lazy",
-            crossorigin: "anonymous", // Add CORS support
+            referrerPolicy: "no-referrer",
           },
         }),
         Link.configure({

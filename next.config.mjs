@@ -2,14 +2,22 @@
 const nextConfig = {
   images: {
     domains: [
-      'res.cloudinary.com',
-      'avatars.githubusercontent.com',
-      'lh3.googleusercontent.com',
-      'img.freepik.com',
+      "res.cloudinary.com",
+      "avatars.githubusercontent.com",
+      "lh3.googleusercontent.com",
+      "img.freepik.com",
+    ],
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "res.cloudinary.com",
+        port: "",
+        pathname: "/**",
+      },
     ],
   },
   experimental: {
-    serverComponentsExternalPackages: ['bcrypt', '@mapbox/node-pre-gyp'],
+    serverComponentsExternalPackages: ["bcrypt", "@mapbox/node-pre-gyp"],
   },
   eslint: {
     ignoreDuringBuilds: true,
