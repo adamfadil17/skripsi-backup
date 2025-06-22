@@ -387,80 +387,49 @@ function CollaborativeEditor({
       // Wait a bit for collaboration to sync before loading/applying content
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
+      // 1. Load konten dari database terlebih dahulu
       let contentToLoad = null;
+      try {
+        const response = await axios.get(
+          `/api/workspace/${workspaceId}/document/${documentId}/content`
+        );
 
-      if (initialContent) {
-        // Check if the editor already has meaningful content from collaboration
-        const currentContent = editor.getJSON();
-        const hasExistingContent =
-          (currentContent.content && currentContent.content.length > 1) ||
-          (currentContent.content &&
-            currentContent.content[0] &&
-            currentContent.content[0].content &&
-            currentContent.content[0].content.length > 0);
+        if (response.data.status === "success" && response.data.data.content) {
+          contentToLoad = response.data.data.content;
+          editor.commands.setContent(contentToLoad);
 
-        if (!hasExistingContent) {
-          // Only apply initial content if editor is truly empty
-          editor.commands.setContent(initialContent);
-
-          // Update refs with the new content
-          const newContent = editor.getJSON();
-          lastSavedContentRef.current = newContent;
-          currentContentRef.current = newContent;
-          setSaveStatus("unsaved");
-          setContentChanged(true);
-          toast.success("AI template applied!");
-        } else {
-          // If there's already content, don't apply initial content to avoid duplication
-          console.log(
-            "Editor already has content, skipping initial content application"
-          );
-        }
-      } else {
-        // Load content from database only if editor is empty
-        const currentContent = editor.getJSON();
-        const hasExistingContent =
-          (currentContent.content && currentContent.content.length > 1) ||
-          (currentContent.content &&
-            currentContent.content[0] &&
-            currentContent.content[0].content &&
-            currentContent.content[0].content.length > 0);
-
-        if (!hasExistingContent) {
-          try {
-            const response = await axios.get(
-              `/api/workspace/${workspaceId}/document/${documentId}/content`
-            );
-            if (
-              response.data.status === "success" &&
-              response.data.data.content
-            ) {
-              contentToLoad = response.data.data.content;
-            }
-          } catch (error) {
-            console.error("Failed to load document content:", error);
-          }
-
-          if (contentToLoad) {
-            editor.commands.setContent(contentToLoad);
-            lastSavedContentRef.current = contentToLoad;
-            currentContentRef.current = contentToLoad;
-            setSaveStatus("saved");
-            setContentChanged(false);
-          }
-        } else {
-          // If editor has content from collaboration, use that as the baseline
-          const existingContent = editor.getJSON();
-          lastSavedContentRef.current = existingContent;
-          currentContentRef.current = existingContent;
+          lastSavedContentRef.current = contentToLoad;
+          currentContentRef.current = contentToLoad;
           setSaveStatus("saved");
           setContentChanged(false);
         }
+      } catch (error) {
+        console.error("Failed to load document content:", error);
       }
+
+      // 2. Sisipkan konten AI (initialContent) ke posisi awal dokumen
+      if (initialContent?.content?.length) {
+        editor
+          .chain()
+          .focus()
+          .insertContentAt(0, [
+            ...initialContent.content,
+            { type: "paragraph", content: [] }, // spacer
+          ])
+          .run();
+
+        const updated = editor.getJSON();
+        lastSavedContentRef.current = updated;
+        currentContentRef.current = updated;
+        setSaveStatus("unsaved");
+        setContentChanged(true);
+        toast.success("AI output inserted at top");
+      }
+
+      setIsContentLoaded(true);
     };
 
     loadOrApplyContent();
-    setIsContentLoaded(true);
   }, [editor, workspaceId, documentId, initialContent, isContentLoaded]);
 
   // Handle keyboard shortcuts
