@@ -277,6 +277,9 @@ function CollaborativeEditor({
           HTMLAttributes: {
             class: "max-w-full h-auto rounded-lg shadow-sm my-4 mx-auto block",
             loading: "lazy",
+            crossOrigin: "anonymous", // Add this to handle CORS
+            onError:
+              "this.style.display='none'; this.parentNode.innerHTML='<div class=\"text-red-500 p-4 border border-red-300 rounded\">Failed to load image</div>';",
             referrerPolicy: "no-referrer",
           },
         }),

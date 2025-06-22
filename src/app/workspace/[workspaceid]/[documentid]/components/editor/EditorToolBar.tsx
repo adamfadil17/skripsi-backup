@@ -58,28 +58,6 @@ export function EditorToolbar({ editor, onSave }: EditorToolbarProps) {
     }
   };
 
-  const addImage = () => {
-    const url = window.prompt("Enter image URL:");
-    if (url) {
-      // Validate URL format
-      try {
-        new URL(url);
-        editor
-          .chain()
-          .focus()
-          .setImage({
-            src: url,
-            alt: "Inserted image",
-            title: "Inserted image",
-          })
-          .run();
-        toast.success("Image added successfully!");
-      } catch (error) {
-        toast.error("Please enter a valid image URL");
-      }
-    }
-  };
-
   const insertTable = () => {
     editor
       .chain()
@@ -92,37 +70,69 @@ export function EditorToolbar({ editor, onSave }: EditorToolbarProps) {
   const isInTable = editor.isActive("table");
 
   // Enhanced Cloudinary upload handler
+  // Enhanced Cloudinary upload handler with better error handling
   const handleCloudinarySuccess = (result: any) => {
-    console.log("Cloudinary Upload Result:", result);
+    console.log("Full Cloudinary Upload Result:", result);
+
+    // Check multiple possible paths for the image URL
+    let imageUrl = null;
 
     if (result?.info?.secure_url) {
+      imageUrl = result.info.secure_url;
+    } else if (result?.info?.url) {
+      imageUrl = result.info.url;
+    } else if (result?.secure_url) {
+      imageUrl = result.secure_url;
+    } else if (result?.url) {
+      imageUrl = result.url;
+    }
+
+    if (imageUrl) {
       try {
-        // Insert image with proper attributes
+        // Transform Cloudinary URL to use fetch mode to avoid CORS issues
+        const transformedUrl = imageUrl.replace(
+          "/upload/",
+          "/upload/f_auto,q_auto/"
+        );
+
+        console.log("Original URL:", imageUrl);
+        console.log("Transformed URL:", transformedUrl);
+
+        // Insert image with proper attributes and error handling
         editor
           .chain()
           .focus()
           .setImage({
-            src: result.info.secure_url,
-            alt: result.info.original_filename || "Uploaded image",
-            title: result.info.original_filename || "Uploaded image",
+            src: transformedUrl,
+            alt: result.info?.original_filename || "Uploaded image",
+            title: result.info?.original_filename || "Uploaded image",
           })
           .run();
 
         toast.success("Image uploaded and inserted successfully!");
-        console.log("Image inserted with URL:", result.info.secure_url);
+        console.log("Image inserted with URL:", transformedUrl);
+
+        // Verify the image was inserted
+        setTimeout(() => {
+          if (editor.isActive("image")) {
+            console.log("Image successfully inserted into editor");
+          } else {
+            console.warn("Image may not have been inserted properly");
+          }
+        }, 100);
       } catch (error) {
         console.error("Error inserting image:", error);
         toast.error("Failed to insert image into editor");
       }
     } else {
-      console.error("Secure URL not found in Cloudinary result:", result);
+      console.error("No image URL found in Cloudinary result:", result);
       toast.error("Upload successful but failed to get image URL");
     }
   };
 
   const handleCloudinaryError = (error: any) => {
     console.error("Cloudinary upload error:", error);
-    toast.error("Failed to upload image");
+    toast.error("Failed to upload image to Cloudinary");
   };
 
   return (

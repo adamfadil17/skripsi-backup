@@ -22,6 +22,21 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          {
+            key: "Content-Security-Policy",
+            value:
+              "img-src 'self' data: https://res.cloudinary.com https://*.cloudinary.com blob:;",
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;
