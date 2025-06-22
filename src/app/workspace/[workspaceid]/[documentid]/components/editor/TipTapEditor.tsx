@@ -109,7 +109,6 @@ function CollaborativeEditor({
   const [saveStatus, setSaveStatus] = useState<SaveStatusType>("saved");
   const [contentChanged, setContentChanged] = useState(false);
   const [isContentLoaded, setIsContentLoaded] = useState(false);
-  const [isCollaborationReady, setIsCollaborationReady] = useState(false);
 
   // Store the last saved content to compare for changes
   const lastSavedContentRef = useRef<any>(null);
@@ -123,18 +122,11 @@ function CollaborativeEditor({
   const lastActivityRef = useRef<number>(Date.now());
   // Track if a save is in progress
   const isSavingRef = useRef<boolean>(false);
-  // Track if initial content has been applied
-  const initialContentAppliedRef = useRef<boolean>(false);
 
   // Initialize Yjs document and provider
   useEffect(() => {
     const yDoc = new Y.Doc();
     const yProvider = new LiveblocksYjsProvider(room, yDoc);
-
-    // Wait for provider to be ready
-    yProvider.on("synced", () => {
-      setIsCollaborationReady(true);
-    });
 
     setYDoc(yDoc);
     setProvider(yProvider);
@@ -163,14 +155,14 @@ function CollaborativeEditor({
       const idleTime = Date.now() - lastActivityRef.current;
       // If user has been idle for 60+ seconds and there are unsaved changes, save them
       if (
-        idleTime > 60000 && // 1 minute
+        idleTime > 60000 && // Increased from 30000 to 60000 (1 minute)
         contentChanged &&
         !isSavingRef.current &&
         currentContentRef.current
       ) {
         saveContent(currentContentRef.current);
       }
-    }, 30000); // 30 seconds
+    }, 30000); // Increased from 10000 to 30000 (30 seconds)
 
     return () => {
       window.removeEventListener("mousemove", updateActivity);
@@ -198,7 +190,7 @@ function CollaborativeEditor({
 
       // Save content
       saveContent(content);
-    }, 5000), // 5 seconds to reduce database hits
+    }, 5000), // Increased from 2000 to 5000ms (5 seconds) to reduce database hits
     []
   );
 
@@ -244,24 +236,6 @@ function CollaborativeEditor({
     }
   }, []);
 
-  // Helper function to check if content is empty
-  const isContentEmpty = (content: any) => {
-    if (!content || !content.content) return true;
-
-    // Check if it's just an empty paragraph
-    if (content.content.length === 1) {
-      const firstNode = content.content[0];
-      if (
-        firstNode.type === "paragraph" &&
-        (!firstNode.content || firstNode.content.length === 0)
-      ) {
-        return true;
-      }
-    }
-
-    return content.content.length === 0;
-  };
-
   const editor = useEditor(
     {
       extensions: [
@@ -296,13 +270,14 @@ function CollaborativeEditor({
         TextAlign.configure({
           types: ["heading", "paragraph"],
         }),
+        // Enhanced Image configuration with better error handling and styling
         Image.configure({
-          inline: false,
+          inline: false, // Changed from true to false for better display
           allowBase64: true,
           HTMLAttributes: {
             class: "max-w-full h-auto rounded-lg shadow-sm my-4 mx-auto block",
             loading: "lazy",
-            crossorigin: "anonymous",
+            crossorigin: "anonymous", // Add CORS support
           },
         }),
         Link.configure({
@@ -311,6 +286,7 @@ function CollaborativeEditor({
             class: "text-blue-500 underline cursor-pointer",
           },
         }),
+        // Enhanced Table configuration with more options
         Table.configure({
           resizable: true,
           HTMLAttributes: {
@@ -349,7 +325,9 @@ function CollaborativeEditor({
           class:
             "prose prose-lg max-w-none focus:outline-none min-h-[500px] p-4",
         },
+        // Add custom image handling
         handleDOMEvents: {
+          // Handle image load errors
           error: (view, event) => {
             const target = event.target as HTMLElement;
             if (target.tagName === "IMG") {
@@ -357,6 +335,7 @@ function CollaborativeEditor({
                 "Image failed to load:",
                 target.getAttribute("src")
               );
+              // You could replace with a placeholder image here
               target.setAttribute("alt", "Failed to load image");
               target.style.border = "2px dashed #ccc";
               target.style.padding = "20px";
@@ -398,153 +377,89 @@ function CollaborativeEditor({
     [yDoc, provider]
   );
 
-  // Load and apply content with improved logic
+  // Load initial content from database or apply AI generated template
   useEffect(() => {
-    if (!editor || isContentLoaded || !isCollaborationReady) return;
+    if (!editor || isContentLoaded) return;
 
-    const loadAndApplyContent = async () => {
-      try {
-        // Wait for collaboration to sync
-        await new Promise((resolve) => setTimeout(resolve, 500));
+    const loadOrApplyContent = async () => {
+      // Wait a bit for collaboration to sync before loading/applying content
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
-        // First, load existing content from database if available
-        let existingDbContent = null;
-        try {
-          const response = await axios.get(
-            `/api/workspace/${workspaceId}/document/${documentId}/content`
-          );
+      let contentToLoad = null;
 
-          if (
-            response.data.status === "success" &&
-            response.data.data.content
-          ) {
-            existingDbContent = response.data.data.content;
-          }
-        } catch (error) {
-          console.error("Failed to load existing document content:", error);
-        }
+      if (initialContent) {
+        // Check if the editor already has meaningful content from collaboration
+        const currentContent = editor.getJSON();
+        const hasExistingContent =
+          (currentContent.content && currentContent.content.length > 1) ||
+          (currentContent.content &&
+            currentContent.content[0] &&
+            currentContent.content[0].content &&
+            currentContent.content[0].content.length > 0);
 
-        // Get current editor content from collaboration
-        const currentEditorContent = editor.getJSON();
-        const editorHasContent = !isContentEmpty(currentEditorContent);
+        if (!hasExistingContent) {
+          // Only apply initial content if editor is truly empty
+          editor.commands.setContent(initialContent);
 
-        console.log("Editor has content:", editorHasContent);
-        console.log(
-          "Database has content:",
-          !!existingDbContent && !isContentEmpty(existingDbContent)
-        );
-        console.log("AI content provided:", !!initialContent);
-        console.log(
-          "AI content applied before:",
-          initialContentAppliedRef.current
-        );
-
-        // Determine the base content to work with
-        let baseContent = null;
-
-        if (editorHasContent) {
-          // Use editor content (from collaboration) as base
-          baseContent = currentEditorContent;
-          console.log("Using editor content as base");
-        } else if (existingDbContent && !isContentEmpty(existingDbContent)) {
-          // Use database content as base
-          baseContent = existingDbContent;
-          console.log("Using database content as base");
-        }
-
-        // Apply AI content if provided
-        if (initialContent && !initialContentAppliedRef.current) {
-          console.log("Applying AI-generated content to document...");
-
-          let finalContent;
-
-          if (baseContent && !isContentEmpty(baseContent)) {
-            // Merge AI content at the beginning of existing content
-            console.log("Merging AI content with existing content...");
-
-            const aiContent =
-              typeof initialContent === "string"
-                ? JSON.parse(initialContent)
-                : initialContent;
-
-            // Create merged content with AI content first, then existing content
-            finalContent = {
-              type: "doc",
-              content: [
-                ...(aiContent.content || []),
-                // Add a separator paragraph
-                {
-                  type: "paragraph",
-                  content: [],
-                },
-                // Add existing content
-                ...(baseContent.content || []),
-              ],
-            };
-
-            toast.success("AI content added to the beginning of document!");
-          } else {
-            // No existing content, just use AI content
-            console.log("No existing content, using AI content only...");
-            finalContent = initialContent;
-            toast.success("AI template applied successfully!");
-          }
-
-          // Apply the merged content
-          editor.commands.setContent(finalContent);
-
-          // Update tracking variables
-          lastSavedContentRef.current = finalContent;
-          currentContentRef.current = finalContent;
-          initialContentAppliedRef.current = true;
-
-          // Mark as unsaved since this is new content
+          // Update refs with the new content
+          const newContent = editor.getJSON();
+          lastSavedContentRef.current = newContent;
+          currentContentRef.current = newContent;
           setSaveStatus("unsaved");
           setContentChanged(true);
+          toast.success("AI template applied!");
+        } else {
+          // If there's already content, don't apply initial content to avoid duplication
+          console.log(
+            "Editor already has content, skipping initial content application"
+          );
+        }
+      } else {
+        // Load content from database only if editor is empty
+        const currentContent = editor.getJSON();
+        const hasExistingContent =
+          (currentContent.content && currentContent.content.length > 1) ||
+          (currentContent.content &&
+            currentContent.content[0] &&
+            currentContent.content[0].content &&
+            currentContent.content[0].content.length > 0);
 
-          // Auto-save the content after a short delay
-          setTimeout(() => {
-            if (currentContentRef.current) {
-              saveContent(currentContentRef.current);
+        if (!hasExistingContent) {
+          try {
+            const response = await axios.get(
+              `/api/workspace/${workspaceId}/document/${documentId}/content`
+            );
+            if (
+              response.data.status === "success" &&
+              response.data.data.content
+            ) {
+              contentToLoad = response.data.data.content;
             }
-          }, 1000);
-        } else if (baseContent && !editorHasContent) {
-          // No AI content, but we have base content to load
-          console.log("Loading base content without AI...");
+          } catch (error) {
+            console.error("Failed to load document content:", error);
+          }
 
-          editor.commands.setContent(baseContent);
-
-          // Update tracking variables
-          lastSavedContentRef.current = baseContent;
-          currentContentRef.current = baseContent;
-          setSaveStatus("saved");
-          setContentChanged(false);
-        } else if (editorHasContent) {
-          // Editor already has content from collaboration, use it
-          console.log("Using existing editor content...");
-
-          lastSavedContentRef.current = currentEditorContent;
-          currentContentRef.current = currentEditorContent;
+          if (contentToLoad) {
+            editor.commands.setContent(contentToLoad);
+            lastSavedContentRef.current = contentToLoad;
+            currentContentRef.current = contentToLoad;
+            setSaveStatus("saved");
+            setContentChanged(false);
+          }
+        } else {
+          // If editor has content from collaboration, use that as the baseline
+          const existingContent = editor.getJSON();
+          lastSavedContentRef.current = existingContent;
+          currentContentRef.current = existingContent;
           setSaveStatus("saved");
           setContentChanged(false);
         }
-      } catch (error) {
-        console.error("Error in content loading process:", error);
-        toast.error("Failed to load document content");
-      } finally {
-        setIsContentLoaded(true);
       }
     };
 
-    loadAndApplyContent();
-  }, [
-    editor,
-    workspaceId,
-    documentId,
-    initialContent,
-    isContentLoaded,
-    isCollaborationReady,
-  ]);
+    loadOrApplyContent();
+    setIsContentLoaded(true);
+  }, [editor, workspaceId, documentId, initialContent, isContentLoaded]);
 
   // Handle keyboard shortcuts
   useEffect(() => {
